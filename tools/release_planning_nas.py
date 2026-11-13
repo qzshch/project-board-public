@@ -8,6 +8,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import subprocess
 import sys
 import time
@@ -37,8 +38,10 @@ def main():
     lifecycle.write(E/'SOURCE.json',{'commit':commit,'source':source,'files':manifest})
     report={'complete':False,'commit':commit,'source':source,'url':URL,'started':time.time()}
     def remote(script,purpose,timeout=100):
-        code,out,err=run(['ssh','-i','C:/Users/example-user/.ssh/nas_key','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes','example-owner@192.0.2.10','python3 -'],input_data=script.encode('utf8'),cwd=ROOT,evidence=E,purpose=purpose,timeout=timeout)
-        if code:raise RuntimeError(err.decode('utf8',errors='replace')[-1800:])
+        code,out,err=run(['ssh','-i','C:/Users/example-user/.ssh/nas_key','-o','BatchMode=yes','-o','ConnectTimeout=8','-o','StrictHostKeyChecking=yes','example-owner@192.0.2.10',shlex.quote(NAS+'/.venv/bin/python')+' -B -X utf8 -'],input_data=script.encode('utf8'),cwd=ROOT,evidence=E,purpose=purpose,timeout=timeout)
+        if code:
+            (E/('remote-failure-'+str(time.time_ns())+'.log')).write_bytes(out+err)
+            raise RuntimeError(err.decode('utf8',errors='replace')[-1800:])
         return json.loads(out)
     # The NAS test suite writes only new, owned release-local fixtures and
     # records child identities. No production identities are used by fixtures.
