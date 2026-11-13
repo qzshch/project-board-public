@@ -107,3 +107,7 @@ textures/
 *.zip
 .env
 .env.*
+
+# Historical reference snapshot stays local/NAS.
+legacy-v2/
+local-archives/

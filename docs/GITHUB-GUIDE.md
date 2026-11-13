@@ -50,3 +50,5 @@ POST 根采用 `{request_id,expected_revision,action,payload}`，同身份同请
 实现依据：[Git log](https://git-scm.com/docs/git-log)、[Git blame](https://git-scm.com/docs/git-blame)、[GitHub部署密钥](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/managing-deploy-keys)。
 
 CLI冻结和发送：`python client.py --profile <本项目身份> prepare-git --action bind --payload <已填写git-binding.json> --out <证据目录>/git-bind-request.json`，再使用`request --endpoint /api/git --payload <原请求文件> --out <回执文件>`。绑定、存储边界、任务关联和同步请求模板均在[模板目录](/help/templates)。
+
+本产品既有的legacy-v2参考快照与原始交接/验收记录也按此规则保留到本地/server，当前源码只留交接索引与验收流程；原件及SHA映射由管理员保管，既有Git历史不改写。路径检查不能替代内容、许可和密钥审查。

@@ -1,35 +1,11 @@
-# 本轮实际验收（2026-11-13）
+# 验收流程与证据存放
 
+本仓库只保存验收标准、测试代码和操作方法。实际测试结果、原始日志、截图、运行数据及失败记录保存在本地/server，不纳入Git。
 
-当前修正验收：正式服务已部署到server `http://example-server.example-tailnet.ts.net:18785`；PC主应用与旧18785入口已停止。server systemd用户服务已enable、Linger=yes，并完成快速重启读回。PC和server本机分别运行88项独立回归，全部通过，无跳过；图布局Node行为检查通过；server实际界面29项检查通过。
+- 行为回归：运行 `python tools/run_checks.py`，查看本地 `evidence/checks/<批次>/RESULT.json` 与逐项日志；失败和超时不能写成通过。
+- 真实界面：`tools/git_ui_check.py` 验证提交图、差异、重命名历史、逐行溯源、表单幂等与角色边界；`tools/evolution_ui_check.py` 验证治理、时间、测试和资产。桌面/手机、浅深色均需实际渲染。
+- server运行：一致性备份后切换已提交源码，实测回滚与重启。同步器先停再备份；保留全部任务、治理、操作和Git审计链及项目权限。
+- 自动化结果须绑定当前任务范围、固定Git输入、实际退出码、逐用例结果和产物SHA。旧范围或旧输入结果只留历史，不替代新验收。
+- 正式报告与原始证据按RUNBOOK归档server，包含跨项目信息的管理员包不得给普通Agent；身份与私有恢复包单独保管。
 
-关系图包含dhy330个节点、8条已记录硬依赖和190条层级关系；公告板18个节点、21条硬依赖。层级不是执行前置；未知原子分类仍显示，未知依赖不编造。任务族筛选/定位/缩放/滚动/点击详情均实跑。交付与验收队列只在“任务与验收”tab，其他tab独立展示。
-
-演练项目、身份、资产可见版本、生成文件和旧PC运行数据已按用户新要求移除；只保留不可变审计与清理摘要。下面涉及演练的旧验收属于历史通过，原始演练数据/源码bundle现已清理，不能再按旧链接取得。当前完整证据与清理记录在 `evidence/nas-ui-20261113/FINAL.json`。
-
-以下为之前PC部署阶段的历史验收范围：
-
-本项目独立仓库的实跑证据，不借用旧位置76项通过。原交接与legacy-v2历史保留，不改写原业务任务或事件。
-
-| 范围 | 本轮结果 | 本机证据 |
-|---|---|---|
-| 基线 | 26份参考文件逐字节SHA复核；独立private远端已建立 | evidence/independence-20261113/BASELINE.json |
-| 独立回归 | 85项通过，无失败/错误/跳过；含原状态机/权限兼容和新增治理/资产/交付反例 | evidence/checks/20261113-191302/RESULT.json及stderr.log |
-| 空安装 | 真实空状态启动/新建项目/专属身份/领取/重启/原回执读回，7项通过；临时状态与服务已清理 | evidence/standalone/20261113-191411/RESULT.json |
-| 迁移 | 停服一致性完整备份、独立候选启动、原代码原状态真实回滚、再次切换及完整重启 | evidence/migration/20261113/MIGRATION.json |
-| 原历史 | dhy仍330任务/335事件，head df30c6125fae27a53bb9ba721c20922b00caa8c83ea4b16ac5e339506e4a19e6；原凭据作用域/回执保留 | migration与live结果 |
-| 正式URL | 专属owner会话仅见本项目，跨项目/旧路径拒绝、下载字节一致、四种尺寸/主题无横溢，15项通过 | evidence/deployed-ui/20261113-191810/RESULT.json |
-| GUI | 实际Edge 1280/375、浅/深色；18项通过，表单保存、分类、图、切项目与撤权清空；无JS错误/横向溢出；辅助进程归零 | evidence/ui/20261113-191207/RESULT.json及截图 |
-| 全新项目/角色 | onboarding-20261113-190645；研究、开发、文档、测试四角色通过真实server执行13次操作；有实际失败测试→返修→重提→审核→Git分支合并→运行验收→SE接受交接 | evidence/drill/20261113-190645/RESULT.json、各原始角色结果、artifacts.bundle |
-| 独立可重跑测试产物 | bundle包含真正可执行的tests/label/test_normalize.py；独立测试角色在server运行该文件，对合并后源码SHA进行4项行为/反例检查 | demo-test-generate与Git bundle |
-| 契约影响 | 未确认切换409；直接/反向/耦合范围固定；各相关角色确认后执行；旧版本与提案审计保留 | 治理回归及drill原始结果 |
-| 共享资产 | 审核受众、不可变版本、提供方更新不浮动消费、显式升级/弃用/撤回；每任务另锁真实版本/SHA，项目alias升级不改旧任务，撤回检查旧锁 | 回归与evidence/live/20261113-191205/RESULT.json（13项） |
-| 交接与清理 | 接受后原owner管理降权；临时执行身份撤销，只保留项目专属继承owner；server临时文件和本地工程脚手架已清理，正式源码历史保留bundle | drill结果与processes.jsonl |
-
-本轮早期失败记录保留：一次脚本把Git正常stderr误判为失败；一次远端Tailscale读请求暂时不可达，后续无凭据健康探测确认服务/转发正常；另一次全流程已完成后Windows只读Git对象清理失败，已验证bundle后按精确归属清理并单独记录恢复。未删除失败断言或改写旧结果。最新成功演练已运行提交的真实测试文件，且finally清理完整。
-
-`legacy-v2/test_handoff.py` 与原check_board_delivery.py是dhy专项foundation门禁，不纳入通用依赖；新通用tools/check_delivery.py用真实范围、基线、项目、身份、回执、版本/资产锁和允许路径验证，具有独立正反例。
-
-不宣称历史任务包已全部拆成已完成原子任务：本轮仅对公告板17项新升级逐项核定和验收；原dhy任务包仍保留原状态/证据，新图将未核定关系标未知。新项目角色/API授权不构成同Windows账户的文件隔离。
-
-最终代码提交、正式URL验证、任务回执/里程碑完成登记、server逐文件SHA校验及最终资源核对以 evidence/release/20261113/RELEASE.json 为发行清单。私有恢复包和身份只交付位置，不进入源码/普通Agent包。
+原2026-11-13实际验收记录已完整保存在本地 `archives/source-history-20261113/ACCEPTANCE-ORIGINAL.md`，server对应目录为 `<公告板server根>/local-archives/source-history-20261113`。Git忽略规则不清除已有历史；本轮不改写Git历史。
