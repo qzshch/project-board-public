@@ -1,0 +1,125 @@
+{
+  "primitive": {
+    "color": {
+      "neutral": {
+        "50": "#f7fcfe",
+        "100": "#f0f6fa",
+        "200": "#cedae1",
+        "300": "#afbdc6",
+        "400": "#8f9caa",
+        "500": "#707a8f",
+        "600": "#596175",
+        "700": "#43485b",
+        "800": "#2c2f41",
+        "900": "#171827",
+        "950": "#0b0b17"
+      },
+      "primary": {
+        "100": "#ebffff",
+        "200": "#a8f4fc",
+        "300": "#7ad3e6",
+        "400": "#4eadcd",
+        "500": "#2d80a9",
+        "600": "#236798",
+        "700": "#1a5087",
+        "800": "#113b75",
+        "900": "#082663"
+      },
+      "success": {
+        "100": "#ebfffd",
+        "200": "#adf5ec",
+        "300": "#7fdcc7",
+        "400": "#53c09d",
+        "500": "#33996f",
+        "600": "#2a8a5b",
+        "700": "#217b49",
+        "800": "#186b37",
+        "900": "#0f5c27"
+      },
+      "warning": {
+        "100": "#fffceb",
+        "200": "#fff3aa",
+        "300": "#fbd76d",
+        "400": "#e7ab40",
+        "500": "#c9781d",
+        "600": "#b45d13",
+        "700": "#9f4409",
+        "800": "#892c00",
+        "900": "#6b1b00"
+      },
+      "danger": {
+        "100": "#fff4eb",
+        "200": "#ffd3ad",
+        "300": "#f6b379",
+        "400": "#e28150",
+        "500": "#ca402b",
+        "600": "#b4301f",
+        "700": "#9d2113",
+        "800": "#851209",
+        "900": "#6b0600"
+      }
+    },
+    "space": [
+      4,
+      8,
+      12,
+      16,
+      24,
+      32,
+      48,
+      64
+    ],
+    "type": [
+      12,
+      14,
+      16,
+      18,
+      20,
+      24,
+      30,
+      36
+    ],
+    "radius": 8
+  },
+  "semantic": {
+    "light": {
+      "canvas": "neutral.100",
+      "surface": "neutral.50",
+      "ink": "neutral.900",
+      "secondary": "neutral.700",
+      "muted": "neutral.600",
+      "line": "neutral.300",
+      "action": "primary.700",
+      "action-ink": "neutral.50",
+      "action-soft": "primary.100",
+      "info": "primary.800",
+      "good": "success.800",
+      "good-soft": "success.100",
+      "warn": "warning.900",
+      "warn-soft": "warning.100",
+      "bad": "danger.800",
+      "bad-soft": "danger.100",
+      "focus": "primary.600"
+    },
+    "dark": {
+      "canvas": "neutral.950",
+      "surface": "neutral.900",
+      "ink": "neutral.50",
+      "secondary": "neutral.200",
+      "muted": "neutral.400",
+      "line": "neutral.700",
+      "action": "primary.300",
+      "action-ink": "neutral.900",
+      "action-soft": "primary.900",
+      "info": "primary.200",
+      "good": "success.200",
+      "good-soft": "success.900",
+      "warn": "warning.200",
+      "warn-soft": "warning.900",
+      "bad": "danger.200",
+      "bad-soft": "danger.900",
+      "focus": "primary.300"
+    }
+  },
+  "source": "refactoring-ui generate_palette.py; chosen muted cyan base, neutral-modern/spacious; plain HTML, no Tailwind"
+}

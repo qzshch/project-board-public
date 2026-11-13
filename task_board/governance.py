@@ -1,0 +1,258 @@
+"""Project-local governance, serialized with task writes in the same SQLite DB.
+
+The document is a replayable projection of append-only snapshots. Legacy task
+events remain byte-for-byte unchanged. This is API isolation, not OS sandboxing.
+"""
+from copy import deepcopy
+import hashlib
+import json
+from pathlib import PurePosixPath
+import re
+import time
+
+from .store import BoardError, canonical, digest, fields, text, integer, identifiers, evidence
+
+CATEGORIES = {'research','collection','generation','infrastructure','frontend','backend','library','documentation','test','integration','release'}
+ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer'}
+MANAGERS = {'owner','se','reviewer'}
+DONE = {'accepted','merged','native_accepted','baseline_merged'}
+ACTIVE = {'active','submitted','changes_requested','partial_accepted','partial_merged','partial_native'}
+
+def work_spec(value):
+    fields(value, {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'},
+           {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'})
+    if value['category'] not in CATEGORIES or value['role'] not in ROLES:
+        raise BoardError('未知任务分类或执行角色')
+    if type(value['inputs_known']) is not bool:
+        raise BoardError('inputs_known需布尔值；未知输入不能自动领取')
+    for k in ('inputs','outputs','contracts','assets','resources','couplings'):
+        identifiers(value[k], k)
+    if not re.fullmatch('[0-9a-f]{40}', str(value['baseline'])):
+        raise BoardError('基线需完整Git提交')
+    text(value['acceptance'], '验收条件', 8000)
+    return deepcopy(value)
+
+def empty():
+    return dict(knowledge={}, members={}, milestones={}, decisions=[], packages={}, contracts={}, changes={}, assets={}, consumption={}, handoff=None)
+
+def setup(db):
+    db.executescript('''
+      CREATE TABLE IF NOT EXISTS governance_events(seq INTEGER PRIMARY KEY,actor TEXT NOT NULL,
+        request_id TEXT NOT NULL,request_hash TEXT NOT NULL,payload TEXT NOT NULL,
+        prev_hash TEXT NOT NULL,hash TEXT NOT NULL, UNIQUE(actor,request_id));
+      CREATE TRIGGER IF NOT EXISTS governance_no_update BEFORE UPDATE ON governance_events
+        BEGIN SELECT RAISE(ABORT,'append only'); END;
+      CREATE TRIGGER IF NOT EXISTS governance_no_delete BEFORE DELETE ON governance_events
+        BEGIN SELECT RAISE(ABORT,'append only'); END;
+    ''')
+
+def load(db):
+    row = db.execute('SELECT seq,payload,hash FROM governance_events ORDER BY seq DESC LIMIT 1').fetchone()
+    return ({'revision': row['seq'], 'head': row['hash'], **json.loads(row['payload'])['state']}
+            if row else {'revision':0,'head':'0'*64,**empty()})
+
+def role(db, actor):
+    # A handoff explicitly overrides old management privileges, even for a
+    # credential whose original low-level authentication role was reviewer.
+    return load(db)['members'].get(actor['id'], {}).get('role', actor['role'])
+
+def effective(db, actor):
+    r = role(db,actor)
+    return {**actor, 'project_role':r, 'role':'reviewer' if r in MANAGERS else 'agent'}
+
+def tasks(db):
+    return {r['id']: json.loads(r['state']) for r in db.execute('SELECT id,state FROM tasks')}
+
+def overlaps(a,b):
+    # Windows checkout paths are case-insensitive. Treat file/directory prefixes
+    # equally; Foo/ and foo/x must never be advertised as independent writers.
+    a,b = a.rstrip('/').casefold(),b.rstrip('/').casefold()
+    return a==b or a.startswith(b+'/') or b.startswith(a+'/') or not a or not b
+
+def impact(all_tasks, contract):
+    direct = {k for k,t in all_tasks.items() if contract in t['spec'].get('work',{}).get('contracts',[])}
+    affected=set(direct)
+    while True:
+        produced={ref for k in affected for ref in all_tasks[k]['spec'].get('work',{}).get('outputs',[])}
+        coupled={ref for k in affected for ref in all_tasks[k]['spec'].get('work',{}).get('couplings',[])}
+        paths=[p for k in affected for p in all_tasks[k]['spec']['allowed_paths']]
+        more={k for k,t in all_tasks.items() if set(t['spec']['depends_on']) & affected
+              or set(t['spec'].get('work',{}).get('inputs',[])) & produced
+              or set(t['spec'].get('work',{}).get('couplings',[])) & coupled
+              or any(overlaps(a,b) for a in paths for b in t['spec']['allowed_paths'])}
+        if more <= affected:break
+        affected |= more
+    return {'direct':sorted(direct),'transitive':sorted(affected-direct),
+            'owners':sorted({all_tasks[k]['owner'] for k in affected if all_tasks[k]['owner']}),
+            'scopes':{k:all_tasks[k]['scope_hash'] for k in sorted(affected)}}
+
+def blockers(db, task, actor=None, registry=None):
+    spec=task['spec'];work=spec.get('work');out=[];all_tasks=tasks(db);gov=load(db)
+    if not work:return ['legacy/unknown：需SE核定原子任务输入与耦合']
+    if not work['inputs_known']:out.append('输入未知')
+    if not spec['allowed_paths']:out.append('写范围未知')
+    if actor and role(db,actor) not in MANAGERS and role(db,actor)!=work['role'] and work['role']!='agent':
+        out.append('执行角色不匹配')
+    for dep in spec['depends_on']:
+        if dep not in all_tasks or all_tasks[dep]['status'] not in DONE:out.append('硬前置未验收：'+dep)
+    for ref in work['contracts']:
+        contract=gov['contracts'].get(ref)
+        if not contract or contract['status']!='frozen':out.append('接口未冻结：'+ref)
+    for ref in work['assets']:
+        item=gov['assets'].get(ref) or (registry.consumption().get(ref) if registry else gov['consumption'].get(ref))
+        if not item or item.get('status') in ('revoked','withdrawn'):out.append('资产未固定或撤回：'+ref)
+        if item and item.get('shared') and registry:
+            try:registry.get(item['release'], registry.project)
+            except BoardError:out.append('共享资产已撤回或未授权：'+ref)
+    for other in all_tasks.values():
+        if other['spec']['id']==spec['id'] or other['status'] not in ACTIVE:continue
+        ow=other['spec'].get('work',{})
+        if any(overlaps(a,b) for a in spec['allowed_paths'] for b in other['spec']['allowed_paths']):out.append('写路径冲突：'+other['spec']['id'])
+        if set(work['resources']) & set(ow.get('resources',[])):out.append('排他资源冲突：'+other['spec']['id'])
+        if set(work['couplings']) & set(ow.get('couplings',[])):out.append('共享修改需串行：'+other['spec']['id'])
+    return sorted(set(out))
+
+class Governance:
+    def __init__(self, store):self.store=store
+
+    def snapshot(self, query=''):
+        with self.store.connection() as db:
+            db.execute('BEGIN')
+            value=load(db);all_tasks=tasks(db)
+            for c in value['changes'].values():c['impact_hash']=digest(c['impact'])
+            if getattr(self.store,'registry',None):value['consumption']=self.store.registry.consumption()
+            queue=[]
+            for t in all_tasks.values():
+                if t['status']=='planned':queue.append({'id':t['spec']['id'],'blockers':blockers(db,t,registry=getattr(self.store,'registry',None))})
+            graph=[]
+            for tid,t in all_tasks.items():
+                graph += [{'from':d,'to':tid,'type':'hard'} for d in t['spec']['depends_on']]
+                w=t['spec'].get('work',{})
+                for typ,key in [('product','inputs'),('coupling','couplings'),('contract','contracts'),('asset','assets'),('exclusive','resources')]:
+                    graph += [{'from':ref,'to':tid,'type':typ} for ref in w.get(key,[])]
+                graph += [{'from':tid,'to':ref,'type':'produces'} for ref in w.get('outputs',[])]
+            value.update(graph=graph,queue=queue,nodes=[{'id':k,'title':v['spec']['title'],'category':v['spec'].get('work',{}).get('category','unknown'),'status':v['status']} for k,v in all_tasks.items()])
+            if query:
+                # Search only this already-authorized project; no global index.
+                value={'revision':value['revision'],'matches':[{'kind':k,'id':str(i),'value':row} for k,rows in value.items() if isinstance(rows,dict) for i,row in rows.items() if query.casefold() in canonical(row).casefold()]}
+            return value
+
+    def apply(self, actor, request):
+        fields(request, {'request_id','expected_revision','action','payload'}, {'request_id','expected_revision','action','payload'})
+        rid=text(request['request_id'],'请求ID',100);integer(request['expected_revision'],'治理版本')
+        action=text(request['action'],'治理动作',80);payload=request['payload']
+        if type(payload) is not dict:raise BoardError('payload需对象')
+        with self.store.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            old=db.execute('SELECT * FROM governance_events WHERE actor=? AND request_id=?',(actor['id'],rid)).fetchone()
+            if old:
+                if old['request_hash']!=digest(request):raise BoardError('请求ID内容不一致',409)
+                return {'revision':old['seq'],'hash':old['hash'],'replayed':True}
+            value=load(db);revision=value.pop('revision');previous=value.pop('head')
+            if revision!=request['expected_revision']:raise BoardError('治理资料已变化；重读后决定',409)
+            r=value['members'].get(actor['id'],{}).get('role',actor['role'])
+            if action not in ('handoff_accept','contract_confirm') and r not in MANAGERS:raise BoardError('需本项目owner/SE',403)
+            self._mutate(db,value,actor,r,action,payload)
+            event={'action':action,'payload':payload,'state':value,'at':time.time()}
+            hashed=digest({'seq':revision+1,'actor':actor['id'],'request_id':rid,'event':event,'previous':previous})
+            db.execute('INSERT INTO governance_events VALUES(?,?,?,?,?,?,?)',(revision+1,actor['id'],rid,digest(request),canonical(event),previous,hashed));db.commit()
+            return {'revision':revision+1,'hash':hashed}
+
+    def _mutate(self,db,v,actor,r,action,p):
+        if action=='knowledge':
+            fields(p,{'background','goals','non_goals','constraints','materials','entries'}, {'background','goals','non_goals','constraints','materials','entries'})
+            for key in ('background','goals','non_goals','constraints'):text(p[key],key,12000)
+            for key in ('materials','entries'):
+                if type(p[key]) is not list or len(p[key])>128:raise BoardError('材料/入口需有界列表')
+                for item in p[key]:
+                    fields(item,{'title','location','version','sha256'}, {'title','location','version','sha256'})
+                    for key2 in ('title','location','version'):text(item[key2],key2,1000)
+                    if not re.fullmatch('[0-9a-f]{64}',str(item['sha256'])):raise BoardError('材料需完整SHA256')
+            v['knowledge']=deepcopy(p)
+        elif action=='member':
+            fields(p,{'actor','role','scope'}, {'actor','role','scope'})
+            if p['role'] not in ROLES or p['actor']=='root':raise BoardError('角色无效或保留身份')
+            if p['role']=='owner' and any(m['role']=='owner' for m in v['members'].values()):raise BoardError('已有owner；必须接受交接后移交',409)
+            if p['role'] in ('owner','se') and r not in ('owner','reviewer'):raise BoardError('仅owner可授予管理职责',403)
+            if not db.execute('SELECT 1 FROM actors WHERE id=?',(p['actor'],)).fetchone():raise BoardError('先签发本项目身份',409)
+            current=v['members'].get(p['actor'],{})
+            if current.get('role') in ('owner','se') and r not in ('owner','reviewer'):
+                raise BoardError('继承SE不能自行更改其他管理职责',403)
+            if current.get('role')=='owner' and p['role']!='owner':raise BoardError('owner降权需正式交接',409)
+            v['members'][p['actor']]={'role':p['role'],'scope':text(p['scope'],'职责',8000)}
+        elif action=='decision':
+            fields(p,{'summary','reason','evidence'}, {'summary','reason','evidence'})
+            text(p['summary'],'决策');text(p['reason'],'依据');evidence(p['evidence'])
+            v['decisions'].append({**p,'actor':actor['id'],'at':time.time()})
+        elif action=='milestone':
+            fields(p,{'id','goal','acceptance','status','evidence'}, {'id','goal','acceptance','status','evidence'})
+            text(p['id'],'里程碑ID',80);text(p['goal'],'目标');text(p['acceptance'],'验收')
+            if p['status'] not in ('planned','active','passed','blocked'):raise BoardError('里程碑状态无效')
+            if p['status']=='passed':evidence(p['evidence'])
+            elif p['evidence']!=[]:evidence(p['evidence'])
+            v['milestones'][p['id']]=deepcopy(p)
+        elif action=='package':
+            fields(p,{'id','tasks','source','unknown'}, {'id','tasks','source','unknown'})
+            text(p['id'],'任务包ID');identifiers(p['tasks'],'原子任务');text(p['source'],'历史来源');text(p['unknown'],'未知边界')
+            if not set(p['tasks'])<=set(tasks(db)):raise BoardError('包包含不存在的本项目任务',409)
+            v['packages'][p['id']]=deepcopy(p)
+        elif action=='handoff_propose':
+            fields(p,{'to','risks','materials','reason'}, {'to','risks','materials','reason'})
+            if r not in ('owner','reviewer'):raise BoardError('仅owner移交',403)
+            if v['members'].get(p['to'],{}).get('role')!='se':raise BoardError('继承者必须是本项目SE',409)
+            text(p['risks'],'未决风险');text(p['reason'],'交接原因');identifiers(p['materials'],'必读版本')
+            v['handoff']={**p,'from':actor['id'],'accepted':False,'scope':digest({'tasks':tasks(db),'contracts':v['contracts']}), 'active':[k for k,t in tasks(db).items() if t['status'] in ACTIVE]}
+        elif action=='handoff_accept':
+            fields(p,{'scope','summary'}, {'scope','summary'});h=v['handoff']
+            if not h or h['accepted'] or h['to']!=actor['id'] or h['scope']!=p['scope']:raise BoardError('交接对象或版本不一致',409)
+            if h['scope']!=digest({'tasks':tasks(db),'contracts':v['contracts']}):raise BoardError('活跃范围已变化；重新交接',409)
+            text(p['summary'],'接受说明');v['members'][h['from']]={'role':'viewer','scope':'已移交，管理权限撤销'}
+            v['members'][h['to']]['role']='owner';h.update(accepted=True,summary=p['summary'])
+        elif action=='contract_freeze':
+            self._contract(v,p)
+        elif action=='contract_propose':
+            fields(p,{'id','contract','replacement','migration','tests'}, {'id','contract','replacement','migration','tests'})
+            text(p['id'],'提案ID');text(p['migration'],'迁移计划',8000);text(p['tests'],'测试清单',8000)
+            if p['id'] in v['changes'] or p['contract'] not in v['contracts'] or p['replacement'] not in v['contracts']:raise BoardError('需存在的新旧冻结版本与唯一提案',409)
+            report=impact(tasks(db),p['contract']);owner=v['contracts'][p['contract']]['owner']
+            se=sorted(k for k,m in v['members'].items() if m['role'] in ('owner','se')) or ['root']
+            v['changes'][p['id']]={**p,'impact':report,'required':sorted(set([owner]+se+report['owners'])),'confirmations':[],'executed':False}
+        elif action=='contract_confirm':
+            fields(p,{'id','impact_hash','summary'}, {'id','impact_hash','summary'});c=v['changes'].get(p['id'])
+            if not c or actor['id'] not in c['required']:raise BoardError('非此变更确认人',403)
+            if p['impact_hash']!=digest(c['impact']) or impact(tasks(db),c['contract'])!=c['impact']:raise BoardError('影响范围变化；重新提案',409)
+            text(p['summary'],'确认依据')
+            c['confirmations']=sorted(set(c['confirmations']+[actor['id']]))
+        elif action=='contract_execute':
+            fields(p,{'id'}, {'id'});c=v['changes'].get(p['id'])
+            if not c or not set(c['required'])<=set(c['confirmations']):raise BoardError('变更缺少影响确认',409)
+            if impact(tasks(db),c['contract'])!=c['impact']:raise BoardError('影响范围变化；不能切换',409)
+            v['contracts'][c['contract']]['status']='retired';c['executed']=True
+        elif action=='asset':
+            fields(p,{'id','version','kind','source','license','sensitivity','sha256','location','owner','shareable','evidence'}, {'id','version','kind','source','license','sensitivity','sha256','location','owner','shareable','evidence'})
+            for key in ('id','version','kind','source','license','sensitivity','location','owner'):text(p[key],key,2000)
+            if not re.fullmatch('[0-9a-f]{64}',str(p['sha256'])) or type(p['shareable']) is not bool:raise BoardError('资产需SHA与显式共享资格')
+            evidence(p['evidence']);ref=p['id']+'@'+p['version']
+            if ref in v['assets']:raise BoardError('资产版本不可覆盖',409)
+            v['assets'][ref]={**p,'status':'private'}
+        else:raise BoardError('未知治理动作',404)
+
+    @staticmethod
+    def _contract(v,p):
+        keys={'id','version','owner','signature','units','errors','transaction','idempotency','source','producers','consumers','compatibility','evidence'}
+        fields(p,keys,keys)
+        for k in keys-{'producers','consumers','evidence'}:text(p[k],k,8000)
+        identifiers(p['producers'],'生产者');identifiers(p['consumers'],'消费者');evidence(p['evidence'])
+        if p['owner']!='root' and v['members'].get(p['owner'],{}).get('role') not in ('owner','se'):raise BoardError('接口owner需本项目负责人/SE',409)
+        ref=p['id']+'@'+p['version']
+        if ref in v['contracts']:raise BoardError('冻结版本不可修改，先提影响提案',409)
+        v['contracts'][ref]={**p,'status':'frozen'}
+
+    def verify(self):
+        previous='0'*64
+        with self.store.connection() as db:rows=list(db.execute('SELECT * FROM governance_events ORDER BY seq'))
+        for seq,row in enumerate(rows,1):
+            expected=digest({'seq':seq,'actor':row['actor'],'request_id':row['request_id'],'event':json.loads(row['payload']),'previous':previous})
+            if row['seq']!=seq or row['prev_hash']!=previous or expected!=row['hash']:raise BoardError('治理审计链损坏',409)
+            previous=expected
+        return {'passed':True,'events':len(rows),'head':previous}

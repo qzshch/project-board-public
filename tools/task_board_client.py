@@ -1,0 +1,429 @@
+"""Portable Python-stdlib client for local or tailnet Agent reporting.
+
+Identity secrets are read from a profile, never command arguments or output.
+Write requests are durably queued before sending; a lost response retries the
+same request identity. A conflict stays visible and is never silently rebased.
+"""
+
+import argparse
+import hashlib
+import ipaddress
+import json
+import os
+import re
+import html
+from pathlib import Path
+import sys
+import time
+from urllib.error import HTTPError, URLError
+from urllib.parse import quote, urlsplit
+from urllib.request import Request, ProxyHandler, build_opener
+import uuid
+
+
+class ClientError(Exception):
+    def __init__(self, message, status=0):
+        super().__init__(message)
+        self.status = status
+
+
+def save(path: Path, value: dict):
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(path.name + "." + uuid.uuid4().hex + ".tmp")
+    try:
+        temporary.write_text(
+            json.dumps(value, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf8",
+            newline="\n",
+        )
+        os.chmod(temporary, 0o600)
+        os.replace(temporary, path)
+    finally:
+        if temporary.exists():
+            temporary.unlink()
+
+
+def read(path):
+    return json.loads(Path(path).read_text("utf8"))
+
+
+class Client:
+    def __init__(
+        self,
+        url: str,
+        profile: dict | None = None,
+        connect_ip: str | None = None,
+        project: str | None = None,
+    ):
+        self.url = url.rstrip("/")
+        parsed = urlsplit(self.url)
+        if (
+            parsed.scheme not in ("http", "https")
+            or not parsed.hostname
+            or parsed.username
+            or parsed.password
+            or parsed.query
+            or parsed.fragment
+            or parsed.path
+        ):
+            raise ClientError("公告板地址必须是纯HTTP(S)源地址")
+        try:
+            tailnet_ip = ipaddress.ip_address(parsed.hostname) in ipaddress.ip_network(
+                "100.64.0.0/10"
+            )
+        except ValueError:
+            tailnet_ip = False
+        if (
+            parsed.scheme == "http"
+            and parsed.hostname not in ("127.0.0.1", "localhost")
+            and not parsed.hostname.endswith(".ts.net")
+            and not tailnet_ip
+        ):
+            raise ClientError(
+                "HTTP只允许本机或已配置Tailscale域名；其他远端请使用HTTPS"
+            )
+        if profile and profile.get("url", "").rstrip("/") != self.url:
+            raise ClientError("身份文件与目标公告板地址不匹配")
+        self.project = project or (profile or {}).get("project_id")
+        if self.project and not re.fullmatch(r"[a-z][a-z0-9-]{1,47}", self.project):
+            raise ClientError("项目ID格式不正确")
+        if project and profile and profile.get("project_id", "sampleapp") != project:
+            raise ClientError("身份文件仅授权自己的项目，不能切换项目")
+        self.profile = profile
+        self.connect_ip = connect_ip or (profile or {}).get("connect_ip")
+        if self.connect_ip:
+            try:
+                valid = ipaddress.ip_address(self.connect_ip) in ipaddress.ip_network(
+                    "100.64.0.0/10"
+                )
+            except ValueError:
+                valid = False
+            if (
+                not valid
+                or parsed.scheme != "http"
+                or not parsed.hostname.endswith(".ts.net")
+            ):
+                raise ClientError(
+                    "显式连接IP仅用于当前HTTP Tailscale域名，且必须是私网Tailscale地址"
+                )
+        # Never send project credentials via a machine-wide HTTP proxy.
+        self.opener = build_opener(ProxyHandler({}))
+
+    def call(self, path: str, payload=None):
+        if (
+            self.project
+            and path.startswith("/api/")
+            and not path.startswith("/api/projects")
+        ):
+            path = "/api/projects/" + self.project + "/" + path[5:]
+        headers = {"Accept": "application/json"}
+        if self.profile:
+            headers["Authorization"] = "Bearer " + self.profile["token"]
+        body = None
+        if payload is not None:
+            body = json.dumps(payload, ensure_ascii=False, allow_nan=False).encode(
+                "utf8"
+            )
+            headers["Content-Type"] = "application/json"
+        target = self.url + path
+        if self.connect_ip:
+            endpoint = urlsplit(self.url)
+            headers["Host"] = endpoint.netloc
+            target = "http://" + self.connect_ip + ":" + str(endpoint.port or 80) + path
+        try:
+            with self.opener.open(
+                Request(target, data=body, headers=headers), timeout=12
+            ) as response:
+                return json.load(response)
+        except HTTPError as exc:
+            try:
+                message = json.loads(exc.read(65536)).get("error", "请求失败")
+            except (ValueError, UnicodeError):
+                message = "请求失败"
+            raise ClientError(message, exc.code) from None
+        except (URLError, TimeoutError, OSError):
+            raise ClientError("公告板暂不可达；未确认已提交") from None
+
+    def task(self, task_id: str):
+        try:
+            return self.call("/api/task?id=" + quote(task_id, safe=""))
+        except ClientError as exc:
+            if exc.status == 404:
+                return None
+            raise
+
+    def post(self, event: dict, profile_path: Path, receipt: Path | None = None):
+        if not self.profile:
+            raise ClientError("写入需Agent身份文件")
+        if not isinstance(event.get("request_id"), str) or not event["request_id"]:
+            raise ClientError("事件必须预先生成稳定request_id")
+        key = hashlib.sha256(event["request_id"].encode()).hexdigest()
+        pending = (
+            Path(profile_path).parent
+            / "outbox"
+            / (self.project or "")
+            / self.profile["actor"]
+            / (key + ".json")
+        )
+        if pending.exists() and read(pending) != event:
+            raise ClientError("本地请求ID已绑定不同内容", 409)
+        save(pending, event)
+        for attempt in range(3):
+            try:
+                result = self.call("/api/events", event)
+                if receipt:
+                    save(receipt, result)
+                pending.unlink()
+                return result
+            except ClientError as exc:
+                if exc.status or attempt == 2:
+                    raise ClientError(
+                        str(exc) + "；原请求保留于 " + str(pending), exc.status
+                    ) from None
+                time.sleep(0.3 * (attempt + 1))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--project", help="project ID; must match the private profile")
+    parser.add_argument("--url", help="remote tailnet or local board URL")
+    parser.add_argument(
+        "--profile", type=Path, help="private Agent identity file; never commit"
+    )
+    parser.add_argument(
+        "--connect-ip",
+        help="explicit Tailscale IP when the remote host has no MagicDNS; canonical Host retained",
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+    inspect = sub.add_parser('read', help='Read an authorized project endpoint')
+    inspect.add_argument('--endpoint', required=True)
+    request = sub.add_parser('request', help='Post a frozen JSON request without rebasing')
+    request.add_argument('--endpoint', required=True)
+    request.add_argument('--payload', type=Path, required=True)
+    request.add_argument('--out', type=Path, required=True)
+    join = sub.add_parser("join")
+    join.add_argument("--actor", required=True)
+    join.add_argument("--join-file", type=Path)
+    sub.add_parser("status")
+    sub.add_parser("projects")
+    portal = sub.add_parser("portal")
+    portal.add_argument("--out", type=Path, required=True)
+    task = sub.add_parser("task")
+    task.add_argument("task_id")
+    history = sub.add_parser("history")
+    history.add_argument("--task")
+    history.add_argument("--after", type=int, default=0)
+    prepare = sub.add_parser("prepare")
+    prepare.add_argument("--task", required=True)
+    prepare.add_argument("--action", required=True)
+    prepare.add_argument("--payload", type=Path, required=True)
+    prepare.add_argument("--out", type=Path, required=True)
+    post = sub.add_parser("post")
+    post.add_argument("--event", type=Path, required=True)
+    post.add_argument("--receipt", type=Path)
+    sub.add_parser("flush")
+    verify = sub.add_parser("verify-receipt")
+    verify.add_argument("--receipt", type=Path, required=True)
+    verify.add_argument("--head", required=True)
+    verify.add_argument("--task", required=True)
+    args = parser.parse_args()
+    profile = read(args.profile) if args.profile and args.profile.exists() else None
+    url = args.url or (profile or {}).get("url")
+    if not url:
+        parser.error("--url or an existing --profile is required")
+    try:
+        client = Client(url, profile, args.connect_ip, args.project)
+        if args.command in ('read','request'):
+            if not args.endpoint.startswith('/api/') or args.endpoint.startswith('/api/projects'):
+                raise ClientError('使用项目相对/api端点；身份固定项目')
+            result=client.call(args.endpoint, read(args.payload) if args.command=='request' else None)
+            if args.command=='request':
+                save(args.out,result)
+                result={'receipt':str(args.out),'secret_printed':False}
+            print(json.dumps(result,ensure_ascii=False))
+            return 0
+        if args.command == "join":
+            if not args.profile:
+                raise ClientError("join需要--profile写入私有身份文件")
+            if profile:
+                raise ClientError("身份文件已存在；直接复用，不重新登记")
+            payload = {"actor": args.actor}
+            if args.join_file:
+                payload["join_key"] = read(args.join_file)["join_key"]
+            result = client.call("/api/enroll", payload)
+            save(
+                args.profile,
+                {
+                    **result,
+                    "url": client.url,
+                    **({"project_id": client.project} if client.project else {}),
+                    **({"connect_ip": client.connect_ip} if client.connect_ip else {}),
+                },
+            )
+            print(
+                json.dumps(
+                    {
+                        "joined": True,
+                        "actor": result["actor"],
+                        "role": result["role"],
+                        "profile": str(args.profile),
+                    }
+                )
+            )
+        elif args.command == "projects":
+            print(json.dumps(client.call("/api/projects"), ensure_ascii=False))
+        elif args.command == "portal":
+            if not client.project or not profile:
+                raise ClientError("项目网页入口需要含project_id的独立身份文件")
+            if args.out.exists():
+                raise ClientError("私有入口文件已存在，拒绝覆盖")
+            response = client.call("/api/access", {})
+            target = (
+                client.url
+                + "/?project="
+                + client.project
+                + "#access="
+                + response["ticket"]
+            )
+            args.out.parent.mkdir(parents=True, exist_ok=True)
+            args.out.write_text(
+                '<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer"><a href="'
+                + html.escape(target, quote=True)
+                + '">打开本项目公告板</a><p>私有一次性入口，不转发、不提交Git。</p>',
+                encoding="utf8",
+            )
+            os.chmod(args.out, 0o600)
+            print(
+                json.dumps(
+                    {
+                        "private_portal": str(args.out),
+                        "project_id": client.project,
+                        "secret_printed": False,
+                    }
+                )
+            )
+        elif args.command == "status":
+            snapshot = client.call("/api/snapshot")
+            counts = {}
+            for task in snapshot["tasks"]:
+                counts[task["status"]] = counts.get(task["status"], 0) + 1
+            print(
+                json.dumps(
+                    {
+                        "head": snapshot["head"],
+                        "tasks": len(snapshot["tasks"]),
+                        "statuses": counts,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        elif args.command == "task":
+            result = client.task(args.task_id)
+            if result is None:
+                raise ClientError("任务不存在", 404)
+            print(json.dumps(result, ensure_ascii=False, indent=2))
+        elif args.command == "history":
+            path = (
+                "/api/history?after="
+                + str(args.after)
+                + (("&task=" + quote(args.task, safe="")) if args.task else "")
+            )
+            print(json.dumps(client.call(path), ensure_ascii=False, indent=2))
+        elif args.command == "prepare":
+            task = client.task(args.task)
+            if not task:
+                raise ClientError("任务不存在", 404)
+            event = {
+                "request_id": str(uuid.uuid4()),
+                "task_id": args.task,
+                "action": args.action,
+                "expected_revision": task["revision"],
+                "scope_version": task["scope_version"],
+                "payload": read(args.payload),
+            }
+            save(args.out, event)
+            print(
+                json.dumps(
+                    {
+                        "prepared": str(args.out),
+                        "task_id": args.task,
+                        "revision": task["revision"],
+                        "scope_version": task["scope_version"],
+                        "next": "检查事件文件后执行post；冲突时重新读取并决定",
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        elif args.command == "post":
+            if not args.profile:
+                raise ClientError("post需要--profile")
+            print(
+                json.dumps(
+                    client.post(read(args.event), args.profile, args.receipt),
+                    ensure_ascii=False,
+                )
+            )
+        elif args.command == "flush":
+            if not profile:
+                raise ClientError("flush需要身份文件")
+            folder = (
+                args.profile.parent
+                / "outbox"
+                / (client.project or "")
+                / profile["actor"]
+            )
+            results = []
+            for pending in sorted(folder.glob("*.json")):
+                results.append(client.post(read(pending), args.profile))
+            print(
+                json.dumps(
+                    {"flushed": len(results), "receipts": results}, ensure_ascii=False
+                )
+            )
+        elif args.command == "verify-receipt":
+            receipt = read(args.receipt)
+            record = client.call("/api/receipt?id=" + quote(receipt["event_id"]))
+            event = record["event"]
+            if (
+                (
+                    client.project
+                    and (
+                        record.get("project_id") != client.project
+                        or receipt.get("project_id") != client.project
+                    )
+                )
+                or event["hash"] != receipt["event_hash"]
+                or event["task_id"] != args.task
+                or event["kind"] != "submit"
+                or event["payload"]["implementation_commit"] != args.head
+                or record["scope_version"] != receipt["scope_version"]
+                or record["current_submission_id"] != event["id"]
+                or record["current_status"] == "changes_requested"
+            ):
+                raise ClientError("交付回执不匹配任务、实现提交或当前范围", 409)
+            print(
+                json.dumps(
+                    {
+                        "passed": True,
+                        "task_id": args.task,
+                        "implementation_commit": args.head,
+                        "event_id": event["id"],
+                        "scope": "Agent交付声明已登记；不等于root验收或合入",
+                    },
+                    ensure_ascii=False,
+                )
+            )
+    except ClientError as exc:
+        print(
+            json.dumps(
+                {"posted": False, "error": str(exc), "status": exc.status},
+                ensure_ascii=False,
+            )
+        )
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

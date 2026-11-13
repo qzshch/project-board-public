@@ -1,0 +1,56 @@
+<!doctype html>
+<!-- Constraint brief: primary = review/rework queue and exact task scope;
+secondary = owner, dependencies, evidence; tertiary = revisions and hashes.
+One primary action per view. Grayscale structure first: grouped header, four
+metrics, one filter bar, task rows, focused detail dialog. Tokens: 4/8/12/16/
+24/32/48/64 spacing; 12/14/16/18/24/30 type; weights 400/600; radius 8.
+Color is generated in tokens.css and mapped semantically in theme.css. -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>多项目 · 项目公告板</title>
+  <link rel="stylesheet" href="/tokens.css">
+  <link rel="stylesheet" href="/theme.css">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+  <script src="/workspace.js" defer></script>
+</head>
+<body>
+  <main class="shell">
+    <header class="page-head">
+      <div><p class="eyebrow">PROJECT WORKSPACE</p><h1>项目公告板</h1><p class="secondary intro">交付有记录，返修有去向，范围有依据。</p></div>
+      <div class="head-actions"><span id="connection" class="connection" role="status">正在连接</span><button id="access">Agent 接入</button><button id="create" hidden>新建范围</button><button id="review-shortcut" class="primary">查看待验收</button></div>
+    </header>
+    <section class="project-bar panel" aria-label="当前项目"><label for="project-select">当前项目<select id="project-select" disabled><option>请先授权</option></select></label><p id="project-description" class="secondary">使用项目专属入口或负责人签发的身份访问。</p><button id="new-project" hidden>新建项目</button><button id="logout" hidden>退出</button></section>
+    <div id="notice" class="notice" hidden role="status"></div>
+    <section id="workspace" class="panel workspace" hidden aria-label="项目工作区">
+      <nav class="tabs workspace-tabs" aria-label="项目信息"><button data-panel="overview" aria-pressed="true">项目概览</button><button data-panel="relations">依赖与并行</button><button data-panel="contracts">接口冻结</button><button data-panel="assets">项目资产</button><button data-panel="handoff">角色与交接</button></nav>
+      <div class="section-head"><div><h2 id="workspace-title">项目概览</h2><p class="muted" id="workspace-subtitle"></p></div><button id="workspace-edit" hidden>管理资料</button></div>
+      <div id="workspace-body"></div>
+    </section>
+    <section class="metrics" aria-label="项目状态">
+      <button class="metric" data-view="review"><span>待验收</span><strong id="count-review">—</strong><small>交付声明与待审材料</small></button>
+      <button class="metric" data-view="rework"><span>需返修</span><strong id="count-rework">—</strong><small>保留原提交，追加修正</small></button>
+      <button class="metric" data-view="active"><span>进行中</span><strong id="count-active">—</strong><small>已登记的执行任务</small></button>
+      <div class="metric"><span>任务族</span><strong id="count-family">—</strong><small>范围、交付与验收分别记录</small></div>
+    </section>
+    <section class="panel board" aria-labelledby="queue-title">
+      <div class="section-head"><div><h2 id="queue-title">交付与验收队列</h2><p class="muted" id="scope-note">正在读取任务范围</p></div><span class="badge" id="identity">只读视图</span></div>
+      <nav class="tabs" aria-label="任务视图"><button data-view="review" aria-pressed="true">待验收</button><button data-view="rework">需返修</button><button data-view="active">执行范围</button><button data-view="archive">已接收资料</button><button data-view="all">全部</button></nav>
+      <div class="filters">
+        <label class="search"><span class="sr-only">搜索任务</span><input id="search" type="search" placeholder="搜索任务 ID、范围、负责人…" autocomplete="off"></label>
+        <label><span class="sr-only">任务层次</span><select id="kind"><option value="">全部层次</option><option value="plan">新增协作任务</option><option value="integration">主线集成</option><option value="delivery">协作交付</option><option value="family">任务族</option><option value="native">运行验收</option></select></label>
+        <label><span class="sr-only">优先级</span><select id="priority"><option value="">全部优先级</option><option>P0</option><option>P1</option><option>P2</option></select></label>
+      </div>
+      <div class="list-head"><span>任务与声明范围</span><span>状态 / 负责人</span><span>版本与最近更新</span></div>
+      <div id="task-list" class="task-list" aria-live="polite"><div class="empty">正在载入公告板…</div></div>
+      <div class="list-footer"><span id="result-count" class="muted"></span><button id="more" hidden>显示更多</button></div>
+    </section>
+    <footer class="page-footer"><span>Agent 上报后进入待验收；验收、合入和运行验收分别记录。</span><span id="last-updated">2 秒自动更新</span></footer>
+  </main>
+  <dialog id="detail"><div class="dialog-head"><div><p id="detail-kind" class="eyebrow"></p><h2 id="detail-title"></h2></div><button id="close-detail" aria-label="关闭详情">关闭</button></div><div id="stale" class="notice" hidden>此任务已有新记录。<button id="refresh-detail">重新读取</button></div><div id="detail-body"></div></dialog>
+  <dialog id="access-dialog"><div class="dialog-head"><h2>Agent 接入</h2><button id="close-access">关闭</button></div><div class="dialog-content"><p>其他电脑先连接同一 Tailscale 网络。每份身份仅授权一个项目；请向负责人领取该项目的独立身份文件，再按当前范围版本上报。</p><pre id="access-command"></pre><p class="secondary">交付需要冻结实现提交、证据 SHA256、测试结果和剩余范围。上报回执放在证据目录，避免提交回执改变实现 HEAD。</p><p class="muted">审核入口由项目负责人单独授权。新任务仍需先登记输入包和修改范围。</p></div></dialog>
+  <template id="task-template"><article class="task-row"><div class="task-main"><button class="task-title"></button><p class="task-description"></p><div class="task-meta"></div></div><div class="task-state"><span class="badge status"></span><span class="owner secondary"></span></div><div class="task-update"><span class="version"></span><time class="muted"></time></div></article></template>
+</body>
+</html>
