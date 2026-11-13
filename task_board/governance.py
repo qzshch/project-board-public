@@ -67,7 +67,14 @@ def pin_assets(db,spec,registry=None,previous=None):
     w['asset_locks']=pinned
 
 def empty():
-    return dict(knowledge={}, members={}, milestones={}, decisions=[], packages={}, contracts={}, changes={}, assets={}, consumption={}, handoff=None)
+    return dict(knowledge={}, members={}, milestones={}, decisions=[], packages={}, contracts={}, changes={}, assets={}, consumption={}, handoff=None,resource_entries={})
+
+
+def handoff_scope(db,value):
+    scope={'tasks':tasks(db),'contracts':value['contracts']}
+    resources={k:e for k,e in value.get('resource_entries',{}).items() if e['visibility']!='operator'}
+    if resources:scope['resource_entries']=resources
+    return digest(scope)
 
 
 def knowledge_spec(p):
@@ -196,7 +203,7 @@ def blockers(db, task, actor=None, registry=None, context=None):
 class Governance:
     def __init__(self, store):self.store=store
 
-    def snapshot(self, query=''):
+    def snapshot(self, query='', actor=None, operator=False):
         with self.store.connection() as db:
             db.execute('BEGIN')
             value=load(db);all_tasks=tasks(db)
@@ -219,6 +226,9 @@ class Governance:
                     graph += [{'from':ref,'to':tid,'type':typ} for ref in w.get(key,[])]
                 graph += [{'from':tid,'to':ref,'type':'produces'} for ref in w.get('outputs',[])]
             value.update(graph=graph,queue=queue,nodes=[{'id':k,'title':v['spec']['title'],'kind':v['spec']['kind'],'category':v['spec'].get('work',{}).get('category','unknown'),'status':v['status'],'planning':v['spec'].get('work',{}).get('planning')} for k,v in all_tasks.items()])
+            from .resources import filtered,audience
+            resource_role,resource_operator=audience(actor,value,operator)
+            value['resource_entries']=filtered(value,resource_role,resource_operator)
             if query:
                 # Search only this already-authorized project; no global index.
                 value={'revision':value['revision'],'matches':[{'kind':k,'id':str(i),'value':row} for k,rows in value.items() if isinstance(rows,dict) for i,row in rows.items() if query.casefold() in canonical(row).casefold()]}
@@ -238,7 +248,8 @@ class Governance:
             value=load(db);revision=value.pop('revision');previous=value.pop('head')
             if revision!=request['expected_revision']:raise BoardError('治理资料已变化；重读后决定',409)
             r=value['members'].get(actor['id'],{}).get('role',actor['role'])
-            if action not in ('handoff_accept','contract_confirm') and r not in MANAGERS:raise BoardError('需本项目owner/SE',403)
+            operator_resource=actor.get('global_admin') and action in ('resource_register','resource_update','resource_retire')
+            if action not in ('handoff_accept','contract_confirm') and r not in MANAGERS and not operator_resource:raise BoardError('需本项目owner/SE',403)
             self._mutate(db,value,actor,r,action,payload)
             event={'action':action,'payload':payload,'state':value,'at':time.time()}
             hashed=digest({'seq':revision+1,'actor':actor['id'],'request_id':rid,'event':event,'previous':previous})
@@ -246,7 +257,10 @@ class Governance:
             return {'revision':revision+1,'hash':hashed}
 
     def _mutate(self,db,v,actor,r,action,p):
-        if action in ('planning_enable','planning_decision','module_plan','module_review','milestone_plan','milestone_review'):
+        if action in ('resource_register','resource_update','resource_retire'):
+            from .resources import mutate
+            mutate(db,v,actor,r,action,p,getattr(self.store,'registry',None))
+        elif action in ('planning_enable','planning_decision','module_plan','module_review','milestone_plan','milestone_review'):
             from .planning import mutate
             mutate(v,tasks(db),actor,action,p)
         elif action=='knowledge':
@@ -285,11 +299,11 @@ class Governance:
             if r not in ('owner','reviewer'):raise BoardError('仅owner移交',403)
             if v['members'].get(p['to'],{}).get('role')!='se':raise BoardError('继承者必须是本项目SE',409)
             text(p['risks'],'未决风险');text(p['reason'],'交接原因');identifiers(p['materials'],'必读版本')
-            v['handoff']={**p,'from':actor['id'],'accepted':False,'scope':digest({'tasks':tasks(db),'contracts':v['contracts']}), 'active':[k for k,t in tasks(db).items() if t['status'] in ACTIVE]}
+            v['handoff']={**p,'from':actor['id'],'accepted':False,'scope':handoff_scope(db,v), 'active':[k for k,t in tasks(db).items() if t['status'] in ACTIVE]}
         elif action=='handoff_accept':
             fields(p,{'scope','summary'}, {'scope','summary'});h=v['handoff']
             if not h or h['accepted'] or h['to']!=actor['id'] or h['scope']!=p['scope']:raise BoardError('交接对象或版本不一致',409)
-            if h['scope']!=digest({'tasks':tasks(db),'contracts':v['contracts']}):raise BoardError('活跃范围已变化；重新交接',409)
+            if h['scope']!=handoff_scope(db,v):raise BoardError('活跃范围、契约或资源入口已变化；重新交接',409)
             text(p['summary'],'接受说明');v['members'][h['from']]={'role':'viewer','scope':'已移交，管理权限撤销'}
             v['members'][h['to']]['role']='owner';h.update(accepted=True,summary=p['summary'])
         elif action=='contract_freeze':

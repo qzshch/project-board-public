@@ -1,0 +1,30 @@
+{
+  "id": "project-research",
+  "title": "<实际资源名称>",
+  "category": "research",
+  "description": "<内容范围及用途>",
+  "owner": "<本项目维护者Actor>",
+  "visibility": "project",
+  "locations": [
+    {
+      "kind": "nas",
+      "location": "<实际NAS文件或目录>",
+      "machine": "<所属机器>",
+      "access": "<项目文件权限与申请方法，不填凭据>"
+    }
+  ],
+  "version": "live",
+  "mutable": true,
+  "integrity": {
+    "kind": "none",
+    "sha256": "",
+    "subject": ""
+  },
+  "availability": "unknown",
+  "retention": "<实际保留及清理责任>",
+  "tasks": [],
+  "modules": [],
+  "asset_refs": [],
+  "usage_notes": "<许可、敏感性与接手限制>",
+  "reason": "<本次登记依据>"
+}

@@ -3,7 +3,7 @@ const ws={panel:new URLSearchParams(location.search).get('panel')||'overview',da
 const categoryNames={research:'研究 / 调研',collection:'素材采集',generation:'资源生成',infrastructure:'框架 / 基建',frontend:'前端开发',backend:'后端开发',library:'公共库',documentation:'记录 / 约束 / 交接文档',test:'测试',integration:'集成',release:'发布'};
 const roleNames={owner:'总负责人',se:'继承 SE',researcher:'研究员',collector:'素材采集',generator:'资源生成',developer:'开发',documenter:'文档',tester:'测试',agent:'Agent',viewer:'只读',runner:'测试执行器',tracker:'Git只读同步器'};
 const panelNames={overview:'项目概览',planning:'框架与规划',policy:'治理策略',time:'时间与效率',quality:'测试与自动化',git:'代码与提交',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
-function clearWorkspace(){ws.data=null;ws.shared=null;ws.ops=null;ws.git=null;resetGit();ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
+function clearWorkspace(){ws.data=null;ws.shared=null;ws.ops=null;ws.git=null;resetGit();resetResources();ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
 async function refreshWorkspace(generation){
   const [data,shared,ops,git]=await Promise.all([api('/api/governance'),api('/api/shared'),api('/api/operations'),api('/api/git')]);
   if(generation!==app.generation)return;
@@ -39,12 +39,14 @@ function renderWorkspace(){
     }
   }
   if(ws.panel==='assets'){
+    renderProjectResources(box);
     renderAssetLearning(box);
     listLines(box,'本项目私有资产',Object.entries(d.assets),([ref,r])=>`${ref} · ${r.kind} · ${r.sensitivity}\n来源：${r.source} · 许可：${r.license}\n${r.location}\nSHA256 ${r.sha256}`);
     listLines(box,'已审核共享版本',ws.shared.releases,r=>`${r.ref} · ${r.status}\n${r.location}\n许可：${r.license} · SHA256 ${r.sha256}`);
     listLines(box,'本项目固定消费',Object.entries(ws.shared.consumption),([alias,r])=>`${alias} → ${r.release} · ${r.status}\n提供方发布新版不会自动更新此引用。`);
   }
   if(ws.panel==='handoff'){
+    const resourceNote=section('接手时核对项目资料');resourceNote.append(el('p','项目资产中统一登记本地/NAS资料、测试记录、日志与运行入口。接手前核对当前可见目录、维护者、文件权限、版本与保留规则；实例管理资料不随项目SE身份自动转交。','secondary'));const resourceButton=el('button','打开项目资产与资源入口');resourceButton.onclick=()=>selectWorkspacePanel('assets');resourceNote.append(resourceButton);box.append(resourceNote);
     listLines(box,'项目责任与角色',Object.entries(d.members),([id,r])=>`${id} · ${roleNames[r.role]||r.role}\n${r.scope}`);
     const h=d.handoff;listLines(box,'移交审计',h?[h]:[],r=>`${r.from} → ${r.to} · ${r.accepted?'已接受，原负责人管理权限已撤销':'等待继承 SE 接受'}\n风险：${r.risks}\n活跃任务：${r.active.join('、')||'无'}`);
     if(h&&!h.accepted&&h.to===app.actor){const b=el('button','接受当前交接');b.onclick=()=>editWorkspace('handoff_accept',{scope:h.scope,summary:''});box.append(b);}

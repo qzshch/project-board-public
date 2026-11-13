@@ -31,6 +31,7 @@ STATIC = {
     "/planning.js": "planning.js",
     "/operations.js": "operations.js",
     "/git.js": "git.js",
+    "/resources.js": "resources.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",
@@ -387,6 +388,7 @@ class Handler(BaseHTTPRequestHandler):
                         "governance_schema": 2,
                         "operations_schema": 1,
                         "git_schema": 1,
+                        "resource_directory_schema": 1,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )
@@ -395,6 +397,15 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,ignore_template().encode('utf8'),content_type='text/plain; charset=utf-8')
             self.read_access()
             query = parse_qs(parsed.query)
+            if path=='/api/resources' or path.startswith('/api/resources/'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .resources import Directory
+                directory=Directory(self.store);actor=self.actor();operator=self.identity()['global_admin']
+                suffix=path.removeprefix('/api/resources').strip('/')
+                if not suffix:return self.send(200,directory.listing(actor,operator,query))
+                parts=suffix.split('/')
+                if len(parts)>2 or (len(parts)==2 and parts[1]!='history'):raise BoardError('资源接口不存在',404)
+                return self.send(200,directory.entry(parts[0],actor,operator,len(parts)==2))
             if path=='/api/git' or path.startswith('/api/git/'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .git_tracking import Tracking
@@ -415,8 +426,8 @@ class Handler(BaseHTTPRequestHandler):
                 if path=='/api/shared/impact':return self.send(200,{'consumers':self.store.registry.impact(self.identity(),query.get('ref',[''])[0])})
                 if path=='/api/brief':
                     from .brief import build_brief
-                    return self.send(200,build_brief(self.store,query.get('task',[''])[0],self.project,self.server.settings.get('public_url','')))
-                data=governance.snapshot(query.get('q',[''])[0] if path=='/api/search' else '')
+                    return self.send(200,build_brief(self.store,query.get('task',[''])[0],self.project,self.server.settings.get('public_url',''),self.actor(),self.identity()['global_admin']))
+                data=governance.snapshot(query.get('q',[''])[0] if path=='/api/search' else '',self.actor(),self.identity()['global_admin'])
                 if path=='/api/graph':data={k:data[k] for k in ('revision','graph','queue','nodes')}
                 return self.send(200,data)
             if self.server.hub and path == "/api/projects":
@@ -596,7 +607,7 @@ class Handler(BaseHTTPRequestHandler):
             if path in ('/api/governance','/api/shared'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .governance import Governance
-                return self.send(201,Governance(self.store).apply(actor,value) if path=='/api/governance' else self.store.registry.apply(actor,value))
+                return self.send(201,Governance(self.store).apply({**actor,'global_admin':self.identity()['global_admin']},value) if path=='/api/governance' else self.store.registry.apply(actor,value))
             if self.server.hub and path == "/api/projects":
                 return self.send(201, self.server.hub.create(self.identity(), value))
             if self.server.hub and path == "/api/access":

@@ -19,3 +19,5 @@
 开发/运维接手继续读AGENTS.md、docs/MANUAL.md、docs/RUNBOOK.md和docs/ACCEPTANCE.md。docs/USER-REQUEST-20261113.md、docs/HANDOFF-20261113.md及legacy-v2是最初移交历史，里面的PC部署位置不能当作当前运行入口。原参考76项测试不计作本仓库本轮通过。
 
 [GitHub代码提交追踪与本地/server存储边界](http://example-server.example-tailnet.ts.net:18785/help/github)：代码与提交页、只读接入、文件历史/溯源，以及不进Git的资料与产物。
+
+[项目资产中的本地与server资源](http://example-server.example-tailnet.ts.net:18785/help/resources)：资料原件不进Git，但要在“项目资产”登记位置、机器、访问条件、版本和保留规则；任务brief自动带上本角色可见的相关入口与运行记录。

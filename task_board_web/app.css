@@ -33,6 +33,11 @@
 .relation-details { margin-top:var(--space-24); }
 .relation-details summary { cursor:pointer; color:var(--secondary); font-weight:600; padding:var(--space-12) 0; }
 .git-history { height:600px; margin-top:var(--space-16); }
+.resource-card { border:1px solid var(--line); border-radius:var(--radius); padding:var(--space-16); margin-top:var(--space-12); display:grid; gap:var(--space-12); min-width:0; }
+.resource-location { background:var(--canvas); border-radius:var(--radius); padding:var(--space-12); min-width:0; }
+.resource-location code,.resource-location a { display:block; overflow-wrap:anywhere; font-size:var(--type-14); margin:var(--space-8) 0; }
+.resource-location-editor { display:grid; gap:var(--space-12); padding:var(--space-12) 0; border-bottom:1px solid var(--line); }
+.resource-card .graph-controls { margin-bottom:0; }
 .git-node { cursor:pointer; }
 .git-node circle { fill:var(--action); stroke:var(--surface); stroke-width:2; }
 .git-node:hover text,.git-node:focus text { text-decoration:underline; }

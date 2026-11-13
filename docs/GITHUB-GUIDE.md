@@ -52,3 +52,8 @@ POST 根采用 `{request_id,expected_revision,action,payload}`，同身份同请
 CLI冻结和发送：`python client.py --profile <本项目身份> prepare-git --action bind --payload <已填写git-binding.json> --out <证据目录>/git-bind-request.json`，再使用`request --endpoint /api/git --payload <原请求文件> --out <回执文件>`。绑定、存储边界、任务关联和同步请求模板均在[模板目录](/help/templates)。
 
 本产品既有的legacy-v2参考快照与原始交接/验收记录也按此规则保留到本地/server，当前源码只留交接索引与验收流程；原件及SHA映射由管理员保管，既有Git历史不改写。路径检查不能替代内容、许可和密钥审查。
+
+
+## 本地与server资料接手入口
+
+缓存、调研、美术、归档、测试记录、日志、运行态和接手资料统一在“项目资产”的资源目录展示，原件继续留本地/server。任务详情可按任务进入，brief.resource_directory附带本角色可见的相关入口。核对机器、维护者、访问条件、内容版本/摘要与保留规则；目录登记不授予文件权限。详见[资源与接手手册](/help/resources)。

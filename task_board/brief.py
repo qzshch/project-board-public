@@ -2,14 +2,16 @@
 from .governance import Governance
 from .store import BoardError
 
-def build_brief(store, task_id, project, url):
+def build_brief(store, task_id, project, url, actor=None, operator=False):
     task=store.get(task_id);spec=task['spec'];w=spec.get('work')
     if not w:raise BoardError('历史任务包尚未核定原子输入，不能自动派发',409)
-    g=Governance(store).snapshot()
+    g=Governance(store).snapshot(actor=actor,operator=operator)
     from .operations import Operations
     op=Operations(store).snapshot()
     from .git_tracking import Tracking
     git=Tracking(store).state()
+    from .resources import Directory
+    resources=Directory(store).listing(actor,operator,brief_task=task_id)
     assets={}
     for ref in w['assets']:
         lock=w.get('asset_locks',{}).get(ref)
@@ -29,6 +31,8 @@ def build_brief(store, task_id, project, url):
             'test_plan':op['test_plans'].get(task_id),
             'estimate':op['estimates'].get(task_id,[]),
             'suggested_cases':op['suggested_cases'].get(task_id,[]),
+            'resource_directory':{'endpoint':url+'/api/projects/'+project+'/resources','entries':resources['entries'],'total':resources['total'],'next':resources['next'],
+                                  'instruction':'资源位置、版本与登记摘要供接手核对；原件留本地/NAS，读取仍需项目范围文件权限。历史范围运行记录不能替代当前验证。'},
             'planning':w.get('planning'),
             'module_plan':g['modules'].get(w.get('planning',{}).get('module')),
             'module_readiness':g['module_readiness'].get(w.get('planning',{}).get('module')),

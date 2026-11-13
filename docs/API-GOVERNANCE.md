@@ -42,3 +42,8 @@ milestone_plan 字段：id/version/goal/path/entry/modules/tasks/acceptance/meth
 module_review 与 milestone_review 使用 {ref,scope,result,summary,evidence}。模块结果 approve/reject，阶段结果 pass/fail；必须引用最新 snapshot 给出的 scope，任务/上下文/接口/边界变化导致过期评审409。既有事件、版本及失败结论保留。快照和brief含规划与当前阻塞，不含凭据。版本升级不重写旧任务，旧版本任务由SE显式scope迁移。未登记的依赖/接口无法自动发现；“无共享接口”是需SE验证的声明。
 
 接口影响分析同时覆盖模块接口引用、反向规划依赖与绑定任务；尚无执行任务时也纳入模块负责人确认。module_scopes固定受影响模块版本摘要，方案变化后旧影响确认失效。无模块影响时保持旧影响摘要格式兼容。
+
+
+## 本地与server资料接手入口
+
+缓存、调研、美术、归档、测试记录、日志、运行态和接手资料统一在“项目资产”的资源目录展示，原件继续留本地/server。任务详情可按任务进入，brief.resource_directory附带本角色可见的相关入口。核对机器、维护者、访问条件、内容版本/摘要与保留规则；目录登记不授予文件权限。详见[资源与接手手册](/help/resources)。

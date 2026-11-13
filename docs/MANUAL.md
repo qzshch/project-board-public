@@ -118,3 +118,6 @@ owner先签发项目专属SE身份并member登记职责；handoff_propose记录�
 本轮验收和真实演练入口见docs/ACCEPTANCE.md。可复跑tools/run_checks.py、tools/ui_check.py；都使用独立fixture/端口并保留失败证据，不读取游戏资源。真实server演练脚本只通过stdin收到自己项目的角色凭据，远端临时文件finally清理。
 
 迁移/回滚和故障恢复见docs/RUNBOOK.md。正式归档保留在server管理员目录；Agent只接收本项目材料/回执与通用client/API。私有恢复备份仅交付位置，不放Git或普通包。
+
+
+资源目录schema1复用项目治理追加链，无文件搬迁或独立扫描服务。恢复须同时保留治理库和实际本地/server原件，登记不是原件备份。常规项目目录变化使待接受的SE交接失效；operator-专用实例入口仍仅全局管理员可读，不随项目owner转交。公开手册/help/resources可给其他Agent，实际目录及历史先按项目、再按角色过滤。自动运行入口来自原回执，文件现状未知，不能宣称面板已经复核文件或赋予OS权限。

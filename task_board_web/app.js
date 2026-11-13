@@ -115,6 +115,7 @@ async function showDetail(id) {
     for(const item of submission.evidence) submitted.append(field(item.label,`${item.path}\nSHA256 ${item.sha256}`));
     body.append(submitted);
   }
+  const resourcesButton=el('button','查看本任务相关资料与运行记录');resourcesButton.onclick=()=>{if($('detail').open)$('detail').close();openTaskResources(task.spec.id);};body.append(resourcesButton);
   if(ws.git){const code=section('代码提交追踪'),anchor=task.latest_submission?.implementation_commit||task.spec.work?.baseline;
     if(/^[0-9a-f]{40}$/.test(anchor||''))for(const [id,repo]of Object.entries(ws.git.repos))if(repo.enabled){const b=el('button','在 '+repo.title+' 中查找此提交');b.onclick=()=>navigateGit(id,anchor);code.append(b);}
     if(code.children.length>1)body.append(code);}

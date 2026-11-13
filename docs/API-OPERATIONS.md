@@ -65,3 +65,8 @@ case_retire={ref,mode,reason}由经理管理用例生命周期，mode=deprecated
 工时基准：客户端export-benchmark --out <非C盘正式文件>导出至少5样本的聚合组，不含任务/人员ID；context仍须负责人脱敏审核。可作为methodology资产经提炼验证后发布。消费项目明确consume固定版本后，用benchmark_import={asset,document,reason}提交原始UTF-8 JSON文本；SHA必须逐字节匹配固定消费。新项目本地样本不足时可参考匹配的获批基准，不合并不同基准的分位数，显示来源与样本数；撤回版本不再用于新预测，旧估算仍留档。
 
 member可选actor_kind=human/agent/unknown；经理配置后，时间时段固定当时分类，不以角色名推断人员/Agent。项目内同一执行者的时段不重叠；人/Agent投入、自动化运行时间分别统计。报告列出等待、返修与治理成本的可复盘方向，这些是改进线索，不是自动因果结论。
+
+
+## 本地与server资料接手入口
+
+缓存、调研、美术、归档、测试记录、日志、运行态和接手资料统一在“项目资产”的资源目录展示，原件继续留本地/server。任务详情可按任务进入，brief.resource_directory附带本角色可见的相关入口。核对机器、维护者、访问条件、内容版本/摘要与保留规则；目录登记不授予文件权限。详见[资源与接手手册](/help/resources)。
