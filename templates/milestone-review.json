@@ -1,0 +1,12 @@
+{
+  "ref": "M1@1",
+  "scope": "REPLACE-WITH-CURRENT-MILESTONE-SCOPE",
+  "result": "pass",
+  "summary": "实际检验结果和进入条件核对",
+  "evidence": [
+    {
+      "path": "<阶段验证证据路径>",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

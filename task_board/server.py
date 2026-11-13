@@ -28,6 +28,7 @@ STATIC = {
     "/index.html": "index.html",
     "/app.js": "app.js",
     "/workspace.js": "workspace.js",
+    "/planning.js": "planning.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",
@@ -378,7 +379,7 @@ class Handler(BaseHTTPRequestHandler):
                         "ready": True,
                         "api_version": 2 if self.server.hub else 1,
                         "product_version": 3,
-                        "governance_schema": 1,
+                        "governance_schema": 2,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )

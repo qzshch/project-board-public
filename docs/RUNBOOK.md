@@ -36,4 +36,6 @@ tools/migrate.py用于首次停服迁移，目标须不存在，执行前明确s
 
 发布：独立private远端 example-owner/project-board。源码与手册不含运行状态；requirements.txt用于生产依赖。回归运行tools/run_checks.py；GUI检查tools/ui_check.py需要本机Edge和requirements-dev.txt。进程、临时目录与清理记录保留到证据目录，正式截图/测试结果不作为临时文件删除。
 
+规划治理升级（schema 2）：增加的治理字段仍位于既有项目治理事件，不迁移/重写任务链或身份库。新项目默认规划门禁，旧项目按缺省legacy读取；禁止为了展示新界面给真实历史任务伪造模块/研究结论。使用 tools/planning_ui_check.py 做隔离端到端表单与桌面/手机浅深色检查。正式部署停server服务后做完整一致性备份与源码检查点，切换源码，核对原项目head/治理head/凭据摘要，实测源码回滚、再切回新版本并重启读回。演练只用独立fixture状态和端口，不在生产创建演练项目。
+
 server归档：`//example-owner/Project Workspace/project-board-archive/20261113/PROJECT-BOARD-<commit>`。源码、手册、通用Agent kit、脱敏本轮结果与SHA清单为正式交付物；管理员包可包含跨项目head/事件审计，必须放管理员目录，不发给普通Agent。私有恢复包单独留在受控私有位置。SMB失败先判断网络/认证/路径；已验证SSH example-owner@192.0.2.10、密钥位置由credential_locations取得，可作为替代归档通道。两者失败保留本机校验包与待归档记录继续开发。

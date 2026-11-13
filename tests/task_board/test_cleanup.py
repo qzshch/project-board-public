@@ -22,7 +22,7 @@ class CleanupCase(unittest.TestCase):
     def test_cleanup_removes_live_grants_files_and_visibility_without_rewriting_real_chains(self):
         before={p:self.hub.store(p).head() for p in ('task-board','real-project')}
         store=self.hub.store('task-board');g=Governance(store);root=self.identity['actor']
-        g.apply(root,{'request_id':uuid.uuid4().hex,'expected_revision':0,'action':'asset','payload':{'id':'brief-method-20261113-000000','version':'1','kind':'methodology','source':'independent fixture','license':'internal approved','sensitivity':'public','sha256':'b'*64,'location':'fixture','owner':'root','shareable':True,'evidence':[{'path':'fixture','sha256':'b'*64}]}})
+        g.apply(root,{'request_id':uuid.uuid4().hex,'expected_revision':g.snapshot()['revision'],'action':'asset','payload':{'id':'brief-method-20261113-000000','version':'1','kind':'methodology','source':'independent fixture','license':'internal approved','sensitivity':'public','sha256':'b'*64,'location':'fixture','owner':'root','shareable':True,'evidence':[{'path':'fixture','sha256':'b'*64}]}})
         ref='task-board/brief-method-20261113-000000@1'
         store.registry.apply(root,{'request_id':uuid.uuid4().hex,'action':'publish','payload':{'asset':'brief-method-20261113-000000@1','audience':[self.demo],'shared_location':'explicit fixture','review':'fixture review','evidence':[{'path':'fixture','sha256':'b'*64}]}})
         result=cleanup(self.state,self.manifest)

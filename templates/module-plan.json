@@ -1,0 +1,25 @@
+{
+  "id": "core",
+  "version": "1",
+  "title": "Core capability",
+  "parent": "",
+  "goal": "A usable capability",
+  "scope": "Only core",
+  "non_goals": "Unrelated features",
+  "owner": "root",
+  "path": "Investigate, decide, implement, verify",
+  "inputs": [],
+  "outputs": [
+    "core-result"
+  ],
+  "interfaces": [],
+  "no_interface_reason": "Pure local function with no cross-module consumers",
+  "risks": "Unknowns tracked explicitly",
+  "unknowns": [],
+  "planning_tasks": [],
+  "decisions": [],
+  "depends_on": [],
+  "acceptance": "Behavior and counterexamples",
+  "stage": "design",
+  "evidence": []
+}

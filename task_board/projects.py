@@ -234,13 +234,16 @@ class ProjectHub:
                 )
             ]
 
-    def create(self, identity: dict, value: dict) -> dict:
+    def create(self, identity: dict, value: dict, *, legacy_import=False) -> dict:
         if not identity["global_admin"]:
             raise BoardError("需要全局管理员", 403)
-        fields(value, {"id", "name", "description"}, {"id", "name", "description"})
+        fields(value, {"id", "name", "description", "knowledge"}, {"id", "name", "description"})
         project = project_id(value["id"])
         name = text(value["name"], "项目名称", 200)
         description = text(value["description"], "项目说明", 4000)
+        if 'knowledge' in value:
+            from .governance import knowledge_spec
+            knowledge_spec(value['knowledge'])
         secret = secrets.token_urlsafe(32)
         storage = f"projects/{project}/board.sqlite"
         with self.connection() as db:
@@ -254,6 +257,14 @@ class ProjectHub:
             store.register_actor(
                 "root", "reviewer"
             )  # Only admin can act as root; key discarded.
+            # Existing/imported catalogs remain compatible. Every new API-created
+            # project has planning gates even when its charter is still a draft.
+            from .governance import Governance
+            governance=Governance(store)
+            if 'knowledge' in value:
+                governance.apply({'id':'root','role':'reviewer'},{'request_id':'initial-knowledge','expected_revision':0,'action':'knowledge','payload':value['knowledge']})
+            if not legacy_import:
+                governance.apply({'id':'root','role':'reviewer'},{'request_id':'initial-planning','expected_revision':governance.snapshot()['revision'],'action':'planning_enable','payload':{'reason':'新项目默认启用项目规划与接口覆盖门禁'}})
             enrollment = self.state / f"_private/enrollment/{project}.json"
             self.write_private(enrollment, {"project_id": project, "join_key": secret})
             db.execute(

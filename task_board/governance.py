@@ -19,7 +19,7 @@ DONE = {'accepted','merged','native_accepted','baseline_merged'}
 ACTIVE = {'active','submitted','changes_requested','partial_accepted','partial_merged','partial_native'}
 
 def work_spec(value):
-    fields(value, {'category','role','inputs_known','inputs','outputs','contracts','assets','asset_locks','resources','couplings','baseline','acceptance'},
+    fields(value, {'category','role','inputs_known','inputs','outputs','contracts','assets','asset_locks','resources','couplings','baseline','acceptance','planning'},
            {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'})
     if value['category'] not in CATEGORIES or value['role'] not in ROLES:
         raise BoardError('未知任务分类或执行角色')
@@ -30,6 +30,12 @@ def work_spec(value):
     if not re.fullmatch('[0-9a-f]{40}', str(value['baseline'])):
         raise BoardError('基线需完整Git提交')
     text(value['acceptance'], '验收条件', 8000)
+    if 'planning' in value:
+        p=value['planning'];fields(p,{'module','purpose','question','no_interface_reason'},{'module','purpose','question','no_interface_reason'})
+        text(p['module'],'固定模块版本',220)
+        if p['purpose'] not in ('planning','execution'):raise BoardError('任务用途需planning/execution')
+        for k in ('question','no_interface_reason'):
+            if not isinstance(p[k],str) or len(p[k])>8000:raise BoardError(k+'需有界字符串')
     locks=value.get('asset_locks',{})
     if type(locks) is not dict or not set(locks)<=set(value['assets']):raise BoardError('资产锁必须对应本任务引用')
     for lock in locks.values():
@@ -60,6 +66,21 @@ def pin_assets(db,spec,registry=None,previous=None):
 
 def empty():
     return dict(knowledge={}, members={}, milestones={}, decisions=[], packages={}, contracts={}, changes={}, assets={}, consumption={}, handoff=None)
+
+
+def knowledge_spec(p):
+    """Validate before allocating a project directory as well as on updates."""
+    fields(p,{'background','goals','non_goals','constraints','materials','entries','history_notes','resource_notes'}, {'background','goals','non_goals','constraints','materials','entries'})
+    for key in ('background','goals','non_goals','constraints'):text(p[key],key,12000)
+    for key in ('history_notes','resource_notes'):
+        if key in p and (not isinstance(p[key],str) or len(p[key])>12000):raise BoardError(key+'需有界字符串')
+    for key in ('materials','entries'):
+        if type(p[key]) is not list or len(p[key])>128:raise BoardError('材料/入口需有界列表')
+        for item in p[key]:
+            fields(item,{'title','location','version','sha256'}, {'title','location','version','sha256'})
+            for key2 in ('title','location','version'):text(item[key2],key2,1000)
+            if not re.fullmatch('[0-9a-f]{64}',str(item['sha256'])):raise BoardError('材料需完整SHA256')
+    return deepcopy(p)
 
 def setup(db):
     db.executescript('''
@@ -95,8 +116,15 @@ def overlaps(a,b):
     a,b = a.rstrip('/').casefold(),b.rstrip('/').casefold()
     return a==b or a.startswith(b+'/') or b.startswith(a+'/') or not a or not b
 
-def impact(all_tasks, contract):
+def impact(all_tasks, contract, governance=None):
+    modules=(governance or {}).get('modules',{})
+    module_refs={r for r,m in modules.items() if contract in m['interfaces']}
+    while True:
+        more={r for r,m in modules.items() if set(m['depends_on']) & module_refs}
+        if more <= module_refs:break
+        module_refs |= more
     direct = {k for k,t in all_tasks.items() if contract in t['spec'].get('work',{}).get('contracts',[])}
+    direct |= {k for k,t in all_tasks.items() if t['spec'].get('work',{}).get('planning',{}).get('module') in module_refs}
     affected=set(direct)
     while True:
         produced={ref for k in affected for ref in all_tasks[k]['spec'].get('work',{}).get('outputs',[])}
@@ -109,12 +137,16 @@ def impact(all_tasks, contract):
         if more <= affected:break
         affected |= more
     return {'direct':sorted(direct),'transitive':sorted(affected-direct),
-            'owners':sorted({all_tasks[k]['owner'] for k in affected if all_tasks[k]['owner']}),
+            'owners':sorted({all_tasks[k]['owner'] for k in affected if all_tasks[k]['owner']} | {modules[r]['owner'] for r in module_refs}),
+            **({'module_scopes':{r:digest(modules[r]) for r in sorted(module_refs)}} if module_refs else {}),
             'scopes':{k:all_tasks[k]['scope_hash'] for k in sorted(affected)}}
 
 def blockers(db, task, actor=None, registry=None):
     spec=task['spec'];work=spec.get('work');out=[];all_tasks=tasks(db);gov=load(db)
-    if not work:return ['legacy/unknown：需SE核定原子任务输入与耦合']
+    from .planning import task_blockers
+    planning_reasons=task_blockers(gov,all_tasks,spec)
+    if not work:return ['legacy/unknown：需SE核定原子任务输入与耦合']+planning_reasons
+    out.extend(planning_reasons)
     if not work['inputs_known']:out.append('输入未知')
     if not spec['allowed_paths']:out.append('写范围未知')
     if actor and role(db,actor) not in MANAGERS and role(db,actor)!=work['role'] and work['role']!='agent':
@@ -153,6 +185,8 @@ class Governance:
             db.execute('BEGIN')
             value=load(db);all_tasks=tasks(db)
             value.pop('removed_assets',None)
+            from .planning import snapshot as planning_snapshot
+            planning_snapshot(value,all_tasks)
             for c in value['changes'].values():c['impact_hash']=digest(c['impact'])
             if getattr(self.store,'registry',None):value['consumption']=self.store.registry.consumption()
             queue=[]
@@ -166,7 +200,7 @@ class Governance:
                 for typ,key in [('product','inputs'),('coupling','couplings'),('contract','contracts'),('asset','assets'),('exclusive','resources')]:
                     graph += [{'from':ref,'to':tid,'type':typ} for ref in w.get(key,[])]
                 graph += [{'from':tid,'to':ref,'type':'produces'} for ref in w.get('outputs',[])]
-            value.update(graph=graph,queue=queue,nodes=[{'id':k,'title':v['spec']['title'],'kind':v['spec']['kind'],'category':v['spec'].get('work',{}).get('category','unknown'),'status':v['status']} for k,v in all_tasks.items()])
+            value.update(graph=graph,queue=queue,nodes=[{'id':k,'title':v['spec']['title'],'kind':v['spec']['kind'],'category':v['spec'].get('work',{}).get('category','unknown'),'status':v['status'],'planning':v['spec'].get('work',{}).get('planning')} for k,v in all_tasks.items()])
             if query:
                 # Search only this already-authorized project; no global index.
                 value={'revision':value['revision'],'matches':[{'kind':k,'id':str(i),'value':row} for k,rows in value.items() if isinstance(rows,dict) for i,row in rows.items() if query.casefold() in canonical(row).casefold()]}
@@ -194,16 +228,11 @@ class Governance:
             return {'revision':revision+1,'hash':hashed}
 
     def _mutate(self,db,v,actor,r,action,p):
-        if action=='knowledge':
-            fields(p,{'background','goals','non_goals','constraints','materials','entries'}, {'background','goals','non_goals','constraints','materials','entries'})
-            for key in ('background','goals','non_goals','constraints'):text(p[key],key,12000)
-            for key in ('materials','entries'):
-                if type(p[key]) is not list or len(p[key])>128:raise BoardError('材料/入口需有界列表')
-                for item in p[key]:
-                    fields(item,{'title','location','version','sha256'}, {'title','location','version','sha256'})
-                    for key2 in ('title','location','version'):text(item[key2],key2,1000)
-                    if not re.fullmatch('[0-9a-f]{64}',str(item['sha256'])):raise BoardError('材料需完整SHA256')
-            v['knowledge']=deepcopy(p)
+        if action in ('planning_enable','planning_decision','module_plan','module_review','milestone_plan','milestone_review'):
+            from .planning import mutate
+            mutate(v,tasks(db),actor,action,p)
+        elif action=='knowledge':
+            v['knowledge']=knowledge_spec(p)
         elif action=='member':
             fields(p,{'actor','role','scope'}, {'actor','role','scope'})
             if p['role'] not in ROLES or p['actor']=='root':raise BoardError('角色无效或保留身份')
@@ -220,6 +249,7 @@ class Governance:
             text(p['summary'],'决策');text(p['reason'],'依据');evidence(p['evidence'])
             v['decisions'].append({**p,'actor':actor['id'],'at':time.time()})
         elif action=='milestone':
+            if v.get('planning_policy',{}).get('mode')=='enforced':raise BoardError('规划门禁项目使用milestone_plan与milestone_review',409)
             fields(p,{'id','goal','acceptance','status','evidence'}, {'id','goal','acceptance','status','evidence'})
             text(p['id'],'里程碑ID',80);text(p['goal'],'目标');text(p['acceptance'],'验收')
             if p['status'] not in ('planned','active','passed','blocked'):raise BoardError('里程碑状态无效')
@@ -249,19 +279,19 @@ class Governance:
             fields(p,{'id','contract','replacement','migration','tests'}, {'id','contract','replacement','migration','tests'})
             text(p['id'],'提案ID');text(p['migration'],'迁移计划',8000);text(p['tests'],'测试清单',8000)
             if p['id'] in v['changes'] or p['contract'] not in v['contracts'] or p['replacement'] not in v['contracts']:raise BoardError('需存在的新旧冻结版本与唯一提案',409)
-            report=impact(tasks(db),p['contract']);owner=v['contracts'][p['contract']]['owner']
+            report=impact(tasks(db),p['contract'],v);owner=v['contracts'][p['contract']]['owner']
             se=sorted(k for k,m in v['members'].items() if m['role'] in ('owner','se')) or ['root']
             v['changes'][p['id']]={**p,'impact':report,'required':sorted(set([owner]+se+report['owners'])),'confirmations':[],'executed':False}
         elif action=='contract_confirm':
             fields(p,{'id','impact_hash','summary'}, {'id','impact_hash','summary'});c=v['changes'].get(p['id'])
             if not c or actor['id'] not in c['required']:raise BoardError('非此变更确认人',403)
-            if p['impact_hash']!=digest(c['impact']) or impact(tasks(db),c['contract'])!=c['impact']:raise BoardError('影响范围变化；重新提案',409)
+            if p['impact_hash']!=digest(c['impact']) or impact(tasks(db),c['contract'],v)!=c['impact']:raise BoardError('影响范围变化；重新提案',409)
             text(p['summary'],'确认依据')
             c['confirmations']=sorted(set(c['confirmations']+[actor['id']]))
         elif action=='contract_execute':
             fields(p,{'id'}, {'id'});c=v['changes'].get(p['id'])
             if not c or not set(c['required'])<=set(c['confirmations']):raise BoardError('变更缺少影响确认',409)
-            if impact(tasks(db),c['contract'])!=c['impact']:raise BoardError('影响范围变化；不能切换',409)
+            if impact(tasks(db),c['contract'],v)!=c['impact']:raise BoardError('影响范围变化；不能切换',409)
             v['contracts'][c['contract']]['status']='retired';c['executed']=True
         elif action=='asset_remove':
             fields(p,{'refs','reason'},{'refs','reason'});identifiers(p['refs'],'资产版本');text(p['reason'],'清理依据')

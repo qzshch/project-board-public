@@ -10,6 +10,7 @@ PUBLIC_TEMPLATES=frozenset({
     'knowledge.json','member.json','milestone.json','package.json','contract-freeze.json',
     'contract-change.json','asset-private.json','asset-publish.json','asset-consume.json',
     'claim.json','submit.json','rework.json','handoff-propose.json','delivery-manifest.json','task-create.json',
+    'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
     '/help/agent':('执行 Agent','docs/AGENT-QUICKSTART.md',False),

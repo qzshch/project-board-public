@@ -1,0 +1,20 @@
+{
+  "id": "M1",
+  "version": "1",
+  "goal": "阶段目标",
+  "path": "达成路径",
+  "entry": "进入条件",
+  "modules": [
+    "core@1"
+  ],
+  "tasks": [
+    "impl/one"
+  ],
+  "acceptance": "验收条件",
+  "method": "测试/演示/检查/分析",
+  "threshold": "可判定的通过阈值",
+  "environment": "实际验证环境",
+  "reviewer": "<本项目owner或SE>",
+  "due": "计划时间窗口",
+  "risks": "风险、失败处置及重规划条件"
+}

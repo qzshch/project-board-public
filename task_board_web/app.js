@@ -168,6 +168,7 @@ function readScope(form,task) {
     spec.kind='atomic';spec.registered=true;
     spec.work={category:form.elements.category.value,role:form.elements.work_role.value,inputs_known:form.elements.inputs_known.checked,
       inputs:lines('work_inputs'),outputs:lines('work_outputs'),contracts:lines('work_contracts'),assets:lines('work_assets'),resources:lines('work_resources'),couplings:lines('work_couplings'),baseline:form.elements.base.value.trim(),acceptance:form.elements.work_acceptance.value};
+    if(form.elements.planning_module.value.trim())spec.work.planning={module:form.elements.planning_module.value.trim(),purpose:form.elements.planning_purpose.value,question:form.elements.planning_question.value,no_interface_reason:form.elements.planning_no_interface_reason.value};
   }
   return spec;
 }
@@ -258,9 +259,13 @@ async function handleAccess() {
 function createProject() {
   const body=$('detail-body');body.replaceChildren();$('detail-kind').textContent='项目管理';$('detail-title').textContent='建立独立项目';$('stale').hidden=true;
   const form=el('form',undefined,'review-form');formInput(form,'项目ID（小写字母、数字、连字符）','projectid');formInput(form,'项目名称','projectname');formInput(form,'项目说明','projectdescription',true);
+  form.append(el('p','新项目默认启用规划门禁。先建立上下文；模块可保留未知项，逐步调研与展开。','secondary'));
+  for(const [key,label]of [['background','项目背景'],['goals','目标与成功标准'],['non_goals','非目标'],['constraints','约束'],['history_notes','历史材料说明'],['resource_notes','项目资源与准备计划']])formInput(form,label,'init_'+key,true);
+  formInput(form,'历史材料（每行 标题 | 位置 | 版本 | SHA256）','init_materials',true);formInput(form,'资源入口（同上格式）','init_entries',true);
   const message=el('p','','form-message');const submit=el('button','建立项目','primary');submit.type='submit';form.append(message,submit);body.append(form);
   form.addEventListener('submit',async event=>{event.preventDefault();submit.disabled=true;try {
-    const project=await api('/api/projects',{id:form.elements.projectid.value.trim(),name:form.elements.projectname.value,description:form.elements.projectdescription.value},true);
+    const knowledge={};for(const key of ['background','goals','non_goals','constraints','history_notes','resource_notes'])knowledge[key]=form.elements['init_'+key].value.trim();for(const key of ['materials','entries'])knowledge[key]=form.elements['init_'+key].value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const [title,location,version,sha256]=s.split('|').map(x=>x.trim());return{title,location,version,sha256};});
+    const project=await api('/api/projects',{id:form.elements.projectid.value.trim(),name:form.elements.projectname.value,description:form.elements.projectdescription.value,knowledge},true);
     $('detail').close();await loadProjects(project.id);
   }catch(error){message.textContent=error.message;}finally{submit.disabled=false;}});$('detail').showModal();
 }

@@ -1,5 +1,15 @@
 {
-  "id": "example-board",
-  "name": "示例独立项目",
-  "description": "研究、实现与文档的范围协作演练"
+  "id": "new-project",
+  "name": "新项目名称",
+  "description": "项目说明",
+  "knowledge": {
+    "background": "填写项目背景",
+    "goals": "填写项目目标及成功标准",
+    "non_goals": "明确不做的范围",
+    "constraints": "环境、权限、资源和部署约束",
+    "materials": [],
+    "entries": [],
+    "history_notes": "填写历史材料来源；新项目说明无历史材料",
+    "resource_notes": "填写仓库、运行环境、工具及资源准备计划"
+  }
 }

@@ -31,7 +31,7 @@ class HelpCase(unittest.TestCase):
             self.assertEqual(self.get(path,self.admin)[0],200)
 
     def test_template_whitelist_does_not_serve_arbitrary_files(self):
-        code,body,_=self.get('/templates/project-init.json');self.assertEqual(code,200);self.assertEqual(set(json.loads(body)),{'id','name','description'})
+        code,body,_=self.get('/templates/project-init.json');self.assertEqual(code,200);self.assertEqual(set(json.loads(body)),{'id','name','description','knowledge'})
         for path in ('/templates/../../state/_private/admin.json','/templates/server.json','/help/../../state/_private/admin.json'):
             code,body,_=self.get(path,self.admin);self.assertEqual(code,404,path);self.assertNotIn(self.admin['token'].encode(),body)
 

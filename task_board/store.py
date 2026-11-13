@@ -639,7 +639,8 @@ class BoardStore:
             return {"spec": spec, "reason": text(payload["reason"], "范围变更原因")}
         if action == "assign":
             fields(payload, {"owner", "reason", "registered"}, {"owner", "reason"})
-            if state['spec'].get('work'):
+            from .governance import load as load_governance
+            if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced':
                 from .governance import blockers
                 reasons=blockers(db,state,registry=getattr(self,'registry',None))
                 if reasons:raise BoardError('；'.join(reasons),409)
@@ -665,7 +666,8 @@ class BoardStore:
             }
         if action == "claim":
             fields(payload, {"summary"}, {"summary"})
-            if state['spec'].get('work'):
+            from .governance import load as load_governance
+            if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced':
                 from .governance import blockers
                 reasons = blockers(db, state, actor, getattr(self,'registry',None))
                 if reasons:
@@ -709,6 +711,11 @@ class BoardStore:
             fields(payload, {"summary"}, {"summary"})
             return {"summary": text(payload["summary"], "进展")}
         if action == "submit":
+            if state['spec'].get('work',{}).get('planning'):
+                from .governance import load as load_governance, tasks as governance_tasks
+                from .planning import task_blockers
+                reasons=task_blockers(load_governance(db),governance_tasks(db),state['spec'])
+                if reasons:raise BoardError('；'.join(reasons),409)
             fields(
                 payload,
                 {

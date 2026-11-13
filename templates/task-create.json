@@ -41,7 +41,13 @@
         "resources": [],
         "couplings": [],
         "baseline": "0000000000000000000000000000000000000000",
-        "acceptance": "验证空白/大小写/非法类型；输出完整测试日志及SHA"
+        "acceptance": "验证空白/大小写/非法类型；输出完整测试日志及SHA",
+        "planning": {
+          "module": "core@1",
+          "purpose": "execution",
+          "question": "",
+          "no_interface_reason": ""
+        }
       }
     },
     "reason": "明确授权的原子范围"

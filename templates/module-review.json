@@ -1,0 +1,12 @@
+{
+  "ref": "core@1",
+  "scope": "REPLACE-WITH-CURRENT-MODULE-SCOPE",
+  "result": "approve",
+  "summary": "填写实际评审依据",
+  "evidence": [
+    {
+      "path": "<实际证据路径>",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

@@ -14,7 +14,8 @@ def main():
     if a.out.exists():p.error('身份文件已存在，拒绝覆盖')
     hub=ProjectHub(a.state);admin=read(a.state/'_private/admin.json');identity=hub.resolve(admin['token'])
     project=hub.create(identity,read(a.definition));profile=hub.invite(project['id'],a.owner)
-    Governance(hub.store(project['id'])).apply(identity['actor'],{'request_id':str(uuid.uuid4()),'expected_revision':0,'action':'member','payload':{'actor':a.owner,'role':'owner','scope':'本项目总负责人；材料、原子任务、接口、资产、审核与交接'}})
+    governance=Governance(hub.store(project['id']))
+    governance.apply(identity['actor'],{'request_id':str(uuid.uuid4()),'expected_revision':governance.snapshot()['revision'],'action':'member','payload':{'actor':a.owner,'role':'owner','scope':'本项目总负责人；材料、原子任务、接口、资产、审核与交接'}})
     write(a.out,{**profile,'url':admin['url']})
     print(json.dumps({'project_id':project['id'],'owner':a.owner,'private_profile':str(a.out),'secret_printed':False}));return 0
 if __name__=='__main__':raise SystemExit(main())

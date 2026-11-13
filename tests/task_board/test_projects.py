@@ -47,7 +47,7 @@ class ProjectCase(unittest.TestCase):
                     "id": project,
                     "name": project + " private name",
                     "description": project + " confidential description",
-                },
+                }, legacy_import=True,
             )
         self.a = self.hub.invite("alpha", "same-agent")
         self.b = self.hub.invite("beta", "same-agent")
