@@ -348,6 +348,8 @@ class BoardStore:
             setup(db)
             from .operations import setup as setup_operations
             setup_operations(db)
+            from .git_tracking import setup as setup_git
+            setup_git(db)
 
     @contextmanager
     def connection(self):
@@ -554,7 +556,7 @@ class BoardStore:
                 actor = effective(db, actor)
                 if actor['project_role'] == 'viewer':
                     raise BoardError('此身份已移交管理职责或仅有读取权限',403)
-                if actor['project_role']=='runner':raise BoardError('测试执行器不能修改开发任务',403)
+                if actor['project_role'] in ('runner','tracker'):raise BoardError('测试执行器和Git同步器不能修改开发任务',403)
                 if action in REVIEW_ACTIONS and actor['role'] != 'reviewer':
                     raise BoardError('此操作需要本项目审核权限',403)
                 prior = db.execute(

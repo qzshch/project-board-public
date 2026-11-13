@@ -53,7 +53,7 @@ class Operations:
         with self.store.connection() as db:
             db.execute('BEGIN IMMEDIATE')
             r=role(db,actor)
-            if r=='viewer':raise BoardError('仅有读取权限',403)
+            if r in ('viewer','tracker'):raise BoardError('仅有读取权限',403)
             old=db.execute('SELECT * FROM operations_events WHERE actor=? AND request_id=?',(actor['id'],rid)).fetchone()
             if old:
                 if old['request_hash']!=digest(request):raise BoardError('请求ID绑定其他内容',409)

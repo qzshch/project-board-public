@@ -211,6 +211,10 @@ def main():
     operations.add_argument('--action',required=True)
     operations.add_argument('--payload',type=Path,required=True)
     operations.add_argument('--out',type=Path,required=True)
+    git = sub.add_parser('prepare-git',help='Freeze Git binding/policy revision and request ID')
+    git.add_argument('--action',required=True)
+    git.add_argument('--payload',type=Path,required=True)
+    git.add_argument('--out',type=Path,required=True)
     sharing = sub.add_parser('prepare-shared',help='Freeze a shared-asset request ID')
     sharing.add_argument('--action',required=True)
     sharing.add_argument('--payload',type=Path,required=True)
@@ -253,11 +257,12 @@ def main():
         parser.error("--url or an existing --profile is required")
     try:
         client = Client(url, profile, args.connect_ip, args.project)
-        if args.command in ('prepare-governance','prepare-shared','prepare-operations'):
+        if args.command in ('prepare-governance','prepare-shared','prepare-operations','prepare-git'):
             if args.out.exists():raise ClientError('请求目标已存在，不能覆盖')
             value={'request_id':str(uuid.uuid4()),'action':args.action,'payload':read(args.payload)}
             if args.command=='prepare-governance':value['expected_revision']=client.call('/api/governance')['revision']
             if args.command=='prepare-operations':value['expected_revision']=client.call('/api/operations')['revision']
+            if args.command=='prepare-git':value['expected_revision']=client.call('/api/git')['revision']
             save(args.out,value)
             print(json.dumps({'request':str(args.out),'project_id':client.project,'frozen':True}));return 0
         if args.command in ('read','request'):

@@ -30,6 +30,7 @@ STATIC = {
     "/workspace.js": "workspace.js",
     "/planning.js": "planning.js",
     "/operations.js": "operations.js",
+    "/git.js": "git.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",
@@ -385,11 +386,20 @@ class Handler(BaseHTTPRequestHandler):
                         "product_version": 4,
                         "governance_schema": 2,
                         "operations_schema": 1,
+                        "git_schema": 1,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )
+            if path=='/gitignore.txt':
+                from .storage_boundary import ignore_template
+                return self.send(200,ignore_template().encode('utf8'),content_type='text/plain; charset=utf-8')
             self.read_access()
             query = parse_qs(parsed.query)
+            if path=='/api/git' or path.startswith('/api/git/'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .git_tracking import Tracking
+                tracking=Tracking(self.store);endpoint=path.removeprefix('/api/git').lstrip('/')
+                return self.send(200,tracking.verify() if endpoint=='verify' else tracking.query(endpoint,query))
             if path in ('/api/operations','/api/operations/verify'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .operations import Operations
@@ -575,6 +585,10 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
             actor = self.actor()
+            if path=='/api/git':
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .git_tracking import Tracking
+                return self.send(201,Tracking(self.store).apply(actor,value))
             if path=='/api/operations':
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .operations import Operations

@@ -5,6 +5,9 @@
 .project-bar{display:flex;align-items:center;gap:var(--space-16);padding:var(--space-16) var(--space-24);margin-bottom:var(--space-24)}.project-bar label{min-width:0;flex:1;font-size:var(--type-12);color:var(--muted)}.project-bar select{display:block;margin-top:var(--space-4);color:var(--ink);font-weight:600}.project-bar p{flex:2;font-size:var(--type-14);overflow-wrap:anywhere}.project-bar button{flex-shrink:0}@media(max-width:600px){.project-bar{flex-wrap:wrap;padding:var(--space-16)}.project-bar label,.project-bar p{flex-basis:100%}}
 /* Project workspace extends the existing token and theme system. */
 .workspace { margin-bottom:var(--space-24); padding:var(--space-24); }
+.workspace .section-head > div { min-width:0; flex:1; }
+.workspace .section-head > button { flex-shrink:0; white-space:nowrap; }
+.workspace p { overflow-wrap:anywhere; }
 .workspace-tabs { margin-bottom:var(--space-24); overflow-x:auto; }
 .workspace-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-24); margin-bottom:var(--space-32); }
 .workspace-grid .detail-value { white-space:pre-wrap; max-width:65ch; line-height:1.7; }
@@ -29,5 +32,16 @@
 @media(max-width:600px) { .graph-stage { height:480px; } }
 .relation-details { margin-top:var(--space-24); }
 .relation-details summary { cursor:pointer; color:var(--secondary); font-weight:600; padding:var(--space-12) 0; }
+.git-history { height:600px; margin-top:var(--space-16); }
+.git-node { cursor:pointer; }
+.git-node circle { fill:var(--action); stroke:var(--surface); stroke-width:2; }
+.git-node:hover text,.git-node:focus text { text-decoration:underline; }
+.git-file { padding:var(--space-12) 0; border-bottom:1px solid var(--line); }
+.git-file button,.git-file a { margin:var(--space-4) var(--space-8) var(--space-4) 0; }
+.git-diff { max-width:100%; overflow:auto; background:var(--canvas); }
+.git-added { color:var(--action); }
+.git-removed { color:var(--bad); }
+.git-blame-line { padding:var(--space-8) 0; border-bottom:1px solid var(--line); }
+.git-blame-line pre { margin-top:var(--space-8); max-width:100%; overflow:auto; }
 #help { color:var(--action); font-size:var(--type-14); font-weight:600; padding:var(--space-8); text-underline-offset:var(--space-4); }
 #help:focus-visible { outline:2px solid var(--focus); outline-offset:var(--space-4); }

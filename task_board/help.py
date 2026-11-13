@@ -25,6 +25,7 @@ def runner_kit():
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'git-binding.json','git-storage-policy.json','git-task-link.json','git-sync.json',
     'agent-brief.md','se-handoff.md','archive-checklist.md','project-init.json',
     'knowledge.json','member.json','milestone.json','package.json','contract-freeze.json',
     'contract-change.json','asset-private.json','asset-publish.json','asset-consume.json',
@@ -35,6 +36,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/github':('GitHub提交与本地存储边界','docs/GITHUB-GUIDE.md',False),
     '/help/agent':('执行 Agent','docs/AGENT-QUICKSTART.md',False),
     '/help/owner':('负责人 / 继承 SE','docs/OWNER-GUIDE.md',False),
     '/help/api':('任务与身份 API','docs/TASK_BOARD_API_V2.md',False),
@@ -63,6 +65,7 @@ INDEX='''# 使用手册
 - [其他电脑与 Agent 连通性](/help/connectivity)：Tailscale、DNS、本地执行通道和权限问题的排查步骤。
 - [分级治理、时间、测试与资产](/help/operations)、[自动化执行器](/help/runner)、[独立执行器下载](/runner-kit.zip)：风险裁剪、工时估算与实测、用例/运行以及候选提炼闭环。
 - [可复制模板目录](/help/templates)：项目、任务、接口、资产、交付、交接和归档模板。
+- [GitHub代码提交追踪](/help/github)：提交图、差异、文件历史、逐行溯源与本地/NAS存储边界。
 - [任务与身份 API](/help/api)、[治理 API](/help/governance)；[下载标准库客户端](/client.py)。
 
 把对应角色的指南链接和本项目说明发给其他会话。项目身份通过私有渠道单独交付，不放在文档链接里。

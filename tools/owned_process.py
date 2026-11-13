@@ -24,18 +24,29 @@ def remove_owned_tree(path, owner_root):
         os.chmod(target,stat.S_IWRITE|stat.S_IREAD);function(raw)
     shutil.rmtree(path,onerror=lambda function,raw,info:readonly(function,raw,info[1]))
 
-def run(command, *, evidence, purpose, cwd=None, timeout=60, input_data=None, env=None):
+def run(command, *, evidence, purpose, cwd=None, timeout=60, input_data=None, env=None, stdout_path=None, stderr_path=None):
     evidence=Path(evidence);evidence.mkdir(parents=True,exist_ok=True)
     startup=None
     if os.name=='nt':
         startup=subprocess.STARTUPINFO();startup.dwFlags|=subprocess.STARTF_USESHOWWINDOW;startup.wShowWindow=subprocess.SW_HIDE
-    child=subprocess.Popen([str(x) for x in command],cwd=cwd,stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,stdout=subprocess.PIPE,stderr=subprocess.PIPE,env=env,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+    streams=[]
+    try:
+        out_file=open(stdout_path,'wb') if stdout_path else subprocess.PIPE
+        if stdout_path:streams.append(out_file)
+        err_file=open(stderr_path,'wb') if stderr_path else subprocess.PIPE
+        if stderr_path:streams.append(err_file)
+        child=subprocess.Popen([str(x) for x in command],cwd=cwd,stdin=subprocess.PIPE if input_data is not None else subprocess.DEVNULL,stdout=out_file,stderr=err_file,env=env,startupinfo=startup,creationflags=subprocess.CREATE_NO_WINDOW if os.name=='nt' else 0)
+    except BaseException:
+        for stream in streams:stream.close()
+        raise
     record={'pid':child.pid,'command':[str(x) for x in command],'purpose':purpose,'started':time.time()}
     try:
         try:record['created']=psutil.Process(child.pid).create_time()
         except psutil.NoSuchProcess:record['already_exited']=True
         out,err=child.communicate(input_data,timeout=timeout)
         record['exit_code']=child.returncode
+        if stdout_path:out=Path(stdout_path).read_bytes()
+        if stderr_path:err=Path(stderr_path).read_bytes()
         return child.returncode,out,err
     finally:
         if child.poll() is None:
@@ -50,3 +61,4 @@ def run(command, *, evidence, purpose, cwd=None, timeout=60, input_data=None, en
             except psutil.NoSuchProcess:pass
         record.update(finished=time.time(),waited=child.poll() is not None,exit_code=child.returncode)
         with (evidence/'processes.jsonl').open('a',encoding='utf8') as h:h.write(json.dumps(record,ensure_ascii=False)+'\n')
+        for stream in streams:stream.close()

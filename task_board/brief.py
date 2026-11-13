@@ -8,6 +8,8 @@ def build_brief(store, task_id, project, url):
     g=Governance(store).snapshot()
     from .operations import Operations
     op=Operations(store).snapshot()
+    from .git_tracking import Tracking
+    git=Tracking(store).state()
     assets={}
     for ref in w['assets']:
         lock=w.get('asset_locks',{}).get(ref)
@@ -17,6 +19,8 @@ def build_brief(store, task_id, project, url):
     return {'project_id':project,'api_base':url+'/api/projects/'+project,'task_id':task_id,
             'role':w['role'],'scope_version':task['scope_version'],'scope_hash':task['scope_hash'],
             'baseline':w['baseline'],'read_materials':g['knowledge'].get('materials',[]),
+            'git':{'repositories':[{k:r.get(k) for k in ('id','repository','title','synced_at')} for r in git['repos'].values() if r['enabled']],
+                   'local_storage_policy':git['policy'],'instruction':'仅审核纳入的源码/说明/测试代码进Git；资料和运行产物留本地/NAS；此接入不执行add/commit/push'},
             'constraints':g['knowledge'].get('constraints','待SE填写'),
             'allowed_paths':spec['allowed_paths'],'inputs':w['inputs'],'outputs':w['outputs'],
             'contracts':{ref:g['contracts'].get(ref) for ref in w['contracts']},

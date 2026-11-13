@@ -1,0 +1,6 @@
+{
+  "id": "main",
+  "repository": "owner/repository",
+  "title": "项目源码",
+  "reason": "本项目负责人审核只读源码追踪；资料与运行产物留NAS"
+}

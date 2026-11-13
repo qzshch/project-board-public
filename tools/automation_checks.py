@@ -1,5 +1,5 @@
 """Stable regression artifacts for the approved project-board runner suite."""
-import hashlib,json,os,re,sys
+import hashlib,json,os,re,sys,subprocess
 from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
 from tools.owned_process import run
@@ -7,7 +7,8 @@ from task_board.help import runner_kit
 
 def main():
     e=ROOT/'evidence/automation-regression';e.mkdir(parents=True,exist_ok=True)
-    code,out,err=run([sys.executable,'-B','-X','utf8','-m','unittest','discover','-s','tests','-t','.','-v'],cwd=ROOT,evidence=e,purpose='Approved fixed-input complete regression',timeout=120)
+    try:code,out,err=run([sys.executable,'-B','-X','utf8','-m','unittest','discover','-s','tests','-t','.','-v'],cwd=ROOT,evidence=e,purpose='Approved fixed-input complete regression',timeout=180,stdout_path=e/'stdout.log',stderr_path=e/'stderr.log')
+    except subprocess.TimeoutExpired as failure:code=124;out=(e/'stdout.log').read_bytes();err=(e/'stderr.log').read_bytes()+b'\nRegression timed out; partial logs retained.\n'
     (e/'stdout.log').write_bytes(out);(e/'stderr.log').write_bytes(err)
     found=re.search(rb'Ran (\d+) tests?',err);count=int(found[1]) if found else 0
     (ROOT/'project-runner.zip').write_bytes(runner_kit())

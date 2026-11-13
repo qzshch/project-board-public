@@ -1,13 +1,13 @@
 'use strict';
-const ws={panel:new URLSearchParams(location.search).get('panel')||'overview',data:null,shared:null,ops:null,signature:null,graphFamily:'',graphQuery:'',graphMode:'all',zoom:1};
+const ws={panel:new URLSearchParams(location.search).get('panel')||'overview',data:null,shared:null,ops:null,git:null,signature:null,graphFamily:'',graphQuery:'',graphMode:'all',zoom:1};
 const categoryNames={research:'研究 / 调研',collection:'素材采集',generation:'资源生成',infrastructure:'框架 / 基建',frontend:'前端开发',backend:'后端开发',library:'公共库',documentation:'记录 / 约束 / 交接文档',test:'测试',integration:'集成',release:'发布'};
-const roleNames={owner:'总负责人',se:'继承 SE',researcher:'研究员',collector:'素材采集',generator:'资源生成',developer:'开发',documenter:'文档',tester:'测试',agent:'Agent',viewer:'只读',runner:'测试执行器'};
-const panelNames={overview:'项目概览',planning:'框架与规划',policy:'治理策略',time:'时间与效率',quality:'测试与自动化',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
-function clearWorkspace(){ws.data=null;ws.shared=null;ws.ops=null;ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
+const roleNames={owner:'总负责人',se:'继承 SE',researcher:'研究员',collector:'素材采集',generator:'资源生成',developer:'开发',documenter:'文档',tester:'测试',agent:'Agent',viewer:'只读',runner:'测试执行器',tracker:'Git只读同步器'};
+const panelNames={overview:'项目概览',planning:'框架与规划',policy:'治理策略',time:'时间与效率',quality:'测试与自动化',git:'代码与提交',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
+function clearWorkspace(){ws.data=null;ws.shared=null;ws.ops=null;ws.git=null;resetGit();ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
 async function refreshWorkspace(generation){
-  const [data,shared,ops]=await Promise.all([api('/api/governance'),api('/api/shared'),api('/api/operations')]);
+  const [data,shared,ops,git]=await Promise.all([api('/api/governance'),api('/api/shared'),api('/api/operations'),api('/api/git')]);
   if(generation!==app.generation)return;
-  const signature=JSON.stringify([app.project,data,shared,['policy','time','quality','assets'].includes(ws.panel)?ops.revision:0]);ws.data=data;ws.shared=shared;ws.ops=ops;$('workspace').hidden=false;if(signature!==ws.signature){ws.signature=signature;renderWorkspace();}
+  const signature=JSON.stringify([app.project,data,shared,['policy','time','quality','assets'].includes(ws.panel)?ops.revision:0,ws.panel==='git'?git.revision:0]);ws.data=data;ws.shared=shared;ws.ops=ops;ws.git=git;$('workspace').hidden=false;if(signature!==ws.signature){ws.signature=signature;renderWorkspace();}
 }
 function listLines(box,title,rows,format){const sectionBox=section(title);if(!rows.length)sectionBox.append(el('p','尚未登记。','muted'));for(const row of rows)sectionBox.append(el('p',format(row),'detail-text'));box.append(sectionBox);}
 function relationDetails(box,title,rows,format){const details=el('details',undefined,'relation-details');details.append(el('summary',`${title} · ${rows.length} 项`));listLines(details,title,rows,format);box.append(details);}
@@ -22,6 +22,7 @@ function renderWorkspace(){
     listLines(box,'决策与历史变更',d.decisions.slice(-8).reverse(),r=>`${r.summary}\n依据：${r.reason} · ${r.actor}`);
   }
   if(ws.panel==='planning')renderPlanning(box,d);
+  if(ws.panel==='git')renderGit(box);
   if(['policy','time','quality'].includes(ws.panel))renderOperations(box);
   if(ws.panel==='relations'){
     const eligible=d.queue.filter(r=>!r.blockers.length);box.append(el('p',`可领取 ${eligible.length} 项；执行时会再次原子检查角色、前置、写路径、资源和固定版本。`,'secondary'));
@@ -78,7 +79,7 @@ function drawGraph(box,d,planningGraph=false){
 }
 function selectInput(form,label,name,values,current){const group=el('label',label),input=el('select');input.name=name;for(const [v,l] of Object.entries(values)){const o=el('option',l);o.value=v;input.append(o);}input.value=current||Object.keys(values)[0];group.append(input);form.append(group);return input;}
 function atomicInputs(form,task){
-  const w=task?.spec.work;selectInput(form,'任务分类','category',{'':'历史任务包（不自动推断原子范围）',...categoryNames},w?.category||'');selectInput(form,'执行角色','work_role',Object.fromEntries(Object.entries(roleNames).filter(([k])=>!['runner','viewer'].includes(k))),w?.role||'developer');
+  const w=task?.spec.work;selectInput(form,'任务分类','category',{'':'历史任务包（不自动推断原子范围）',...categoryNames},w?.category||'');selectInput(form,'执行角色','work_role',Object.fromEntries(Object.entries(roleNames).filter(([k])=>!['runner','viewer','tracker'].includes(k))),w?.role||'developer');
   const label=el('label',undefined,'check'),check=el('input');check.type='checkbox';check.name='inputs_known';check.checked=w?.inputs_known||false;label.append(check,el('span','输入、来源版本与耦合已核定'));form.append(label);
   for(const [key,title] of [['inputs','输入与SHA引用'],['outputs','输出产物'],['contracts','固定接口（id@版本）'],['assets','固定资产（本项目引用ID）'],['resources','排他资源（端口/设备等）'],['couplings','共享修改（入口/数据库等）']])formInput(form,title+'，每行一项','work_'+key,true,w?.[key]?.join('\n')||'');
   formInput(form,'行为与反例验收条件','work_acceptance',true,w?.acceptance||'');
@@ -125,5 +126,5 @@ function editWorkspace(fixed,seed={}){
 }
 function selectWorkspacePanel(panel){if(!panelNames[panel])return;ws.panel=panel;const params=new URLSearchParams(location.search);params.set('panel',panel);history.replaceState(null,'',location.pathname+'?'+params.toString());renderWorkspace();}
 document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>selectWorkspacePanel(b.dataset.panel));
-$('workspace-edit').onclick=()=>['policy','time','quality'].includes(ws.panel)?editOperations():editWorkspace();
+$('workspace-edit').onclick=()=>ws.panel==='git'?editGit():['policy','time','quality'].includes(ws.panel)?editOperations():editWorkspace();
 for(const [value,label] of Object.entries(categoryNames)){const option=el('option',label);option.value=value;$('kind').append(option);}

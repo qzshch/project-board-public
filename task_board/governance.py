@@ -13,7 +13,7 @@ import time
 from .store import BoardError, canonical, digest, fields, text, integer, identifiers, evidence
 
 CATEGORIES = {'research','collection','generation','infrastructure','frontend','backend','library','documentation','test','integration','release'}
-ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer','runner'}
+ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer','runner','tracker'}
 MANAGERS = {'owner','se','reviewer'}
 DONE = {'accepted','merged','native_accepted','baseline_merged'}
 ACTIVE = {'active','submitted','changes_requested','partial_accepted','partial_merged','partial_native'}
@@ -23,7 +23,7 @@ def work_spec(value):
            {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'})
     if value['category'] not in CATEGORIES or value['role'] not in ROLES:
         raise BoardError('未知任务分类或执行角色')
-    if value['role'] in ('runner','viewer'):raise BoardError('只读者和执行器不领取开发任务；自动测试使用运行队列')
+    if value['role'] in ('runner','viewer','tracker'):raise BoardError('只读者、同步器和执行器不领取开发任务')
     if type(value['inputs_known']) is not bool:
         raise BoardError('inputs_known需布尔值；未知输入不能自动领取')
     for k in ('inputs','outputs','contracts','assets','resources','couplings'):

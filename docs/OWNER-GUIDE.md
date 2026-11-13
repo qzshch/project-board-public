@@ -86,3 +86,7 @@ python client.py --profile <本项目身份> request --endpoint /api/governance 
 资产动作使用 prepare-shared 与 `/api/shared`。普通任务事件使用 prepare/post。所有模板都含待填写占位，不能当作实际证据。
 
 完整字段见[通用 API](/help/api)、[治理 API](/help/governance)和[模板目录](/help/templates)。所有协作Agent可阅读[管理手册阅读版](/help/admin)；实例管理员在自己的授权会话查看[私有操作手册](/help/operator)。
+
+## 代码版本与资料存储
+
+使用“代码与提交”绑定GitHub仓库、请求只读同步、查看提交图/文件历史/差异/逐行溯源，以及本项目任务、测试和资产的固定SHA关联。原始调研、归档、美术、测试记录、日志和运行态留本地/server；只提交审核纳入的源码/说明/测试代码。误跟踪告警不删除数据或历史。详见[GitHub操作指南](/help/github)。

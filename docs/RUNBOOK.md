@@ -46,3 +46,5 @@ server归档：`//example-owner/Project Workspace/project-board-archive/20261113
 执行器运行依赖：server 的 Git 使用项目内 `.venv/bin/git` 启动器，实际文件在 `runtime/git/package`；不依赖系统 Git。安装包按 Debian 包索引 SHA256 校验，记录在 server `evidence/git-prerequisite/RESULT.json`。预检和质量服务显式将项目 `.venv/bin` 加入 PATH；固定提交从已校验 bundle 导入项目专用 bare 仓库。该运行依赖和一致性备份均须随实例恢复保留。
 
 质量服务为用户级 `project-board-quality.service`，仅本项目 runner 身份，配置在 `state/_private/runner/task-board.json`，身份在 `state/_private/roles/board-quality.json`；不将文件内容放进协作说明。使用 `systemctl --user status/restart project-board-quality.service` 管理；日志用 `journalctl --user -u project-board-quality.service` 查看。固定输入仓库、临时导出和正式结果分别在 `runners/task-board/repository`、`scratch`、`output`。没有任务时保持等待；停止/重启前核对正在执行与租约，服务留足45秒完成取消和清理。共享资源锁目录不得作为临时文件清理。
+
+GitHub只读服务按项目使用 `project-board-git-<project>.service`，运行 `tools/github_tracker.py --watch`。配置和部署密钥位于状态根 `_private`，镜像在 `state/git-mirrors`，都不进入源码或普通Agent包。每仓库独立只读部署密钥，固定GitHub SSH主机公钥在 `_private/github-known-hosts`（由官方HTTPS API meta核对获取）。服务有界查询/拉取、项目锁、失败保留与非快进记录。发布停服一致性备份时一并停止这些同步器，恢复后核对所有Git链并启动原已启用服务；禁止复制正在同步的镜像作一致性恢复点。详见[GitHub接入](/help/github)。

@@ -78,3 +78,7 @@ python client.py --profile <项目身份> portal --out <私有目录>/project-en
 API 权限不代替操作系统文件隔离。其他项目的私有材料、身份或资源不属于自己的可读范围。
 
 继续阅读：[负责人/继承 SE 操作](/help/owner)、[通用 API](/help/api)、[治理 API](/help/governance)、[模板目录](/help/templates)。
+
+## 代码提交与本地证据
+
+GitHub接入不会代替执行者提交代码。提交前检查本项目排除规则并运行源码边界检查；缓存、调研原件、归档、美术、测试记录、日志和运行时文件不上传Git。证据保存在本地/server，以SHA和本项目受控位置登记。提交中自动匹配的任务、运行和资产仅作溯源，不等于验收。见[GitHub与本地边界](/help/github)。

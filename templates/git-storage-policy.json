@@ -1,0 +1,8 @@
+{
+  "patterns": [
+    "local-notes/**",
+    "test-output/**"
+  ],
+  "exceptions": {},
+  "reason": "项目资料、测试记录及日志不纳入Git；测试代码按审核纳入"
+}
