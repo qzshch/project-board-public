@@ -9,6 +9,7 @@
 | 空安装 | 真实空状态启动/新建项目/专属身份/领取/重启/原回执读回，7项通过；临时状态与服务已清理 | evidence/standalone/20261113-191411/RESULT.json |
 | 迁移 | 停服一致性完整备份、独立候选启动、原代码原状态真实回滚、再次切换及完整重启 | evidence/migration/20261113/MIGRATION.json |
 | 原历史 | dhy仍330任务/335事件，head df30c6125fae27a53bb9ba721c20922b00caa8c83ea4b16ac5e339506e4a19e6；原凭据作用域/回执保留 | migration与live结果 |
+| 正式URL | 专属owner会话仅见本项目，跨项目/旧路径拒绝、下载字节一致、四种尺寸/主题无横溢，15项通过 | evidence/deployed-ui/20261113-191810/RESULT.json |
 | GUI | 实际Edge 1280/375、浅/深色；18项通过，表单保存、分类、图、切项目与撤权清空；无JS错误/横向溢出；辅助进程归零 | evidence/ui/20261113-191207/RESULT.json及截图 |
 | 全新项目/角色 | onboarding-20261113-190645；研究、开发、文档、测试四角色通过真实server执行13次操作；有实际失败测试→返修→重提→审核→Git分支合并→运行验收→SE接受交接 | evidence/drill/20261113-190645/RESULT.json、各原始角色结果、artifacts.bundle |
 | 独立可重跑测试产物 | bundle包含真正可执行的tests/label/test_normalize.py；独立测试角色在server运行该文件，对合并后源码SHA进行4项行为/反例检查 | demo-test-generate与Git bundle |
