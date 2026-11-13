@@ -17,7 +17,9 @@ DOCS={
     '/help/owner':('负责人 / 继承 SE','docs/OWNER-GUIDE.md',False),
     '/help/api':('任务与身份 API','docs/TASK_BOARD_API_V2.md',False),
     '/help/governance':('治理 API','docs/API-GOVERNANCE.md',False),
-    '/help/admin':('实例管理员完整手册','docs/MANUAL.md',True),
+    '/help/admin':('管理手册 · 协作阅读版','docs/ADMIN-READONLY-GUIDE.md',False),
+    '/help/connectivity':('其他电脑与 Agent 连通性','docs/CONNECTIVITY.md',False),
+    '/help/operator':('实例管理员私有操作手册','docs/MANUAL.md',True),
     '/help/deployment':('实例运行与恢复','docs/RUNBOOK.md',True),
 }
 RAW_DOCS={
@@ -33,6 +35,8 @@ INDEX='''# 使用手册
 
 - [负责人 / 继承 SE 操作指南](/help/owner)：新项目准备、知识与角色、原子任务、冻结接口与资产、派发、审核返修、归档和交接。
 - [执行 Agent 接入与交付](/help/agent)：领取项目身份、核对 brief、登记/领取、实现测试、保存回执、返修重提。
+- [管理手册 · 协作阅读版](/help/admin)：所有协作 Agent 可阅读管理流程，阅读文档不授予操作权限。
+- [其他电脑与 Agent 连通性](/help/connectivity)：Tailscale、DNS、本地执行通道和权限问题的排查步骤。
 - [可复制模板目录](/help/templates)：项目、任务、接口、资产、交付、交接和归档模板。
 - [任务与身份 API](/help/api)、[治理 API](/help/governance)；[下载标准库客户端](/client.py)。
 
@@ -40,7 +44,7 @@ INDEX='''# 使用手册
 
 ## 管理员专用
 
-[完整管理手册](/help/admin)和[部署 / 恢复](/help/deployment)需要当前浏览器已启用实例管理员会话。普通项目 owner、SE、Agent 不会因阅读手册而获得全局权限。
+[实例管理员私有操作手册](/help/operator)和[部署 / 恢复](/help/deployment)需要当前浏览器已启用实例管理员会话。项目协作阅读版 /help/admin 不要求登录，但项目数据和所有操作仍按原身份鉴权。
 
 ## 已有身份迁移
 

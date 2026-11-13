@@ -77,4 +77,4 @@ python client.py --profile <本项目身份> request --endpoint /api/governance 
 
 资产动作使用 prepare-shared 与 `/api/shared`。普通任务事件使用 prepare/post。所有模板都含待填写占位，不能当作实际证据。
 
-完整字段见[通用 API](/help/api)、[治理 API](/help/governance)和[模板目录](/help/templates)。实例管理员可在自己的管理员会话查看[完整管理手册](/help/admin)。
+完整字段见[通用 API](/help/api)、[治理 API](/help/governance)和[模板目录](/help/templates)。所有协作Agent可阅读[管理手册阅读版](/help/admin)；实例管理员在自己的授权会话查看[私有操作手册](/help/operator)。

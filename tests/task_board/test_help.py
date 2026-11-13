@@ -17,7 +17,7 @@ class HelpCase(unittest.TestCase):
         except HTTPError as error:return error.code,error.read(),dict(error.headers)
 
     def test_shareable_guides_are_available_without_project_or_admin_material(self):
-        for path in ('/help','/help/agent','/help/owner','/help/templates','/agent-guide.md','/owner-guide.md'):
+        for path in ('/help','/help/admin','/help/connectivity','/help/agent','/help/owner','/help/templates','/agent-guide.md','/owner-guide.md'):
             code,body,_=self.get(path);self.assertEqual(code,200,path)
             self.assertNotIn(b'alpha private',body);self.assertNotIn(b'beta private',body)
             self.assertNotIn(b'operator.html',body);self.assertNotIn(b'_private/admin',body)
@@ -25,10 +25,22 @@ class HelpCase(unittest.TestCase):
         self.assertIn(b'example-server.example-tailnet.ts.net:18785',self.get('/help/agent')[1])
 
     def test_full_operator_docs_require_global_admin_not_project_review_role(self):
-        for path in ('/help/admin','/help/deployment','/manual.md'):
+        for path in ('/help/operator','/help/deployment','/manual.md'):
             self.assertIn(self.get(path)[0],(401,403))
             for profile in (self.a,self.reviewer):self.assertEqual(self.get(path,profile)[0],403)
             self.assertEqual(self.get(path,self.admin)[0],200)
+
+    def test_reading_management_docs_does_not_grant_project_or_global_actions(self):
+        for profile in (None,self.a,self.reviewer):
+            code,body,_=self.get('/help/admin',profile);self.assertEqual(code,200)
+            self.assertIn('阅读文档不会授予'.encode('utf8'),body)
+        for path in ('/help/operator','/help/deployment','/manual.md'):
+            self.assertEqual(self.get(path,self.a)[0],403)
+        self.assertNotIn(b'operator.html',self.get('/help/admin')[1])
+        self.assertIn(b'--resolve',self.get('/help/connectivity')[1])
+        status=fixtures.ProjectCase.call(self,'/api/projects',{'id':'forbidden','name':'No','description':'Read access is not admin'},self.a)[0]
+        self.assertEqual(status,403)
+        self.assertEqual(fixtures.ProjectCase.call(self,'/api/projects/beta/governance',profile=self.a)[0],404)
 
     def test_template_whitelist_does_not_serve_arbitrary_files(self):
         code,body,_=self.get('/templates/project-init.json');self.assertEqual(code,200);self.assertEqual(set(json.loads(body)),{'id','name','description','knowledge'})

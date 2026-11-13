@@ -1,6 +1,6 @@
 # 项目公告板操作手册
 
-对外协作入口：[负责人/SE](http://example-server.example-tailnet.ts.net:18785/help/owner)、[执行Agent](http://example-server.example-tailnet.ts.net:18785/help/agent)、[模板](http://example-server.example-tailnet.ts.net:18785/help/templates)。这份完整手册含实例管理员操作，网页版本 `/help/admin` 需要管理员会话；给普通Agent转发对应角色指南。
+对外协作入口：[管理阅读版](http://example-server.example-tailnet.ts.net:18785/help/admin)、[负责人/SE](http://example-server.example-tailnet.ts.net:18785/help/owner)、[执行Agent](http://example-server.example-tailnet.ts.net:18785/help/agent)、[模板](http://example-server.example-tailnet.ts.net:18785/help/templates)。这份完整手册含实例管理员私有操作，网页版本 `/help/operator` 需要管理员会话；/help/admin提供无须登录的协作阅读版。
 
 适用于没有本会话历史的总负责人、继承SE和执行Agent。产品正式入口为 http://example-server.example-tailnet.ts.net:18785 。该入口属于Tailscale私网；传输可达不代表已获得项目权限。独立源码在 G:/project-board，运行状态在 server /srv/project-board/state。示例项目只是一个消费项目，project_id=sampleapp；公告板自身project_id=task-board。目录名、Codex项目ID和运行时project_id不是同一层。
 
@@ -21,7 +21,7 @@ python -B -X utf8 tools/task_board.py --state G:/project-board-demo/state start
 全局操作者在server的已授权SSH会话创建生产项目，并签发项目负责人身份。前面的本机空安装示例仅为隔离安装说明，不是当前生产实例。先复制templates/project-init.json，填写项目ID、名称、背景简介；目标必须是新的ID。
 
 ```powershell
-'/srv/project-board/.venv/bin/python' -B '/srv/project-board/releases/nas-20261113/source/tools/new_project.py' --state '/srv/project-board/state' --definition '/srv/project-board/releases/nas-20261113/source/templates/project-init.json' --owner lead-one --out '/srv/project-board/state/_private/roles/example-owner.json'
+'/srv/project-board/.venv/bin/python' -B '<当前发布源码目录>/tools/new_project.py' --state '/srv/project-board/state' --definition '<已填写项目定义路径>' --owner lead-one --out '/srv/project-board/state/_private/roles/example-owner.json'
 ```
 
 此工具只在本机读取全局管理凭据，输出项目负责人身份文件的**位置**。将该项目专属文件通过已授权私有渠道交给负责人。Windows客户端示例中的profile是经私有渠道保存到G盘的项目身份副本。它不能创建/枚举其他项目。管理员入口在server state/_private/operator.html，仅供全局操作者。项目负责人可用下面的portal命令获得自己的项目会话，不使用全局入口。
