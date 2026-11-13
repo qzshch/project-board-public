@@ -67,6 +67,7 @@ def main():
     script=f'''import sys,json,os
 from pathlib import Path
 root=Path({NAS!r});source=Path({source!r});sys.path[:0]=[str(source),str(source/'tools')]
+os.environ['PATH']=str(root/'.venv/bin')+':'+os.environ.get('PATH','/usr/bin:/bin')
 from owned_process import run
 from task_board import lifecycle
 e=source/'evidence/runner-activation';e.mkdir(parents=True,exist_ok=True)
@@ -83,7 +84,7 @@ assert command(['git','-C',repo,'rev-parse','verified'],'Verify runner input').d
 for p in [root/'state/_private/roles/board-quality.json',root/'state/_private/runner/task-board.json']:os.chmod(p,0o600)
 unit=root/'deploy/project-board-quality.service';link=Path.home()/'.config/systemd/user/project-board-quality.service'
 if unit.exists():assert 'board-quality.json' in unit.read_text() and '--watch' in unit.read_text(),'Unknown existing worker service'
-unit.write_text('[Unit]\\nDescription=Project-board approved quality runner\\nAfter=network-online.target project-board.service\\n\\n[Service]\\nType=simple\\nWorkingDirectory='+str(source)+'\\nExecStart="'+str(root/'.venv/bin/python')+'" -B -X utf8 "'+str(source/'tools/quality_runner.py')+'" --profile "'+str(root/'state/_private/roles/board-quality.json')+'" --config "'+str(root/'state/_private/runner/task-board.json')+'" --connect-ip 100.64.0.10 --watch\\nRestart=on-failure\\nRestartSec=5\\nTimeoutStopSec=45\\nKillMode=control-group\\nUMask=0077\\nNoNewPrivileges=yes\\nEnvironment=PYTHONDONTWRITEBYTECODE=1\\n\\n[Install]\\nWantedBy=default.target\\n',encoding='utf8')
+unit.write_text('[Unit]\\nDescription=Project-board approved quality runner\\nAfter=network-online.target project-board.service\\n\\n[Service]\\nType=simple\\nWorkingDirectory='+str(source)+'\\nExecStart="'+str(root/'.venv/bin/python')+'" -B -X utf8 "'+str(source/'tools/quality_runner.py')+'" --profile "'+str(root/'state/_private/roles/board-quality.json')+'" --config "'+str(root/'state/_private/runner/task-board.json')+'" --connect-ip 100.64.0.10 --watch\\nRestart=on-failure\\nRestartSec=5\\nTimeoutStopSec=45\\nKillMode=control-group\\nUMask=0077\\nNoNewPrivileges=yes\\nEnvironment=PYTHONDONTWRITEBYTECODE=1\\nEnvironment="PATH='+str(root/'.venv/bin')+':/usr/local/bin:/usr/bin:/bin"\\n\\n[Install]\\nWantedBy=default.target\\n',encoding='utf8')
 if link.exists() or link.is_symlink():assert link.resolve()==unit.resolve(),'Unknown worker unit link'
 else:link.symlink_to(unit)
 command(['systemctl','--user','daemon-reload'],'Load only owned quality unit');command(['systemctl','--user','enable','--now','project-board-quality.service'],'Enable persistent board-only approved runner')

@@ -41,3 +41,5 @@ tools/migrate.py用于首次停服迁移，目标须不存在，执行前明确s
 server归档：`//example-owner/Project Workspace/project-board-archive/20261113/PROJECT-BOARD-<commit>`。源码、手册、通用Agent kit、脱敏本轮结果与SHA清单为正式交付物；管理员包可包含跨项目head/事件审计，必须放管理员目录，不发给普通Agent。私有恢复包单独留在受控私有位置。SMB失败先判断网络/认证/路径；已验证SSH example-owner@192.0.2.10、密钥位置由credential_locations取得，可作为替代归档通道。两者失败保留本机校验包与待归档记录继续开发。
 
 产品4：操作记录在每项目operations_events追加链中，与任务写入同事务串行；备份需包括该表。项目自动化执行器为独立项目身份与服务，使用quality_runner.py、受控工作仓库及本机批准套件摘要，不运行全局管理员身份。执行器存储按runner-config配置，保留正式output、清理scratch。主服务部署前保留一致性状态与源码检查点，验证旧版本回滚后再恢复候选，校验任务/治理/操作链。旧版源码不支持operations，但不应删除新表。
+
+执行器运行依赖：server 的 Git 使用项目内 `.venv/bin/git` 启动器，实际文件在 `runtime/git/package`；不依赖系统 Git。安装包按 Debian 包索引 SHA256 校验，记录在 server `evidence/git-prerequisite/RESULT.json`。预检和质量服务显式将项目 `.venv/bin` 加入 PATH；固定提交从已校验 bundle 导入项目专用 bare 仓库。该运行依赖和一致性备份均须随实例恢复保留。

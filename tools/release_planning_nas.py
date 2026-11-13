@@ -48,6 +48,7 @@ def main():
     preflight=remote(f'''import sys,json,os
 from pathlib import Path
 source=Path({source!r});sys.path.insert(0,str(source/'tools'))
+os.environ['PATH']={NAS!r}+'/.venv/bin:'+os.environ.get('PATH','/usr/bin:/bin')
 from owned_process import run
 e=source/'evidence/linux-planning';e.mkdir(parents=True)
 code,out,err=run([{NAS!r}+'/.venv/bin/python','-B','-X','utf8','tools/run_checks.py'],cwd=source,evidence=e,purpose='NAS isolated full planning regression',timeout=160)
