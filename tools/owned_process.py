@@ -4,7 +4,23 @@ import os
 from pathlib import Path
 import subprocess
 import time
+import shutil
+import stat
 import psutil
+
+def remove_owned_tree(path, owner_root):
+    """Remove only a verified owned scaffold, including readonly Git objects."""
+    path,owner_root=Path(path).resolve(),Path(owner_root).resolve()
+    if path==owner_root or not path.is_relative_to(owner_root):raise ValueError('Cleanup outside owned root')
+    if not path.exists():return
+    if path.is_symlink() or any(p.is_symlink() or (hasattr(p,'is_junction') and p.is_junction()) for p in path.rglob('*')):raise ValueError('Refuse linked cleanup tree')
+    def readonly(function,raw,error):
+        target=Path(raw).resolve()
+        if not isinstance(error,PermissionError) or not target.is_relative_to(path):raise error
+        # Git marks loose objects readonly on Windows. This is filesystem
+        # ownership cleanup, not an approval bypass or deletion of shared data.
+        os.chmod(target,stat.S_IWRITE|stat.S_IREAD);function(raw)
+    shutil.rmtree(path,onexc=readonly)
 
 def run(command, *, evidence, purpose, cwd=None, timeout=60, input_data=None, env=None):
     evidence=Path(evidence);evidence.mkdir(parents=True,exist_ok=True)

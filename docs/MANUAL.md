@@ -8,7 +8,8 @@
 
 ```powershell
 cd G:/project-board
-python -m pip install --no-cache-dir -r requirements.txt
+python -m venv G:/project-board-demo/.venv
+G:/project-board-demo/.venv/Scripts/python.exe -m pip install --no-cache-dir -r requirements.txt
 python -B -X utf8 tools/task_board.py --state G:/project-board-demo/state init --public-url http://127.0.0.1:24991 --port 24991
 python -B -X utf8 tools/task_board.py --state G:/project-board-demo/state start
 ```
@@ -67,7 +68,7 @@ python tools/task_board_client.py --profile <项目身份文件> request --endpo
 
 发布时另填共享受众（明确项目ID或*）、**专门审核的共享位置**、审核依据和证据。共享清单不携带原私有路径、私有任务、审核证据路径或其他消费项目身份。不可变版本由producer/id@version标识。
 
-consume把本项目alias固定到一个发布版本和哈希；提供方发布v2不改变alias原来的v1。upgrade由消费项目负责人选择、批准并附消费验证。deprecate保留已有引用并提示迁移；withdraw阻止新增消费和依赖该版本的新任务领取，保留历史引用/哈希供追溯。撤回不能恢复，需发布新版本。影响查询仅返回自己有权查看的消费者；全局操作者可以执行跨项目协调，提供方SE不会因生产者身份获知其他项目私有任务。
+consume把本项目alias固定到一个发布版本和哈希；提供方发布v2不改变alias原来的v1。任务创建/范围冻结时，服务还生成work.asset_locks，将每个alias锁到实际发布版本和SHA。消费项目后来主动升级alias，既有任务仍使用原锁，brief返回原版本。任务要升级输入，须由SE显式scope提交当前获批的新asset_locks并重新派发。历史未记录锁的范围标未知，不用当前alias倒推历史。withdraw检查任务自己的锁，不因alias升级而绕过。upgrade由消费项目负责人选择、批准并附消费验证。deprecate保留已有引用并提示迁移；withdraw阻止新增消费和依赖该版本的新任务领取，保留历史引用/哈希供追溯。撤回不能恢复，需发布新版本。影响查询仅返回自己有权查看的消费者；全局操作者可以执行跨项目协调，提供方SE不会因生产者身份获知其他项目私有任务。
 
 资产CLI也先冻结请求ID：
 

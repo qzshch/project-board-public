@@ -153,4 +153,23 @@ class GovernanceCase(unittest.TestCase):
         self.assertEqual(self.shared('withdraw',{'ref':'alpha/method@1','reason':'license revoked','migration':'consumers retain trace and must replace','evidence':EV})[0],201)
         self.assertEqual(self.shared('consume',{'alias':'x','ref':'alpha/method@1','reason':'x','tests':'x'})[0],409)
 
+    def test_project_alias_upgrade_does_not_change_dispatched_task_asset_lock(self):
+        self.publish();self.shared('consume',{'alias':'method','ref':'alpha/method@1','reason':'pin','tests':'verified'})
+        self.atomic(assets=['method'])
+        original=self.hub.store('alpha').get('new/one')['spec']['work']['asset_locks']
+        self.publish('2');self.shared('upgrade',{'alias':'method','ref':'alpha/method@2','reason':'explicit project upgrade','tests':'passed'})
+        task=self.hub.store('alpha').get('new/one')
+        self.assertEqual(task['spec']['work']['asset_locks'],original)
+        brief=self.call('/api/projects/alpha/brief?task=new/one',profile=self.a)[1]
+        self.assertEqual(brief['assets']['method']['ref'],'alpha/method@1')
+        self.assertEqual(brief['asset_locks']['method']['release'],'alpha/method@1')
+        self.member();self.assertEqual(self.event('new/one','claim',{'summary':'use frozen v1'})[0],201)
+
+    def test_withdrawal_checks_task_lock_even_after_project_alias_upgraded(self):
+        self.publish();self.shared('consume',{'alias':'method','ref':'alpha/method@1','reason':'pin','tests':'verified'});self.atomic(assets=['method'])
+        self.publish('2');self.shared('upgrade',{'alias':'method','ref':'alpha/method@2','reason':'upgrade','tests':'passed'})
+        self.shared('withdraw',{'ref':'alpha/method@1','reason':'license revoked','migration':'new scopes must select v2','evidence':EV})
+        self.member();status,body,_=self.event('new/one','claim',{'summary':'must not float to v2'})
+        self.assertEqual(status,409);self.assertIn('撤回',body['error'])
+
 if __name__=='__main__':unittest.main()

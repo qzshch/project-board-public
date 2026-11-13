@@ -8,13 +8,14 @@ import shutil
 import sys
 import time
 import uuid
+import zipfile
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 from task_board import lifecycle
 from task_board.projects import ProjectHub
 from task_board.governance import Governance
 from task_board.store import digest
 from task_board_client import Client, ClientError
-from owned_process import run
+from owned_process import run, remove_owned_tree
 
 ROOT=Path(__file__).resolve().parents[1];STATE=ROOT/'state'
 def main():
@@ -28,7 +29,9 @@ def main():
         report['checks'].append(label)
     def process(args,purpose,cwd=ROOT,input_data=None,timeout=50):
         code,out,err=run(args,cwd=cwd,evidence=E,purpose=purpose,input_data=input_data,timeout=timeout,env={**os.environ,'GIT_TERMINAL_PROMPT':'0','GCM_INTERACTIVE':'never'})
-        if code or (not out and err):raise RuntimeError(err.decode('utf8',errors='replace')[:1200])
+        if code:
+            with (E/'failures.log').open('ab') as log:log.write(err+b'\n')
+            raise RuntimeError(err.decode('utf8',errors='replace')[:1200])
         return out.decode('utf8').strip()
     def git(*args):return process(['git',*args],'owned demo Git repository',scratch)
     def client(profile):return Client(local,{**profile,'url':local})
@@ -107,8 +110,22 @@ def main():
         check(owner.task('impl/label')['findings'][0]['open'],'Resubmission alone does not close finding');accept(owner,'impl/label',fs,E/('demo-dev-artifacts-'+fc[:12]+'.json'));check(not owner.task('impl/label')['findings'][0]['open'],'Reviewer acceptance closes addressed finding');integrated=merge(owner,'impl/label',fs,'development')
         create_task(owner,'test/label','test','tester',['tests/label/'],integrated,['impl/label','docs/label'],['label-api@1'],['brief-method'])
         git('switch','main');exact_code=(scratch/'src/label/normalize.py').read_text('utf8');check(exact_code==fixed,'Merged source exactly matches remotely tested fixed code')
-        test_source='import unittest\n# Behavioral cases: strip, Unicode lowercase, empty rejection, non-str rejection.\n'
-        tr=remote('demo-test','generate',task_id='test/label',role='tester',files={'tests/label/README-test-cases.py':test_source},code=exact_code);check(tr['tests']['passed'] and tr['tests']['run']==4,'Independent tester verifies integrated exact source on NAS')
+        test_source="""import importlib.util
+from pathlib import Path
+import unittest
+spec=importlib.util.spec_from_file_location('label_under_test',Path(__file__).resolve().parents[2]/'src/label/normalize.py')
+module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+normalize_label=module.normalize_label
+class LabelBehavior(unittest.TestCase):
+    def test_strips_and_lowercases(self):self.assertEqual(normalize_label('  ALPHA  '),'alpha')
+    def test_unicode(self):self.assertEqual(normalize_label(' 项目 A '),'项目 a')
+    def test_empty_is_error(self):
+        with self.assertRaises(ValueError):normalize_label('  ')
+    def test_non_string_is_error(self):
+        with self.assertRaises(TypeError):normalize_label(None)
+if __name__=='__main__':unittest.main()
+"""
+        tr=remote('demo-test','generate',task_id='test/label',role='tester',files={'tests/label/test_normalize.py':test_source},code=exact_code,approved_inputs={'src/label/normalize.py':exact_code},approved_input_sha256={'src/label/normalize.py':hashlib.sha256(exact_code.encode()).hexdigest()});check(tr['tests']['passed'] and tr['tests']['run']==4,'Independent tester runs committed standalone test file against integrated exact source on NAS')
         tc=artifact_commit('testing',integrated,tr,'Record independent behavior cases');ts=submit('demo-test','test/label',tr,tc);accept(owner,'test/label',ts,E/('demo-test-artifacts-'+tc[:12]+'.json'));final_commit=merge(owner,'test/label',ts,'testing')
         for tid in ('research/spec','impl/label','docs/label','test/label'):
             task=owner.task(tid);event(owner,tid,'native',{'submission':task['latest_submission']['id'],'summary':'Real integrated artifact execution on NAS; exact tested source SHA retained','commit':task['last_merge']['commit'],'evidence':[{'path':str(E/('demo-test-artifacts-'+tc[:12]+'.json')),'sha256':hashlib.sha256((E/('demo-test-artifacts-'+tc[:12]+'.json')).read_bytes()).hexdigest()}]})
@@ -138,6 +155,7 @@ def main():
         git('bundle','create',str(E/'artifacts.bundle'),'--all');check(not git('status','--porcelain'),'All demo source is committed and preserved in the formal Git bundle')
         report['complete']=True
     finally:
+        if sys.exc_info()[1] is not None:report['failure']={'type':type(sys.exc_info()[1]).__name__,'message':str(sys.exc_info()[1])[:2000]}
         report['revoked']=[]
         for actor in profiles:
             if actor=='demo-heir' and report['complete']:continue
@@ -146,8 +164,21 @@ def main():
         identity_file=private/'initial-owner.json'
         if identity_file.exists():identity_file.unlink()
         if report['complete']:
-            assert scratch.resolve().is_relative_to(E.resolve()) and not scratch.is_symlink() and not any(p.is_symlink() or (hasattr(p,'is_junction') and p.is_junction()) for p in scratch.rglob('*'));shutil.rmtree(scratch);report['local_scaffold_removed']=not scratch.exists()
-        else:report['preserved_failure_scaffold']=str(scratch)
+            try:
+                remove_owned_tree(scratch,E);report['local_scaffold_removed']=not scratch.exists()
+            except (OSError,ValueError) as error:
+                report['local_scaffold_removed']=False;report.setdefault('cleanup_errors',[]).append({'path':str(scratch),'reason':str(error)})
+        else:
+            try:
+                # The repo is this run's scaffold. Preserve both committed
+                # history and any uncommitted generated files before cleanup.
+                if (scratch/'.git').exists():
+                    git('bundle','create',str(E/'failed-scaffold.bundle'),'--all')
+                with zipfile.ZipFile(E/'failed-source.zip','w',zipfile.ZIP_DEFLATED) as archive:
+                    for path in scratch.rglob('*'):
+                        if path.is_file() and '.git' not in path.relative_to(scratch).parts:archive.write(path,path.relative_to(scratch))
+                remove_owned_tree(scratch,E);report['local_scaffold_removed']=not scratch.exists()
+            except (OSError,ValueError,RuntimeError) as error:report['preserved_failure_scaffold']={'path':str(scratch),'reason':str(error)}
         dump(E/'RESULT.json',report)
     print(json.dumps({'complete':report['complete'],'project_id':project,'evidence':str(E),'checks':len(report['checks']),'remote_operations':len(report['remote']),'new_owner':report.get('new_owner')},ensure_ascii=False))
 if __name__=='__main__':main()

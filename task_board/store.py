@@ -614,6 +614,8 @@ class BoardStore:
         if action == "create":
             fields(payload, {"spec", "reason"}, {"spec", "reason"})
             spec = task_spec(payload["spec"])
+            from .governance import pin_assets
+            pin_assets(db,spec,getattr(self,'registry',None))
             if spec["id"] != task_id:
                 raise BoardError("任务范围ID不一致")
             self._check_dependencies(db, spec)
@@ -621,6 +623,8 @@ class BoardStore:
         if action == "scope":
             fields(payload, {"spec", "reason"}, {"spec", "reason"})
             spec = task_spec(payload["spec"])
+            from .governance import pin_assets
+            pin_assets(db,spec,getattr(self,'registry',None),state['spec'])
             if state['spec'].get('work'):
                 from .governance import load
                 prior=state['spec']['work']['contracts']

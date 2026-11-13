@@ -9,5 +9,6 @@
   "contracts": [
     "label-api@1"
   ],
-  "assets": []
+  "assets": [],
+  "asset_locks": {}
 }

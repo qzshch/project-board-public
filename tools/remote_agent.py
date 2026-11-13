@@ -5,6 +5,7 @@ credential is printed or written. Generated files live in an owned temporary
 directory and are returned as evidence before finally cleanup.
 """
 import hashlib
+import importlib.util
 import io
 import json
 from pathlib import Path
@@ -12,13 +13,24 @@ import shutil
 import socket
 import sys
 import tempfile
+import time
 import unittest
 import uuid
 
 def main():
     d=json.load(sys.stdin);module={'__name__':'portable_remote'}
     exec(compile(d['client_source'],'<verified-portable-client>','exec'),module)
-    Client,Error=module['Client'],module['ClientError'];c=Client(d['url'],d['profile'],d['connect_ip'])
+    BaseClient,Error=module['Client'],module['ClientError']
+    class Client(BaseClient):
+        def call(self,path,payload=None):
+            for attempt in range(3):
+                try:return super().call(path,payload)
+                except Error as error:
+                    # Only reads are automatically retried. Frozen write
+                    # requests stay reviewable rather than silently rebasing.
+                    if payload is not None or error.status or attempt==2:raise
+                    time.sleep(.3*(attempt+1))
+    c=Client(d['url'],d['profile'],d['connect_ip'])
     checks=[]
     def check(value,label):
         if not value:raise AssertionError(label)
@@ -53,6 +65,11 @@ def main():
         check(shutil.disk_usage(parent).free>32*1024*1024,'NAS workspace has free space')
         with tempfile.TemporaryDirectory(prefix='agent-',dir=parent) as folder:
             root=Path(folder);artifacts={}
+            for name,content in d.get('approved_inputs',{}).items():
+                path=root/name
+                check(path.resolve().is_relative_to(root),'approved test fixture stays inside owned workspace')
+                check(hashlib.sha256(content.encode()).hexdigest()==d['approved_input_sha256'][name],'approved input SHA matches frozen SE packet')
+                path.parent.mkdir(parents=True,exist_ok=True);path.write_text(content,encoding='utf8',newline='\n');path.chmod(0o444)
             for name,content in d['files'].items():
                 path=root/name
                 check(path.resolve().is_relative_to(root) and any(name.startswith(p.rstrip('/')+'/') for p in brief['allowed_paths']),'generated file respects delegated directory')
@@ -67,7 +84,13 @@ def main():
                         with self.assertRaises(ValueError):normalize('  ')
                     def test_non_string_is_error(self):
                         with self.assertRaises(TypeError):normalize(None)
-                stream=io.StringIO();suite=unittest.defaultTestLoader.loadTestsFromTestCase(Behavior);run=unittest.TextTestRunner(stream=stream,verbosity=2).run(suite)
+                stream=io.StringIO()
+                if d['role']=='tester':
+                    test_path=next(root/name for name in d['files'] if name.endswith('.py'))
+                    spec=importlib.util.spec_from_file_location('delegated_behavior_tests',test_path);test_module=importlib.util.module_from_spec(spec);spec.loader.exec_module(test_module)
+                    suite=unittest.defaultTestLoader.loadTestsFromModule(test_module)
+                else:suite=unittest.defaultTestLoader.loadTestsFromTestCase(Behavior)
+                run=unittest.TextTestRunner(stream=stream,verbosity=2).run(suite)
                 result['tests']={'passed':run.wasSuccessful(),'run':run.testsRun,'failures':len(run.failures),'errors':len(run.errors),'log':stream.getvalue(),'code_sha256':hashlib.sha256(d['code'].encode()).hexdigest()}
             else:result['tests']={'passed':True,'run':1,'log':'Artifact SHA and delegated scope verified against frozen input.'}
             result['artifacts']=artifacts

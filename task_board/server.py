@@ -343,6 +343,8 @@ class Handler(BaseHTTPRequestHandler):
                     (WEB_ROOT.parent / "docs/TASK_BOARD_API_V2.md").read_bytes(),
                     content_type="text/markdown; charset=utf-8",
                 )
+            if path == '/governance-docs.md':
+                return self.send(200,(WEB_ROOT.parent/'docs/API-GOVERNANCE.md').read_bytes(),content_type='text/markdown; charset=utf-8')
             if path == "/client.py":
                 return self.send(
                     200,
@@ -355,6 +357,8 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "ready": True,
                         "api_version": 2 if self.server.hub else 1,
+                        "product_version": 3,
+                        "governance_schema": 1,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )

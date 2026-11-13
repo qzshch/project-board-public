@@ -19,7 +19,7 @@ DONE = {'accepted','merged','native_accepted','baseline_merged'}
 ACTIVE = {'active','submitted','changes_requested','partial_accepted','partial_merged','partial_native'}
 
 def work_spec(value):
-    fields(value, {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'},
+    fields(value, {'category','role','inputs_known','inputs','outputs','contracts','assets','asset_locks','resources','couplings','baseline','acceptance'},
            {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'})
     if value['category'] not in CATEGORIES or value['role'] not in ROLES:
         raise BoardError('未知任务分类或执行角色')
@@ -30,7 +30,33 @@ def work_spec(value):
     if not re.fullmatch('[0-9a-f]{40}', str(value['baseline'])):
         raise BoardError('基线需完整Git提交')
     text(value['acceptance'], '验收条件', 8000)
+    locks=value.get('asset_locks',{})
+    if type(locks) is not dict or not set(locks)<=set(value['assets']):raise BoardError('资产锁必须对应本任务引用')
+    for lock in locks.values():
+        fields(lock,{'release','sha256','shared'},{'release','sha256','shared'})
+        text(lock['release'],'固定资产版本',240)
+        if type(lock['shared']) is not bool or not re.fullmatch('[0-9a-f]{64}',str(lock['sha256'])):raise BoardError('资产锁需固定版本、SHA和共享类型')
     return deepcopy(value)
+
+def pin_assets(db,spec,registry=None,previous=None):
+    """Freeze per-task bytes, not merely the project's movable alias.
+
+    Ordinary scope changes retain existing locks. A reviewed scope may select
+    the current approved consumption explicitly; a provider update cannot float
+    either a project alias or an already dispatched task.
+    """
+    w=spec.get('work')
+    if not w:return
+    gov=load(db);consumption=registry.consumption() if registry else {};old=(previous or {}).get('work',{}).get('asset_locks',{});requested=w.get('asset_locks',{});pinned={}
+    for ref in w['assets']:
+        item=gov['assets'].get(ref)
+        current=({'release':ref,'sha256':item['sha256'],'shared':False} if item else
+                 {'release':consumption[ref]['release'],'sha256':consumption[ref]['sha256'],'shared':True} if ref in consumption else None)
+        chosen=requested.get(ref) or old.get(ref) or current
+        if chosen is not None:
+            if chosen!=current and chosen!=old.get(ref):raise BoardError('资产锁只能选择当前已批准消费或保留原任务固定版本',409)
+            pinned[ref]=deepcopy(chosen)
+    w['asset_locks']=pinned
 
 def empty():
     return dict(knowledge={}, members={}, milestones={}, decisions=[], packages={}, contracts={}, changes={}, assets={}, consumption={}, handoff=None)
@@ -99,11 +125,18 @@ def blockers(db, task, actor=None, registry=None):
         contract=gov['contracts'].get(ref)
         if not contract or contract['status']!='frozen':out.append('接口未冻结：'+ref)
     for ref in work['assets']:
-        item=gov['assets'].get(ref) or (registry.consumption().get(ref) if registry else gov['consumption'].get(ref))
-        if not item or item.get('status') in ('revoked','withdrawn'):out.append('资产未固定或撤回：'+ref)
-        if item and item.get('shared') and registry:
-            try:registry.get(item['release'], registry.project)
+        lock=work.get('asset_locks',{}).get(ref)
+        if not lock:
+            out.append('资产未固定：'+ref);continue
+        if lock['shared'] and registry:
+            try:
+                release=registry.get(lock['release'],registry.project)
+                if release['sha256']!=lock['sha256']:out.append('资产固定哈希不一致：'+ref)
             except BoardError:out.append('共享资产已撤回或未授权：'+ref)
+        elif not lock['shared']:
+            item=gov['assets'].get(lock['release'])
+            if not item or item['sha256']!=lock['sha256']:out.append('私有资产未固定：'+ref)
+        else:out.append('共享资产注册表不可用：'+ref)
     for other in all_tasks.values():
         if other['spec']['id']==spec['id'] or other['status'] not in ACTIVE:continue
         ow=other['spec'].get('work',{})

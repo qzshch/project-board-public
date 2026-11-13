@@ -19,7 +19,7 @@ governance动作：knowledge、member、milestone、decision、package、handoff
 
 shared动作：publish、consume、upgrade、deprecate、withdraw。版本不能覆盖，发布有显式audience和独立共享位置。消费变更与发布状态写入目录审计同一事务；敏感清单保留在本项目治理事件里。
 
-task_spec新增可选work，包含category、role、inputs_known(bool)、inputs/outputs/contracts/assets/resources/couplings(string[])、baseline(Git40位)、acceptance。不重写旧任务spec。新任务建议kind=atomic；任务包在governance.packages单独登记。旧任务仍使用原状态机，但队列显示历史/未知，不自动推断原子工作。
+task_spec新增可选work，包含category、role、inputs_known(bool)、inputs/outputs/contracts/assets/resources/couplings(string[])、baseline(Git40位)、acceptance。服务生成可选asset_locks(alias→{release,sha256,shared})固定每任务真实版本，项目alias升级不漂移旧任务；scope显式选择新锁才升级任务输入。不重写旧任务spec。新任务建议kind=atomic；任务包在governance.packages单独登记。旧任务仍使用原状态机，但队列显示历史/未知，不自动推断原子工作。
 
 治理事件与任务写入共用一个项目库的BEGIN IMMEDIATE，防止不同任务并发穿透冲突检查；治理请求按actor/request_id幂等，expected_revision防覆盖。契约版本存不可变清单；提案冻结scope_hash与反向影响，确认者、迁移/测试和执行追加留痕。共享发布清单存目录库，受众在服务端过滤，私有源路径不进入发布载荷。所有SQLite库需停服务后作为整体备份或使用受控一致性流程，不能只复制运行中的主文件。
 

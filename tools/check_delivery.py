@@ -18,6 +18,7 @@ def validate(task,record,receipt,manifest,changed_files):
     if event['payload']['implementation_commit']!=manifest.get('implementation_commit'):raise BoardError('实现提交不一致')
     for key in ('contracts','assets'):
         if manifest.get(key)!=work[key]:raise BoardError('固定接口/资产版本不一致')
+    if work.get('asset_locks') and manifest.get('asset_locks')!=work['asset_locks']:raise BoardError('每任务资产版本/哈希锁不一致')
     for raw in changed_files:
         p=PurePosixPath(raw)
         if p.is_absolute() or '..' in p.parts or ':' in raw or '\\' in raw or not any(raw.casefold()==x.rstrip('/').casefold() or raw.casefold().startswith(x.rstrip('/').casefold()+'/') for x in spec['allowed_paths']):raise BoardError('改动超出允许目录：'+raw)
