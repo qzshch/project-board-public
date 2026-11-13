@@ -73,7 +73,7 @@ newunit=original.replace(oldsource,str(source));assert newunit!=original
 profile=lifecycle.read(state/'_private/admin.json');client=Client('http://127.0.0.1:24710',{{**profile,'url':'http://127.0.0.1:24710'}})
 def anchors():
  projects=client.call('/api/projects')['projects']
- return {{p['id']:{{'task_head':client.call('/api/projects/'+p['id']+'/snapshot')['head'],'governance_head':client.call('/api/projects/'+p['id']+'/governance')['head']}} for p in projects}}
+ return {{p['id']:{{'task_head':client.call('/api/projects/'+p['id']+'/snapshot')['head'],'governance_head':client.call('/api/projects/'+p['id']+'/governance/verify')['head']}} for p in projects}}
 before=anchors();assert set(before)=={{'sampleapp','task-board'}};old_schema=client.call('/health')['governance_schema'];assert old_schema in (1,2)
 secrets_before={{str(p.relative_to(state)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (state/'_private').rglob('*.json') if p.name not in ('server.json',)}}
 def command(args,purpose):

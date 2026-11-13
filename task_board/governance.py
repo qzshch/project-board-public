@@ -141,8 +141,12 @@ def impact(all_tasks, contract, governance=None):
             **({'module_scopes':{r:digest(modules[r]) for r in sorted(module_refs)}} if module_refs else {}),
             'scopes':{k:all_tasks[k]['scope_hash'] for k in sorted(affected)}}
 
-def blockers(db, task, actor=None, registry=None):
-    spec=task['spec'];work=spec.get('work');out=[];all_tasks=tasks(db);gov=load(db)
+def blockers(db, task, actor=None, registry=None, context=None):
+    # The authorized snapshot already holds these rows in one read transaction.
+    # Reuse it for every queue item rather than decoding the whole project N
+    # times. Admission calls still read fresh rows under the write transaction.
+    spec=task['spec'];work=spec.get('work');out=[]
+    all_tasks,gov=context if context is not None else (tasks(db),load(db))
     from .planning import task_blockers
     planning_reasons=task_blockers(gov,all_tasks,spec)
     if not work:return ['legacy/unknown：需SE核定原子任务输入与耦合']+planning_reasons
@@ -191,7 +195,7 @@ class Governance:
             if getattr(self.store,'registry',None):value['consumption']=self.store.registry.consumption()
             queue=[]
             for t in all_tasks.values():
-                if t['status']=='planned':queue.append({'id':t['spec']['id'],'blockers':blockers(db,t,registry=getattr(self.store,'registry',None))})
+                if t['status']=='planned':queue.append({'id':t['spec']['id'],'blockers':blockers(db,t,registry=getattr(self.store,'registry',None),context=(all_tasks,value))})
             graph=[]
             for tid,t in all_tasks.items():
                 graph += [{'from':d,'to':tid,'type':'hard'} for d in t['spec']['depends_on']]

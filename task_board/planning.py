@@ -103,7 +103,7 @@ def task_blockers(v, all_tasks, spec):
         if w['category'] not in PLANNING:out.append('规划任务仅允许调研、采集或文档工作')
         if not binding['question'].strip():out.append('规划任务需写明待解决问题')
     else:
-        check = module_check(v, all_tasks, binding['module'])
+        check = v.get('module_readiness',{}).get(binding['module']) or module_check(v, all_tasks, binding['module'])
         out += check['blockers']
         if not check['review_current']:out.append('模块当前范围尚未通过规划评审')
         if v['module_heads'].get(m['id']) != binding['module']:out.append('模块已有新规划版本，需SE显式迁移任务范围')
