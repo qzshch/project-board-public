@@ -296,4 +296,6 @@ $('create').addEventListener('click',createTask);
 $('access').addEventListener('click',()=>{ const origin=app.connection?.url||location.origin;const endpoint=new URL(origin);const ip=app.connection?.connect_ip;const resolve=ip?` --resolve ${endpoint.hostname}:${endpoint.port}:${ip}`:'';const connect=ip?` --connect-ip ${ip}`:'';
   $('access-command').textContent=`curl --noproxy "*"${resolve} ${origin}/client.py -o task_board_client.py\n\n# 向负责人领取 project_id=${app.project||'<项目ID>'} 的专属私有身份文件\npython task_board_client.py --project ${app.project||'<项目ID>'} --profile <本机私有身份文件> projects\n\npython task_board_client.py --profile <本机私有身份文件> task <任务ID>\n\npython task_board_client.py --profile <本机私有身份文件> portal --out <Git外私有入口.html>\n\n# 按文档 prepare → post；回执和outbox均属于本项目`; $('access-dialog').showModal(); });
 $('close-access').addEventListener('click',()=>$('access-dialog').close());
-initialize();
+// Deferred modules must all exist before cookie-based initialization can
+// complete its first fast API round trip (NAS responses can arrive early).
+document.addEventListener('DOMContentLoaded',initialize,{once:true});

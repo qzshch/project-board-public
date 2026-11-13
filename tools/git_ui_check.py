@@ -29,7 +29,11 @@ async def main():
             try:
                 capture();context=await browser.new_context(viewport={'width':1280,'height':960});page=await context.new_page();page.on('pageerror',lambda e:report['errors'].append(str(e)))
                 ticket=c.hub.admin_store.create_ticket(c.hub.admin_store.authenticate(c.admin['token']))
-                await page.goto(c.url+'/?project=alpha&panel=git#kind=admin&access='+ticket,wait_until='networkidle');await page.wait_for_selector('g[data-commit]')
+                response=await context.request.post(c.url+'/api/session',data={'ticket':ticket});check(response.status==200,'pre-existing admin cookie session accepted')
+                async def delayed_module(route):await asyncio.sleep(.35);await route.continue_()
+                await page.route('**/git.js',delayed_module)
+                await page.goto(c.url+'/?project=alpha&panel=git',wait_until='networkidle');await page.wait_for_selector('g[data-commit]');await page.unroute('**/git.js',delayed_module)
+                check(not report['errors'],'cookie cold start waits for delayed Git module')
                 check(await page.locator('g[data-commit]').count()==5,'graph renders every actual selected-branch commit')
                 check(await page.locator('path[data-parent]').count()==5,'graph edges represent real parents including merge')
                 check(await page.locator('#task-board').is_hidden(),'Git page has no repeated delivery queue')
