@@ -4,7 +4,7 @@
 
 - 正式入口：http://example-server.example-tailnet.ts.net:18785（Tailscale私网）；无MagicDNS时客户端用 `--connect-ip 100.64.0.10` 保持规范Host。
 - server根目录：`/srv/project-board`。
-- 代码：`releases/nas-20261113/source`；运行状态：`state`；独立Python环境：`.venv`。
+- 代码使用不可变 `releases/<版本>/source`，当前目录与提交以 `state/connection.json` 的 `code_root` / `code_commit` 为准；运行状态：`state`；独立Python环境：`.venv`。
 - 正式服务：用户级systemd `project-board.service`，已enable，用户Linger=yes，退出失败会自动重启。
 - server Tailscale Serve仅管理18785→server 127.0.0.1:24710。PC原18781/18783不变，PC公告板应用和原18785入口已停用。
 - 私有管理入口在server `state/_private/operator.html`。普通Agent只获得自己的项目身份文件。
@@ -15,7 +15,8 @@
 systemctl --user status project-board.service
 systemctl --user restart project-board.service
 journalctl --user -u project-board.service --no-pager -n 50
-'/srv/project-board/.venv/bin/python' -B '/srv/project-board/releases/nas-20261113/source/tools/task_board.py' --state '/srv/project-board/state' --project task-board verify
+BOARD_CODE_ROOT=$('/srv/project-board/.venv/bin/python' -c "import json; print(json.load(open('/srv/project-board/state/connection.json'))['code_root'])")
+'/srv/project-board/.venv/bin/python' -B "$BOARD_CODE_ROOT/tools/task_board.py" --state '/srv/project-board/state' --project task-board verify
 ```
 
 生成新的私有管理入口时，将最后的 `verify` 改为 `operator`，只输出位置。项目负责人用自己的profile生成portal；不要给执行Agent全局入口。已有客户端保留原token与project_id，将profile.url改为server正式地址即可；不重新注册、不扩大权限。
@@ -43,3 +44,5 @@ server归档：`//example-owner/Project Workspace/project-board-archive/20261113
 产品4：操作记录在每项目operations_events追加链中，与任务写入同事务串行；备份需包括该表。项目自动化执行器为独立项目身份与服务，使用quality_runner.py、受控工作仓库及本机批准套件摘要，不运行全局管理员身份。执行器存储按runner-config配置，保留正式output、清理scratch。主服务部署前保留一致性状态与源码检查点，验证旧版本回滚后再恢复候选，校验任务/治理/操作链。旧版源码不支持operations，但不应删除新表。
 
 执行器运行依赖：server 的 Git 使用项目内 `.venv/bin/git` 启动器，实际文件在 `runtime/git/package`；不依赖系统 Git。安装包按 Debian 包索引 SHA256 校验，记录在 server `evidence/git-prerequisite/RESULT.json`。预检和质量服务显式将项目 `.venv/bin` 加入 PATH；固定提交从已校验 bundle 导入项目专用 bare 仓库。该运行依赖和一致性备份均须随实例恢复保留。
+
+质量服务为用户级 `project-board-quality.service`，仅本项目 runner 身份，配置在 `state/_private/runner/task-board.json`，身份在 `state/_private/roles/board-quality.json`；不将文件内容放进协作说明。使用 `systemctl --user status/restart project-board-quality.service` 管理；日志用 `journalctl --user -u project-board-quality.service` 查看。固定输入仓库、临时导出和正式结果分别在 `runners/task-board/repository`、`scratch`、`output`。没有任务时保持等待；停止/重启前核对正在执行与租约，服务留足45秒完成取消和清理。共享资源锁目录不得作为临时文件清理。
