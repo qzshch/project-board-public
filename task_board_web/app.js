@@ -27,7 +27,7 @@ async function api(path, value, global=false) {
 function matchView(task) {
   if(app.view==='review') return ['reported','submitted'].includes(task.status);
   if(app.view==='rework') return task.status==='changes_requested';
-  if(app.view==='active') return ['plan','integration'].includes(task.spec.kind);
+  if(app.view==='active') return ['plan','integration','atomic'].includes(task.spec.kind)||Boolean(task.spec.work);
   if(app.view==='archive') return ['baseline_merged','partial_baseline','accepted','partial_accepted','merged','partial_merged','native_accepted','partial_native'].includes(task.status);
   return true;
 }
@@ -36,10 +36,10 @@ function render() {
   $('count-review').textContent=app.tasks.filter(t=>['reported','submitted'].includes(t.status)).length;
   $('count-rework').textContent=app.tasks.filter(t=>t.status==='changes_requested').length;
   $('count-active').textContent=app.tasks.filter(t=>t.status==='active').length;
-  $('count-family').textContent=app.tasks.filter(t=>t.spec.kind==='family').length;
+  $('count-family').textContent=app.tasks.filter(t=>t.spec.work).length;
   $('scope-note').textContent=`${app.tasks.length} 项任务 · ${app.tasks.filter(t=>t.spec.kind==='plan').length} 张协作卡 · 交付、合入与运行验收分别追踪`;
   const query=$('search').value.trim().toLowerCase();
-  const rows=app.tasks.filter(t=>matchView(t) && (!$('kind').value || t.spec.kind===$('kind').value) &&
+  const rows=app.tasks.filter(t=>matchView(t) && (!$('kind').value || t.spec.kind===$('kind').value || t.spec.work?.category===$('kind').value) &&
     (!$('priority').value || t.spec.priority===$('priority').value) &&
     (!query || `${t.spec.id} ${t.spec.title} ${t.spec.description} ${t.owner||''} ${t.latest_summary}`.toLowerCase().includes(query)))
     .sort((a,b)=>(a.spec.priority||'P1').localeCompare(b.spec.priority||'P1') || b.updated_at.localeCompare(a.updated_at) || a.spec.id.localeCompare(b.spec.id));
@@ -48,7 +48,7 @@ function render() {
     const row=$('task-template').content.firstElementChild.cloneNode(true);
     const title=row.querySelector('.task-title'); title.textContent=task.spec.title; title.addEventListener('click',()=>showDetail(task.spec.id));
     row.querySelector('.task-description').textContent=task.latest_summary || task.spec.description;
-    row.querySelector('.task-meta').append(el('span',kinds[task.spec.kind] || task.spec.kind),el('span',task.spec.priority),
+    row.querySelector('.task-meta').append(el('span',task.spec.work?categoryNames[task.spec.work.category]:(kinds[task.spec.kind] || task.spec.kind)),el('span',task.spec.priority),
       el('span',task.spec.registered ? '范围已登记' : '待登记具体输入'));
     row.querySelector('.status').replaceWith(statusNode(task.status));
     row.querySelector('.owner').textContent=task.owner ? `负责人 · ${task.owner}` : '负责人待登记';
@@ -90,7 +90,7 @@ function field(label,value) { const box=el('div');box.append(el('div',label,'det
 async function showDetail(id) {
   const generation=app.generation;
   const task=app.tasks.find(t=>t.spec.id===id); if(!task) return;
-  app.selected=structuredClone(task); $('detail-kind').textContent=`${kinds[task.spec.kind]} / ${task.spec.id}`;
+  app.selected=structuredClone(task); $('detail-kind').textContent=`${task.spec.work?categoryNames[task.spec.work.category]:(kinds[task.spec.kind]||task.spec.kind)} / ${task.spec.id}`;
   $('detail-title').textContent=task.spec.title; $('stale').hidden=true;
   const body=$('detail-body');body.replaceChildren();
   const summary=section('当前范围'); const grid=el('div',undefined,'details-grid');

@@ -1,0 +1,13 @@
+{
+  "project_id": "example-board",
+  "task_id": "impl/label",
+  "actor": "dev-one",
+  "scope_version": 1,
+  "scope_hash": "0000000000000000000000000000000000000000000000000000000000000000",
+  "baseline": "0000000000000000000000000000000000000000",
+  "implementation_commit": "0000000000000000000000000000000000000000",
+  "contracts": [
+    "label-api@1"
+  ],
+  "assets": []
+}

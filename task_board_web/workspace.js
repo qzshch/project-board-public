@@ -92,3 +92,4 @@ function editWorkspace(fixed,seed={}){
 }
 document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>{ws.panel=b.dataset.panel;document.querySelectorAll('[data-panel]').forEach(n=>n.setAttribute('aria-pressed',String(n===b)));renderWorkspace();});
 $('workspace-edit').onclick=()=>editWorkspace();
+for(const [value,label] of Object.entries(categoryNames)){const option=el('option',label);option.value=value;$('kind').append(option);}

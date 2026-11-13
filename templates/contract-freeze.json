@@ -1,0 +1,24 @@
+{
+  "id": "label-api",
+  "version": "1",
+  "owner": "lead-one",
+  "signature": "normalize_label(value:str)->str",
+  "units": "Unicode字符串，无数值单位",
+  "errors": "TypeError非str；ValueError空白",
+  "transaction": "纯函数，无外部写入",
+  "idempotency": "同一输入同一输出",
+  "source": "<接口说明>@sha256:0000000000000000000000000000000000000000000000000000000000000000",
+  "producers": [
+    "impl/label"
+  ],
+  "consumers": [
+    "test/label"
+  ],
+  "compatibility": "版本1冻结；破坏性变更经影响确认",
+  "evidence": [
+    {
+      "path": "<本项目证据目录>/report.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

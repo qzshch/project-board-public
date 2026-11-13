@@ -76,7 +76,7 @@ class BoardServer(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "DhyBoard/1"
+    server_version = "ProjectBoard/3"
     protocol_version = "HTTP/1.1"
 
     def setup(self):

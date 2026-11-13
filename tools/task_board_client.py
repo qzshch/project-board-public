@@ -198,6 +198,14 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     inspect = sub.add_parser('read', help='Read an authorized project endpoint')
     inspect.add_argument('--endpoint', required=True)
+    governance = sub.add_parser('prepare-governance',help='Freeze governance revision and request ID')
+    governance.add_argument('--action',required=True)
+    governance.add_argument('--payload',type=Path,required=True)
+    governance.add_argument('--out',type=Path,required=True)
+    sharing = sub.add_parser('prepare-shared',help='Freeze a shared-asset request ID')
+    sharing.add_argument('--action',required=True)
+    sharing.add_argument('--payload',type=Path,required=True)
+    sharing.add_argument('--out',type=Path,required=True)
     request = sub.add_parser('request', help='Post a frozen JSON request without rebasing')
     request.add_argument('--endpoint', required=True)
     request.add_argument('--payload', type=Path, required=True)
@@ -234,6 +242,12 @@ def main():
         parser.error("--url or an existing --profile is required")
     try:
         client = Client(url, profile, args.connect_ip, args.project)
+        if args.command in ('prepare-governance','prepare-shared'):
+            if args.out.exists():raise ClientError('请求目标已存在，不能覆盖')
+            value={'request_id':str(uuid.uuid4()),'action':args.action,'payload':read(args.payload)}
+            if args.command=='prepare-governance':value['expected_revision']=client.call('/api/governance')['revision']
+            save(args.out,value)
+            print(json.dumps({'request':str(args.out),'project_id':client.project,'frozen':True}));return 0
         if args.command in ('read','request'):
             if not args.endpoint.startswith('/api/') or args.endpoint.startswith('/api/projects'):
                 raise ClientError('使用项目相对/api端点；身份固定项目')

@@ -1,0 +1,49 @@
+{
+  "request_id": "REPLACE-WITH-UNIQUE-REQUEST-ID",
+  "task_id": "impl/label",
+  "action": "create",
+  "expected_revision": 0,
+  "payload": {
+    "spec": {
+      "id": "impl/label",
+      "title": "实现标签标准化",
+      "kind": "atomic",
+      "description": "输入str，strip并转小写；空值/非str拒绝",
+      "deliverables": [
+        {
+          "id": "D1",
+          "label": "代码与行为反例测试"
+        }
+      ],
+      "depends_on": [],
+      "allowed_paths": [
+        "src/label/"
+      ],
+      "claimable": true,
+      "registered": true,
+      "source": {
+        "input_sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "work": {
+        "category": "backend",
+        "role": "developer",
+        "inputs_known": false,
+        "inputs": [
+          "<固定输入位置>@sha256:0000000000000000000000000000000000000000000000000000000000000000"
+        ],
+        "outputs": [
+          "label-api-output"
+        ],
+        "contracts": [
+          "label-api@1"
+        ],
+        "assets": [],
+        "resources": [],
+        "couplings": [],
+        "baseline": "0000000000000000000000000000000000000000",
+        "acceptance": "验证空白/大小写/非法类型；输出完整测试日志及SHA"
+      }
+    },
+    "reason": "明确授权的原子范围"
+  }
+}

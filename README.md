@@ -2,8 +2,16 @@
 
 独立的多项目协作管理工具。示例项目是其第一个使用项目，不是本产品的父项目。
 
-本仓库是从示例项目会话移交的独立起点。先读 [START-HERE.md](START-HERE.md)、[用户原始要求](docs/USER-REQUEST-20261113.md) 和 [完整交接](docs/HANDOFF-20261113.md)。`legacy-v2/` 是已核验版本的参考快照，不是已经完成脱离原仓库的可运行发行版。
+运行代码、空项目初始化、部署状态均在本项目；不依赖游戏planning/foundation或资源。支持项目知识与角色交接、分类原子任务/任务包映射、依赖与耦合冲突、版本冻结和影响确认、私有资产与不可变共享版本。旧任务/事件/权限与回执保持兼容。
 
-新独立会话负责：完成代码/状态与示例项目解耦、项目知识与角色、任务分类及依赖/耦合关系、契约冻结与变更影响、私有/共享资产治理，以及从新建项目到子Agent交付返修的可执行手册。
+入口与数据：`http://DEVELOPMENT-HOST.example-tailnet.ts.net:18785`，后端127.0.0.1:24710，状态G:/project-board/state。独立private远端：[example-owner/project-board](https://github.com/example-owner/project-board)。运行身份/管理入口不进Git，只交付位置。
 
-工作目录为 `G:/project-board`，后续项目数据、构建、测试及缓存均放C盘之外。本轮仅建立移交仓库，不切换线上服务，不修改示例项目游戏代码或历史。
+从 [操作手册](docs/MANUAL.md) 开始；[治理API](docs/API-GOVERNANCE.md)、[部署/回滚](docs/RUNBOOK.md)、[验收台账](docs/ACCEPTANCE.md)、[可复制模板](templates/) 提供完整执行路径。用户原文和移交基线保留在docs；legacy-v2仅为历史参考，旧位置测试不计本轮。
+
+```powershell
+python -B -X utf8 tools/task_board.py status
+python -B -X utf8 tools/task_board.py --project task-board verify
+python -B -X utf8 tools/run_checks.py
+```
+
+所有新项目、构建、测试和缓存放C盘之外。正式归档到server；临时进程静默并按真实身份清理。公告板权限管理不替代操作系统账户/文件隔离。

@@ -1,0 +1,8 @@
+{
+  "id": "onboarding/pack",
+  "tasks": [
+    "impl/label"
+  ],
+  "source": "用户需求版本1",
+  "unknown": "尚未核定的历史关系必须列出"
+}

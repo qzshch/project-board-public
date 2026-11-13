@@ -1,0 +1,6 @@
+{
+  "ref": "example-provider/brief-method@1",
+  "alias": "brief-method",
+  "reason": "消费项目owner已核定版本与许可",
+  "tests": "记录消费验证与SHA"
+}

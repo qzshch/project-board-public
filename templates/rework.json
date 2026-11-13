@@ -1,0 +1,10 @@
+{
+  "submission": "<当前submit事件ID>",
+  "reason": "描述返修依据",
+  "findings": [
+    {
+      "description": "具体问题",
+      "acceptance": "可重复验证的行为/反例"
+    }
+  ]
+}

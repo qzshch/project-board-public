@@ -1,0 +1,7 @@
+{
+  "id": "label-api-v2",
+  "contract": "label-api@1",
+  "replacement": "label-api@2",
+  "migration": "列出直接、反向依赖、产物/耦合消费方的迁移步骤",
+  "tests": "列出各消费方的兼容/反例/运行验收"
+}

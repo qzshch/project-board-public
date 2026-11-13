@@ -1,0 +1,14 @@
+{
+  "asset": "brief-method@1",
+  "audience": [
+    "example-consumer"
+  ],
+  "shared_location": "<经审核固定版本共享位置>",
+  "review": "逐项审核来源/许可/敏感性/内容哈希",
+  "evidence": [
+    {
+      "path": "<本项目证据目录>/report.json",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ]
+}

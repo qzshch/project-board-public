@@ -26,7 +26,7 @@ def clone_stopped(source,target):
     if record.exists() and (lifecycle.exact_owner(lifecycle.read(record)) or not lifecycle.read(record).get('closed')):raise BoardError('必须确认源实例关闭，不能复制正在写入的状态',409)
     target.mkdir(parents=True,exist_ok=True);copied=[]
     for path in source.rglob('*'):
-        if path.is_symlink():raise BoardError('状态备份拒绝跟随链接',409)
+        if path.is_symlink() or (hasattr(path,'is_junction') and path.is_junction()):raise BoardError('状态备份拒绝跟随链接',409)
         if not path.is_file():continue
         rel=path.relative_to(source)
         if path.name.endswith(('-wal','-shm')) or path.name in ('operator.html','stop.flag','service.json','start.json'):continue
