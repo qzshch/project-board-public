@@ -53,6 +53,11 @@ def main():
         parser.error('此管理动作必须显式指定 --project')
     state = args.state.resolve()
     try:
+        if (state/'MIGRATED_TO.json').exists():
+            moved=lifecycle.read(state/'MIGRATED_TO.json')
+            if args.command=='status':
+                print(json.dumps({'migrated':True,**moved},ensure_ascii=False));return 0
+            raise BoardError('已部署到NAS，请按NAS运行手册操作：'+moved['url'],409)
         if args.command == "init":
             network = (
                 lifecycle.read(args.network_record) if args.network_record else None

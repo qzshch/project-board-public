@@ -15,3 +15,17 @@
 .dependency-graph text { fill:var(--ink); font-size:var(--type-16); }
 .dependency-graph .graph-edge { stroke:var(--action); stroke-width:2; fill:none; }
 @media(max-width:600px) { .workspace { padding:var(--space-16); } .workspace-grid { grid-template-columns:1fr; } .workspace-tabs { flex-wrap:wrap; } }
+.graph-controls { display:flex; flex-wrap:wrap; align-items:end; gap:var(--space-12); margin:var(--space-16) 0; }
+.graph-controls label { flex:1 1 180px; min-width:0; }
+.graph-controls input { flex:2 1 200px; min-width:0; }
+.graph-stage { overflow:auto; max-width:100%; height:600px; border:1px solid var(--line); border-radius:var(--radius); background:var(--canvas); }
+.graph-stage .dependency-graph { display:block; max-width:none; background:var(--canvas); }
+.graph-stage .graph-edge { color:var(--action); stroke:var(--action); }
+.graph-stage .containment { stroke:var(--muted); color:var(--muted); stroke-dasharray:6 4; }
+.graph-node { cursor:pointer; }
+.graph-node:focus rect,.graph-node:hover rect { stroke:var(--focus); stroke-width:2; }
+.graph-stage .dependency-graph text { font-size:var(--type-14); }
+[hidden] { display:none !important; }
+@media(max-width:600px) { .graph-stage { height:480px; } }
+.relation-details { margin-top:var(--space-24); }
+.relation-details summary { cursor:pointer; color:var(--secondary); font-weight:600; padding:var(--space-12) 0; }

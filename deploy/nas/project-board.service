@@ -1,0 +1,18 @@
+[Unit]
+Description=Independent Project Board on NAS
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/srv/project-board/releases/nas-20261113/source
+ExecStart="/srv/project-board/.venv/bin/python" -B -X utf8 "/srv/project-board/releases/nas-20261113/source/tools/task_board.py" --state "/srv/project-board/state" serve
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+UMask=0077
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment="TMPDIR=/srv/project-board/tmp"
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target

@@ -1,6 +1,6 @@
 # 项目公告板操作手册
 
-适用于没有本会话历史的总负责人、继承SE和执行Agent。产品入口保持 http://DEVELOPMENT-HOST.example-tailnet.ts.net:18785 。该入口属于Tailscale私网；传输可达不代表已获得项目权限。独立源码在 G:/project-board，运行状态在 G:/project-board/state。示例项目只是一个消费项目，project_id=sampleapp；公告板自身project_id=task-board。目录名、Codex项目ID和运行时project_id不是同一层。
+适用于没有本会话历史的总负责人、继承SE和执行Agent。产品正式入口为 http://example-server.example-tailnet.ts.net:18785 。该入口属于Tailscale私网；传输可达不代表已获得项目权限。独立源码在 G:/project-board，运行状态在 server /srv/project-board/state。示例项目只是一个消费项目，project_id=sampleapp；公告板自身project_id=task-board。目录名、Codex项目ID和运行时project_id不是同一层。
 
 ## 1. 初始化与身份
 
@@ -14,22 +14,22 @@ python -B -X utf8 tools/task_board.py --state G:/project-board-demo/state init -
 python -B -X utf8 tools/task_board.py --state G:/project-board-demo/state start
 ```
 
-不要对当前生产状态重新init或另开serve。当前生产生命周期用 `python -B -X utf8 tools/task_board.py start|status|stop`；服务PID和真实创建时间在state/service.json。静默启动由工具实现；未知端口/进程所有权会拒绝操作。
+不要对当前生产状态重新init或另开serve。当前生产生命周期用server上的 `systemctl --user start|status|stop project-board.service`（详见RUNBOOK）；服务PID和真实创建时间在state/service.json。静默启动由工具实现；未知端口/进程所有权会拒绝操作。
 
-全局操作者在本机创建项目，并签发项目负责人身份。先复制templates/project-init.json，填写项目ID、名称、背景简介；目标必须是新的ID。
-
-```powershell
-python -B -X utf8 tools/new_project.py --definition templates/project-init.json --owner lead-one --out G:/project-board/state/_private/roles/example-owner.json
-```
-
-此工具只在本机读取全局管理凭据，输出项目负责人身份文件的**位置**。将该项目专属文件通过已授权私有渠道交给负责人。它不能创建/枚举其他项目。管理员入口在state/_private/operator.html，仅供全局操作者。项目负责人可用下面的portal命令获得自己的项目会话，不使用全局入口。
+全局操作者在server的已授权SSH会话创建生产项目，并签发项目负责人身份。前面的本机空安装示例仅为隔离安装说明，不是当前生产实例。先复制templates/project-init.json，填写项目ID、名称、背景简介；目标必须是新的ID。
 
 ```powershell
-python tools/task_board_client.py --profile G:/project-board/state/_private/roles/example-owner.json portal --out G:/project-board/state/_private/roles/example-owner.html
-python tools/task_board_client.py --profile G:/project-board/state/_private/roles/example-owner.json read --endpoint /api/governance
+'/srv/project-board/.venv/bin/python' -B '/srv/project-board/releases/nas-20261113/source/tools/new_project.py' --state '/srv/project-board/state' --definition '/srv/project-board/releases/nas-20261113/source/templates/project-init.json' --owner lead-one --out '/srv/project-board/state/_private/roles/example-owner.json'
 ```
 
-另一台电脑先连同一Tailscale网络。无MagicDNS时加 `--connect-ip 100.64.0.11`，规范Host仍保持原域名。不要把profile中的project_id改成其他项目；服务端授权绑定令牌。签发或登记必须使用目标项目：浏览器Agent接入说明可下载通用client.py与API文档；项目邀请码仅能注册普通Agent。项目内 `/api/actors` 由owner/SE签发普通身份；随后用member动作授予研究、开发、文档、测试或SE职责。owner授予SE，SE不能提升自己或其他管理者。旧reviewer兼容其原项目审核职责。
+此工具只在本机读取全局管理凭据，输出项目负责人身份文件的**位置**。将该项目专属文件通过已授权私有渠道交给负责人。Windows客户端示例中的profile是经私有渠道保存到G盘的项目身份副本。它不能创建/枚举其他项目。管理员入口在server state/_private/operator.html，仅供全局操作者。项目负责人可用下面的portal命令获得自己的项目会话，不使用全局入口。
+
+```powershell
+python tools/task_board_client.py --profile G:/project-board-private/profiles/example-owner.json portal --out G:/project-board-private/profiles/example-owner.html
+python tools/task_board_client.py --profile G:/project-board-private/profiles/example-owner.json read --endpoint /api/governance
+```
+
+另一台电脑先连同一Tailscale网络。无MagicDNS时加 `--connect-ip 100.64.0.10`，规范Host仍保持原域名。不要把profile中的project_id改成其他项目；服务端授权绑定令牌。签发或登记必须使用目标项目：浏览器Agent接入说明可下载通用client.py与API文档；项目邀请码仅能注册普通Agent。项目内 `/api/actors` 由owner/SE签发普通身份；随后用member动作授予研究、开发、文档、测试或SE职责。owner授予SE，SE不能提升自己或其他管理者。旧reviewer兼容其原项目审核职责。
 
 ## 2. 项目材料与里程碑
 
@@ -54,7 +54,7 @@ python tools/task_board_client.py --profile <项目身份文件> request --endpo
 
 硬前置depends_on形成DAG，不能有环或引用不存在的任务。产物输入/输出、共享文件/接口/数据库、设备/端口排他分别建模。未知输入会阻止领取。领取和派发在任务库同一SQLite事务内重查前置验收、角色、写路径（含Windows大小写与目录前缀）、接口冻结、资产固定/撤回、资源和耦合冲突。两个不同任务争同一写目录也只有一个能领取。活跃/待审/返修/部分交付仍持有冲突范围；由SE通过正式范围调整/验收处理，不根据空闲CPU释放资源。
 
-“依赖与并行”里的队列是当前建议；领取时会再次检查。原有历史任务仍保留兼容状态机，但不会被新图自动认定为已核定原子任务。图只返回当前项目节点，不用浏览器隐藏代替权限控制。board只管理协作约定，不能阻止同Windows账号下的任意磁盘写入；需要更强隔离时应分别配置OS账户/容器/目录权限。
+界面tab分开：任务列表/交付与验收队列仅在“任务与验收”；其他tab显示自己的内容。“依赖与并行”实际绘制全部已授权任务及已记录关系：实线箭头为硬前置，虚线为任务包/任务族层级，两者不等价。可按任务族筛选、定位任务、缩放与滚动，点击节点查看详情，不截断为40项。原子分类未知的历史节点仍展示，不编造未记录依赖。辅助检查清单默认折叠。“依赖与并行”里的队列是当前建议；领取时会再次检查。原有历史任务仍保留兼容状态机，但不会被新图自动认定为已核定原子任务。图只返回当前项目节点，不用浏览器隐藏代替权限控制。board只管理协作约定，不能阻止同Windows账号下的任意磁盘写入；需要更强隔离时应分别配置OS账户/容器/目录权限。
 
 ## 4. 冻结接口与变更影响
 

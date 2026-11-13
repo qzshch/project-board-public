@@ -34,6 +34,8 @@ def token_hash(value: str) -> str:
 class ProjectHub:
     def __init__(self, state: Path):
         self.state = Path(state).resolve()
+        if (self.state/'MIGRATED_TO.json').exists():
+            raise BoardError('此PC状态已迁往NAS，请使用NAS入口和状态目录',409)
         self.path = self.state / "projects.sqlite"
         self.admin_store = BoardStore(self.state / "_private/admin.sqlite")
         self._stores = {}
@@ -46,6 +48,7 @@ class ProjectHub:
                 storage TEXT NOT NULL UNIQUE,join_hash TEXT NOT NULL,created REAL NOT NULL);
               CREATE TABLE IF NOT EXISTS credentials(
                 token_hash TEXT PRIMARY KEY,project TEXT NOT NULL,actor TEXT NOT NULL);
+              CREATE TABLE IF NOT EXISTS removed_projects(id TEXT PRIMARY KEY,removed_at REAL NOT NULL);
               CREATE TABLE IF NOT EXISTS audit(seq INTEGER PRIMARY KEY,payload TEXT NOT NULL,
                 prev_hash TEXT NOT NULL,hash TEXT NOT NULL UNIQUE);
               CREATE TRIGGER IF NOT EXISTS audit_no_update BEFORE UPDATE ON audit
@@ -242,7 +245,7 @@ class ProjectHub:
         storage = f"projects/{project}/board.sqlite"
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
-            if db.execute("SELECT 1 FROM projects WHERE id=?", (project,)).fetchone():
+            if db.execute("SELECT 1 FROM projects WHERE id=? UNION SELECT 1 FROM removed_projects WHERE id=?", (project,project)).fetchone():
                 raise BoardError("项目ID已存在", 409)
             path = self.state / storage
             if path.exists() or not path.resolve().is_relative_to(self.state):

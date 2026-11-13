@@ -13,6 +13,7 @@ import secrets
 import socket
 import subprocess
 import sys
+import signal
 import time
 import psutil
 
@@ -54,6 +55,8 @@ def init_state(
     port: int = 24710,
 ) -> dict:
     state = state.resolve()
+    if (state/'MIGRATED_TO.json').exists():
+        raise BoardError('此PC状态已迁往NAS，禁止重新初始化',409)
     if type(port) is not int or not 1024<=port<=65535:
         raise BoardError('后端端口需1024～65535整数')
     from urllib.parse import urlsplit
@@ -246,9 +249,17 @@ def proxy(state: Path, enable: bool) -> dict:
 
 
 def run_service(state: Path):
+    if (state/'MIGRATED_TO.json').exists():
+        raise BoardError('此状态已迁往NAS，禁止重新启动PC写实例',409)
     settings = read(state / "_private/server.json")
     record_path = state / "service.json"
     process = psutil.Process()
+    stop_file=state/'stop.flag'
+    if stop_file.exists():stop_file.unlink()
+    prior_signal={}
+    if __import__('threading').current_thread() is __import__('threading').main_thread():
+        for sig in (signal.SIGTERM,signal.SIGINT):
+            prior_signal[sig]=signal.signal(sig,lambda *_:stop_file.touch())
     record = {
         "pid": process.pid,
         "created": process.create_time(),
@@ -276,10 +287,13 @@ def run_service(state: Path):
     finally:
         record.update(ready=False, closed=True, finished=time.time())
         write(record_path, record)
+        for sig,handler in prior_signal.items():signal.signal(sig,handler)
 
 
 def start(state: Path) -> dict:
     state = state.resolve()
+    if (state/'MIGRATED_TO.json').exists():
+        raise BoardError('此状态已迁往NAS，禁止重新启动PC写实例',409)
     record_path = state / "service.json"
     if record_path.exists():
         record = read(record_path)

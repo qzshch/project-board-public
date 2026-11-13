@@ -11,6 +11,7 @@ from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import gzip
+import os
 from pathlib import Path
 import secrets
 import socket
@@ -27,6 +28,7 @@ STATIC = {
     "/index.html": "index.html",
     "/app.js": "app.js",
     "/workspace.js": "workspace.js",
+    "/graph-layout.js": "graph-layout.js",
     "/app.css": "app.css",
     "/tokens.css": "tokens.css",
     "/theme.css": "theme.css",
@@ -36,7 +38,10 @@ STATIC = {
 class BoardServer(ThreadingHTTPServer):
     daemon_threads = False
     block_on_close = True
-    allow_reuse_address = False
+    # Linux otherwise rejects an immediate restart while old HTTP sockets are
+    # in TIME_WAIT. SO_REUSEADDR does not take over a live Unix listener; the
+    # lifecycle still verifies port/owner identity. Keep Windows exclusivity.
+    allow_reuse_address = os.name != 'nt'
 
     def __init__(self, address, store: BoardStore, settings: dict):
         if address[0] != "127.0.0.1":

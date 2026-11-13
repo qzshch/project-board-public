@@ -17,6 +17,7 @@ class Registry:
               CREATE TABLE IF NOT EXISTS release_status(ref TEXT PRIMARY KEY,status TEXT NOT NULL,reason TEXT NOT NULL);
               CREATE TABLE IF NOT EXISTS consumption(project TEXT NOT NULL,alias TEXT NOT NULL,ref TEXT NOT NULL,
                 PRIMARY KEY(project,alias));
+              CREATE TABLE IF NOT EXISTS removed_releases(ref TEXT PRIMARY KEY,removed_at REAL NOT NULL,reason TEXT NOT NULL);
               CREATE TRIGGER IF NOT EXISTS releases_no_update BEFORE UPDATE ON releases
                 BEGIN SELECT RAISE(ABORT,'immutable release'); END;
               CREATE TRIGGER IF NOT EXISTS releases_no_delete BEFORE DELETE ON releases
@@ -25,7 +26,7 @@ class Registry:
 
     def get(self, ref, project, allow_withdrawn=False):
         with self.hub.connection() as db:
-            row=db.execute('SELECT r.*,s.status FROM releases r JOIN release_status s USING(ref) WHERE ref=?',(ref,)).fetchone()
+            row=db.execute('SELECT r.*,s.status FROM releases r JOIN release_status s USING(ref) WHERE ref=? AND NOT EXISTS(SELECT 1 FROM removed_releases d WHERE d.ref=r.ref)',(ref,)).fetchone()
         if not row:raise BoardError('共享版本不可用或未授权',404)
         value=json.loads(row['payload'])
         if project!=row['producer'] and project not in value['audience'] and '*' not in value['audience']:raise BoardError('共享版本不可用或未授权',404)
@@ -33,7 +34,7 @@ class Registry:
         return {**value,'ref':ref,'producer':row['producer'],'status':row['status']}
 
     def listing(self):
-        with self.hub.connection() as db:refs=[r[0] for r in db.execute('SELECT ref FROM releases ORDER BY ref')]
+        with self.hub.connection() as db:refs=[r[0] for r in db.execute('SELECT ref FROM releases WHERE ref NOT IN(SELECT ref FROM removed_releases) ORDER BY ref')]
         result=[]
         for ref in refs:
             try:result.append(self.get(ref,self.project,True))

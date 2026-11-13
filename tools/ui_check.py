@@ -33,7 +33,7 @@ def check(value,label):
 async def main():
     c=GovernanceCase();c.setUp();asyncio.create_subprocess_exec=hidden
     try:
-        c.member();c.atomic();c.atomic('new/two',['src/two/'],category='documentation',role='documenter')
+        c.member();c.atomic();second=c.atomic('new/two',['src/two/'],category='documentation',role='documenter');second['depends_on']=['new/one'];c.event('new/two','scope',{'spec':second,'reason':'record a real predecessor'},c.admin)
         c.gov('knowledge',{'background':'一个独立的研究与实现项目','goals':'多人协作时范围清楚、验收可追溯','non_goals':'不执行其他项目的业务流程','constraints':'所有代码、证据与缓存放在G盘；公共接口先冻结。','materials':[],'entries':[]})
         c.gov('milestone',{'id':'M1','goal':'研究与原型验收','acceptance':'产物哈希和真实行为检查','status':'active','evidence':[]})
         ticket=c.hub.admin_store.create_ticket(c.hub.admin_store.authenticate(c.admin['token']))
@@ -43,6 +43,8 @@ async def main():
                 capture();context=await browser.new_context(viewport={'width':1280,'height':960});page=await context.new_page();page.on('pageerror',lambda error:report['errors'].append(str(error)))
                 await page.goto(c.url+'/?project=alpha#kind=admin&access='+ticket,wait_until='networkidle');await page.wait_for_selector('#workspace:not([hidden])')
                 check('一个独立的研究' in await page.locator('#workspace-body').inner_text(),'overview displays project background')
+                check(await page.locator('#task-board').is_hidden(),'overview has no task queue')
+                await page.locator('[data-panel=tasks]').click();check(await page.locator('#task-board').is_visible(),'task tab owns the delivery queue');await page.locator('[data-panel=overview]').click()
                 await page.locator('#workspace-edit').click();await page.locator('[name=background]').fill('界面实际保存的项目背景');await page.locator('#detail button[type=submit]').click();await page.wait_for_function("() => document.querySelector('#workspace-body').textContent.includes('界面实际保存')")
                 check(c.hub.store('alpha').path.exists(),'UI saved through real HTTP')
                 await page.locator('#create').click()
@@ -54,9 +56,9 @@ async def main():
                         await page.set_viewport_size({'width':width,'height':960 if width==1280 else 812});await page.emulate_media(color_scheme=theme)
                         check(await page.evaluate('document.documentElement.scrollWidth<=innerWidth'),f'{width}/{theme} has no horizontal overflow')
                         name=f'overview-{width}-{theme}.png';await page.screenshot(path=str(E/name),full_page=True);report['screens'].append(name)
-                await page.locator('[data-panel=relations]').click();check(await page.locator('svg.dependency-graph').count()==1,'atomic dependency graph rendered');await page.screenshot(path=str(E/'relations-mobile-dark.png'),full_page=True)
+                await page.locator('[data-panel=relations]').click();check(await page.locator('svg.dependency-graph').count()==1,'real dependency graph rendered');check(await page.locator('[data-edge-type=hard]').count()==1,'recorded prerequisite is drawn as an arrow');check(await page.locator('g[data-task]').count()==3,'historical tasks are included');check(await page.locator('#task-board').is_hidden(),'relationship tab has no delivery queue');await page.screenshot(path=str(E/'relations-mobile-dark.png'),full_page=True)
                 for panel in ('contracts','assets','handoff'):
-                    await page.locator('[data-panel='+panel+']').click();await page.locator('#workspace-edit').click();check(await page.locator('[name=operation]').count()==1,panel+' management form works');await page.locator('#close-detail').click()
+                    await page.locator('[data-panel='+panel+']').click();check(await page.locator('#task-board').is_hidden(),panel+' tab excludes delivery queue');await page.locator('#workspace-edit').click();check(await page.locator('[name=operation]').count()==1,panel+' management form works');await page.locator('#close-detail').click()
                 # A project switch must clear knowledge and graph as well as task rows.
                 await page.locator('#project-select').select_option('beta');await page.wait_for_function("() => document.querySelector('#project-select').value==='beta' && !document.querySelector('#workspace-body').textContent.includes('界面实际保存')")
                 check('界面实际保存' not in await page.locator('body').inner_text(),'project switching clears previous knowledge')

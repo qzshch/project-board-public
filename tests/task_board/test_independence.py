@@ -29,4 +29,10 @@ class IndependenceCase(unittest.TestCase):
             with self.assertRaises(BoardError):lifecycle.init_state(self.state,public_url=url)
         with self.assertRaises(BoardError):lifecycle.init_state(self.state,public_url='http://localhost',port=True)
 
+    def test_migrated_pc_state_cannot_be_reinitialized_or_create_catalogs(self):
+        lifecycle.write(self.state/'MIGRATED_TO.json',{'url':'http://nas.example.ts.net:18785'})
+        with self.assertRaises(BoardError):lifecycle.init_state(self.state,public_url='http://127.0.0.1:24991')
+        with self.assertRaises(BoardError):ProjectHub(self.state)
+        self.assertFalse((self.state/'board.sqlite').exists());self.assertFalse((self.state/'projects.sqlite').exists())
+
 if __name__=='__main__':unittest.main()

@@ -31,7 +31,7 @@ function matchView(task) {
   if(app.view==='archive') return ['baseline_merged','partial_baseline','accepted','partial_accepted','merged','partial_merged','native_accepted','partial_native'].includes(task.status);
   return true;
 }
-function setView(view) { app.view=view; app.limit=40; document.querySelectorAll('.tabs button').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.view===view))); render(); }
+function setView(view) { if(typeof selectWorkspacePanel==='function')selectWorkspacePanel('tasks');app.view=view; app.limit=40; document.querySelectorAll('[data-view]').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.view===view))); render(); }
 function render() {
   $('count-review').textContent=app.tasks.filter(t=>['reported','submitted'].includes(t.status)).length;
   $('count-rework').textContent=app.tasks.filter(t=>t.status==='changes_requested').length;

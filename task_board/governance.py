@@ -152,6 +152,7 @@ class Governance:
         with self.store.connection() as db:
             db.execute('BEGIN')
             value=load(db);all_tasks=tasks(db)
+            value.pop('removed_assets',None)
             for c in value['changes'].values():c['impact_hash']=digest(c['impact'])
             if getattr(self.store,'registry',None):value['consumption']=self.store.registry.consumption()
             queue=[]
@@ -160,11 +161,12 @@ class Governance:
             graph=[]
             for tid,t in all_tasks.items():
                 graph += [{'from':d,'to':tid,'type':'hard'} for d in t['spec']['depends_on']]
+                graph += [{'from':p,'to':tid,'type':'containment'} for p in t['spec'].get('parents',[]) if p in all_tasks]
                 w=t['spec'].get('work',{})
                 for typ,key in [('product','inputs'),('coupling','couplings'),('contract','contracts'),('asset','assets'),('exclusive','resources')]:
                     graph += [{'from':ref,'to':tid,'type':typ} for ref in w.get(key,[])]
                 graph += [{'from':tid,'to':ref,'type':'produces'} for ref in w.get('outputs',[])]
-            value.update(graph=graph,queue=queue,nodes=[{'id':k,'title':v['spec']['title'],'category':v['spec'].get('work',{}).get('category','unknown'),'status':v['status']} for k,v in all_tasks.items()])
+            value.update(graph=graph,queue=queue,nodes=[{'id':k,'title':v['spec']['title'],'kind':v['spec']['kind'],'category':v['spec'].get('work',{}).get('category','unknown'),'status':v['status']} for k,v in all_tasks.items()])
             if query:
                 # Search only this already-authorized project; no global index.
                 value={'revision':value['revision'],'matches':[{'kind':k,'id':str(i),'value':row} for k,rows in value.items() if isinstance(rows,dict) for i,row in rows.items() if query.casefold() in canonical(row).casefold()]}
@@ -261,12 +263,18 @@ class Governance:
             if not c or not set(c['required'])<=set(c['confirmations']):raise BoardError('变更缺少影响确认',409)
             if impact(tasks(db),c['contract'])!=c['impact']:raise BoardError('影响范围变化；不能切换',409)
             v['contracts'][c['contract']]['status']='retired';c['executed']=True
+        elif action=='asset_remove':
+            fields(p,{'refs','reason'},{'refs','reason'});identifiers(p['refs'],'资产版本');text(p['reason'],'清理依据')
+            v.setdefault('removed_assets',[])
+            for ref in p['refs']:
+                if ref not in v['assets']:raise BoardError('私有资产版本不存在',404)
+                del v['assets'][ref];v['removed_assets'].append(ref)
         elif action=='asset':
             fields(p,{'id','version','kind','source','license','sensitivity','sha256','location','owner','shareable','evidence'}, {'id','version','kind','source','license','sensitivity','sha256','location','owner','shareable','evidence'})
             for key in ('id','version','kind','source','license','sensitivity','location','owner'):text(p[key],key,2000)
             if not re.fullmatch('[0-9a-f]{64}',str(p['sha256'])) or type(p['shareable']) is not bool:raise BoardError('资产需SHA与显式共享资格')
             evidence(p['evidence']);ref=p['id']+'@'+p['version']
-            if ref in v['assets']:raise BoardError('资产版本不可覆盖',409)
+            if ref in v['assets'] or ref in v.get('removed_assets',[]):raise BoardError('资产版本不可覆盖或重用',409)
             v['assets'][ref]={**p,'status':'private'}
         else:raise BoardError('未知治理动作',404)
 

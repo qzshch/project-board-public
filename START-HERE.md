@@ -1,6 +1,6 @@
 # 新独立会话入口
 
-当前产品已在独立目录实现并完成迁移。后续接手先读 [操作手册](docs/MANUAL.md)、[验收台账](docs/ACCEPTANCE.md) 和 [运行/回滚](docs/RUNBOOK.md)；下文保留最初移交背景，不能当作当前部署状态。
+当前正式服务已部署到server：http://example-server.example-tailnet.ts.net:18785；PC仅为开发仓库，旧PC运行入口已停用。原有演练工作区已从线上清理。后续接手先读 [操作手册](docs/MANUAL.md)、[验收台账](docs/ACCEPTANCE.md) 和 [运行/回滚](docs/RUNBOOK.md)；下文保留最初移交背景，不能当作当前部署状态。
 
 用户要求把公告板作为独立产品，另开会话完成五项升级。本仓库是专门为该会话准备的G盘独立Git仓库，不是示例项目worktree。
 

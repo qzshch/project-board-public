@@ -1,18 +1,19 @@
 'use strict';
-const ws={panel:'overview',data:null,shared:null};
+const ws={panel:new URLSearchParams(location.search).get('panel')||'overview',data:null,shared:null,signature:null,graphFamily:'',graphQuery:'',graphMode:'all',zoom:1};
 const categoryNames={research:'研究 / 调研',collection:'素材采集',generation:'资源生成',infrastructure:'框架 / 基建',frontend:'前端开发',backend:'后端开发',library:'公共库',documentation:'记录 / 约束 / 交接文档',test:'测试',integration:'集成',release:'发布'};
 const roleNames={owner:'总负责人',se:'继承 SE',researcher:'研究员',collector:'素材采集',generator:'资源生成',developer:'开发',documenter:'文档',tester:'测试',agent:'Agent',viewer:'只读'};
-const panelNames={overview:'项目概览',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
-function clearWorkspace(){ws.data=null;ws.shared=null;$('workspace-body').replaceChildren();$('workspace').hidden=true;}
+const panelNames={overview:'项目概览',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
+function clearWorkspace(){ws.data=null;ws.shared=null;ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
 async function refreshWorkspace(generation){
   const [data,shared]=await Promise.all([api('/api/governance'),api('/api/shared')]);
   if(generation!==app.generation)return;
-  ws.data=data;ws.shared=shared;$('workspace').hidden=false;renderWorkspace();
+  const signature=JSON.stringify([app.project,data,shared]);ws.data=data;ws.shared=shared;$('workspace').hidden=false;if(signature!==ws.signature){ws.signature=signature;renderWorkspace();}
 }
 function listLines(box,title,rows,format){const sectionBox=section(title);if(!rows.length)sectionBox.append(el('p','尚未登记。','muted'));for(const row of rows)sectionBox.append(el('p',format(row),'detail-text'));box.append(sectionBox);}
+function relationDetails(box,title,rows,format){const details=el('details',undefined,'relation-details');details.append(el('summary',`${title} · ${rows.length} 项`));listLines(details,title,rows,format);box.append(details);}
 function cards(box,items){const grid=el('div',undefined,'workspace-grid');for(const [label,value] of items)grid.append(field(label,value||'待负责人登记'));box.append(grid);}
 function renderWorkspace(){
-  const d=ws.data;if(!d)return;const box=$('workspace-body');box.replaceChildren();$('workspace-title').textContent=panelNames[ws.panel];$('workspace-subtitle').textContent=`本项目专属资料 · 记录 ${d.revision}`;$('workspace-edit').hidden=app.role!=='reviewer';
+  const d=ws.data;if(!d)return;if(!panelNames[ws.panel])ws.panel='overview';$('task-metrics').hidden=ws.panel!=='tasks';$('task-board').hidden=ws.panel!=='tasks';document.querySelectorAll('[data-panel]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.panel===ws.panel)));const box=$('workspace-body');box.replaceChildren();$('workspace-title').textContent=panelNames[ws.panel];$('workspace-subtitle').textContent=`本项目专属资料 · 记录 ${d.revision}`;$('workspace-edit').hidden=app.role!=='reviewer'||ws.panel==='tasks';$('workspace-body').hidden=ws.panel==='tasks';$('workspace-title').closest('.section-head').hidden=ws.panel==='tasks';
   if(ws.panel==='overview'){
     cards(box,[['项目背景',d.knowledge.background],['目标',d.knowledge.goals],['非目标',d.knowledge.non_goals],['约束',d.knowledge.constraints]]);
     for(const [key,title] of [['materials','必读材料 · 固定版本'],['entries','项目入口']])listLines(box,title,d.knowledge[key]||[],r=>`${r.title} · ${r.version}\n${r.location}\nSHA256 ${r.sha256}`);
@@ -22,9 +23,9 @@ function renderWorkspace(){
   if(ws.panel==='relations'){
     const eligible=d.queue.filter(r=>!r.blockers.length);box.append(el('p',`可领取 ${eligible.length} 项；执行时会再次原子检查角色、前置、写路径、资源和固定版本。`,'secondary'));
     drawGraph(box,d);
-    listLines(box,'前置与冲突',d.queue.slice(0,60),r=>`${r.id} · ${r.blockers.length?r.blockers.join('；'):'满足当前并行条件'}`);
-    listLines(box,'产物 / 接口 / 资源耦合',d.graph.filter(r=>r.type!=='hard').slice(0,80),r=>`${r.from} → ${r.to} · ${{product:'输入产物',produces:'输出产物',coupling:'共享修改',exclusive:'排他资源',contract:'固定接口',asset:'固定资产'}[r.type]}`);
-    listLines(box,'任务包与原子任务映射',Object.values(d.packages),r=>`${r.id} → ${r.tasks.join('、')}\n来源：${r.source}\n待核定：${r.unknown}`);
+    relationDetails(box,'前置与冲突',d.queue,r=>`${r.id} · ${r.blockers.length?r.blockers.join('；'):'满足当前并行条件'}`);
+    relationDetails(box,'产物 / 接口 / 资源耦合',d.graph.filter(r=>!['hard','containment'].includes(r.type)),r=>`${r.from} → ${r.to} · ${{product:'输入产物',produces:'输出产物',coupling:'共享修改',exclusive:'排他资源',contract:'固定接口',asset:'固定资产'}[r.type]}`);
+    relationDetails(box,'任务包与原子任务映射',Object.values(d.packages),r=>`${r.id} → ${r.tasks.join('、')}\n来源：${r.source}\n待核定：${r.unknown}`);
   }
   if(ws.panel==='contracts'){
     listLines(box,'冻结版本',Object.entries(d.contracts),([ref,r])=>`${ref} · ${r.status} · 拥有者 ${r.owner}\n${r.signature}\n单位：${r.units} · 错误：${r.errors}\n事务：${r.transaction} · 幂等：${r.idempotency}\n来源：${r.source} · 兼容：${r.compatibility}`);
@@ -45,13 +46,31 @@ function renderWorkspace(){
   }
 }
 function drawGraph(box,d){
-  const nodes=d.nodes.filter(n=>n.category!=='unknown').slice(0,40), ids=new Set(nodes.map(n=>n.id)),edges=d.graph.filter(e=>e.type==='hard'&&ids.has(e.from)&&ids.has(e.to));
-  if(!nodes.length){box.append(el('p','历史任务包尚未拆成原子任务；依赖未知，不自动推断。','notice'));return;}
-  const ns='http://www.w3.org/2000/svg',svg=document.createElementNS(ns,'svg');svg.setAttribute('viewBox',`0 0 960 ${Math.max(120,nodes.length*72)}`);svg.setAttribute('role','img');svg.setAttribute('aria-label','本项目原子任务硬依赖图，箭头指向后继任务');svg.classList.add('dependency-graph');
-  const positions=new Map(nodes.map((n,i)=>[n.id,{x:24+(i%2)*464,y:24+Math.floor(i/2)*120}]));svg.setAttribute('viewBox',`0 0 960 ${Math.ceil(nodes.length/2)*120+24}`);
-  for(const e of edges){const a=positions.get(e.from),b=positions.get(e.to),path=document.createElementNS(ns,'path');path.setAttribute('d',`M ${a.x+200} ${a.y+56} L ${b.x+200} ${b.y} l -5 8 m 5 -8 l 5 8`);path.setAttribute('class','graph-edge');svg.append(path);}
-  for(const n of nodes){const p=positions.get(n.id),rect=document.createElementNS(ns,'rect');rect.setAttribute('x',p.x);rect.setAttribute('y',p.y);rect.setAttribute('width',420);rect.setAttribute('height',64);rect.setAttribute('rx',8);svg.append(rect);for(const [line,label] of [[0,n.id],[1,(categoryNames[n.category]||n.category)+' · '+(states[n.status]?.[0]||n.status)]]){const t=document.createElementNS(ns,'text');t.setAttribute('x',p.x+16);t.setAttribute('y',p.y+24+line*24);t.textContent=label.slice(0,45);svg.append(t);}}
-  box.append(svg,el('p','图仅展示当前项目已分类原子任务（最多40项）。箭头为硬前置；其他关系分别列出。','muted'));
+  const controls=el('div',undefined,'graph-controls');
+  const family=selectInput(controls,'任务族','graph-family',{'':'全部任务',...Object.fromEntries(d.nodes.filter(n=>n.kind==='family').map(n=>[n.id,n.title]))},ws.graphFamily);
+  if(![...family.options].some(o=>o.value===ws.graphFamily))ws.graphFamily='';family.value=ws.graphFamily;
+  const mode=selectInput(controls,'关系','graph-mode',{all:'全部已记录关系',hard:'硬依赖',containment:'任务层级'},ws.graphMode);
+  const search=el('input');search.type='search';search.placeholder='定位任务 ID 或名称';search.value=ws.graphQuery;search.setAttribute('aria-label','在依赖图中定位任务');controls.append(search);
+  const zoomOut=el('button','缩小'),zoomIn=el('button','放大'),zoomLabel=el('span','','muted');controls.append(zoomOut,zoomLabel,zoomIn);
+  const summary=el('p','','secondary'),legend=el('p','实线箭头：已记录的硬前置。虚线箭头：任务包/任务族层级，不代表执行前置。未核定的依赖不会自动补全。','muted');
+  const stage=el('div',undefined,'graph-stage');stage.tabIndex=0;stage.setAttribute('aria-label','可滚动的任务关系图');box.append(controls,summary,legend,stage);
+  function draw(){
+    const graph=projectGraph(d.nodes,d.graph,{family:ws.graphFamily,query:ws.graphQuery,mode:ws.graphMode}),layout=layoutProjectGraph(graph.nodes,graph.edges);
+    const hard=graph.edges.filter(e=>e.type==='hard').length,parent=graph.edges.filter(e=>e.type==='containment').length,unknown=graph.nodes.filter(n=>n.category==='unknown').length;
+    summary.textContent=`当前显示 ${graph.nodes.length} / ${d.nodes.length} 项任务 · ${hard} 条硬依赖 · ${parent} 条层级关系${unknown?' · '+unknown+' 项原子分类待核定':''}${layout.unresolved.length?' · 存在环或未分层节点，请SE核定':''}`;
+    zoomLabel.textContent=Math.round(ws.zoom*100)+'%';const old={x:stage.scrollLeft,y:stage.scrollTop};stage.replaceChildren();
+    if(!graph.nodes.length){stage.append(el('p','当前筛选无任务。','empty'));return;}
+    const ns='http://www.w3.org/2000/svg',make=(tag,attrs={})=>{const n=document.createElementNS(ns,tag);for(const [k,v]of Object.entries(attrs))n.setAttribute(k,v);return n;};
+    const svg=make('svg',{viewBox:`0 0 ${layout.width} ${layout.height}`,role:'img','aria-label':'当前项目的真实任务关系图','data-nodes':graph.nodes.length,'data-edges':graph.edges.length});svg.classList.add('dependency-graph');svg.style.width=layout.width*ws.zoom+'px';svg.style.height=layout.height*ws.zoom+'px';
+    const defs=make('defs'),marker=make('marker',{id:'dependency-arrow',viewBox:'0 0 10 10',refX:9,refY:5,markerWidth:7,markerHeight:7,orient:'auto-start-reverse'});marker.append(make('path',{d:'M 0 0 L 10 5 L 0 10 z',fill:'currentColor'}));defs.append(marker);svg.append(defs);
+    for(const edge of graph.edges){const a=layout.positions.get(edge.from),b=layout.positions.get(edge.to),x1=a.x+a.width,y1=a.y+a.height/2,x2=b.x,y2=b.y+b.height/2,mid=(x1+x2)/2;const p=make('path',{d:`M ${x1} ${y1} C ${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`,'marker-end':'url(#dependency-arrow)','data-edge-type':edge.type});p.classList.add('graph-edge');if(edge.type==='containment')p.classList.add('containment');svg.append(p);}
+    for(const node of graph.nodes){const p=layout.positions.get(node.id),g=make('g',{'data-task':node.id,role:'button',tabindex:0,'aria-label':node.title});g.classList.add('graph-node');const title=make('title');title.textContent=node.title+' · '+node.id;g.append(title,make('rect',{x:p.x,y:p.y,width:p.width,height:p.height,rx:8}));
+      for(const [line,label] of [[0,node.title],[1,node.id],[2,(categoryNames[node.category]||kinds[node.kind]||'分类待核定')+' · '+(states[node.status]?.[0]||node.status)]]){const t=make('text',{x:p.x+12,y:p.y+22+line*22});t.textContent=label.length>32?label.slice(0,30)+'…':label;g.append(t);}
+      g.onclick=()=>showDetail(node.id);g.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();showDetail(node.id);}};svg.append(g);
+    }
+    stage.append(svg);stage.scrollLeft=old.x;stage.scrollTop=old.y;
+  }
+  family.onchange=()=>{ws.graphFamily=family.value;draw();};mode.onchange=()=>{ws.graphMode=mode.value;draw();};search.oninput=()=>{ws.graphQuery=search.value;draw();};zoomOut.onclick=()=>{ws.zoom=Math.max(.4,ws.zoom-.2);draw();};zoomIn.onclick=()=>{ws.zoom=Math.min(2,ws.zoom+.2);draw();};draw();
 }
 function selectInput(form,label,name,values,current){const group=el('label',label),input=el('select');input.name=name;for(const [v,l] of Object.entries(values)){const o=el('option',l);o.value=v;input.append(o);}input.value=current||Object.keys(values)[0];group.append(input);form.append(group);return input;}
 function atomicInputs(form,task){
@@ -90,6 +109,7 @@ function editWorkspace(fixed,seed={}){
     await api(['publish','consume','upgrade','deprecate','withdraw'].includes(action)?'/api/shared':'/api/governance',['publish','consume','upgrade','deprecate','withdraw'].includes(action)?{request_id:requestId(),action,payload:p}:{request_id:requestId(),expected_revision:revision,action,payload:p});$('detail').close();await refreshWorkspace(app.generation);
   }catch(error){message.textContent=error.message;}finally{save.disabled=false;}};$('detail').showModal();
 }
-document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>{ws.panel=b.dataset.panel;document.querySelectorAll('[data-panel]').forEach(n=>n.setAttribute('aria-pressed',String(n===b)));renderWorkspace();});
+function selectWorkspacePanel(panel){if(!panelNames[panel])return;ws.panel=panel;const params=new URLSearchParams(location.search);params.set('panel',panel);history.replaceState(null,'',location.pathname+'?'+params.toString());renderWorkspace();}
+document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>selectWorkspacePanel(b.dataset.panel));
 $('workspace-edit').onclick=()=>editWorkspace();
 for(const [value,label] of Object.entries(categoryNames)){const option=el('option',label);option.value=value;$('kind').append(option);}

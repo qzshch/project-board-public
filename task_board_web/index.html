@@ -14,6 +14,7 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/app.css">
   <script src="/app.js" defer></script>
+  <script src="/graph-layout.js" defer></script>
   <script src="/workspace.js" defer></script>
 </head>
 <body>
@@ -25,17 +26,17 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
     <section class="project-bar panel" aria-label="当前项目"><label for="project-select">当前项目<select id="project-select" disabled><option>请先授权</option></select></label><p id="project-description" class="secondary">使用项目专属入口或负责人签发的身份访问。</p><button id="new-project" hidden>新建项目</button><button id="logout" hidden>退出</button></section>
     <div id="notice" class="notice" hidden role="status"></div>
     <section id="workspace" class="panel workspace" hidden aria-label="项目工作区">
-      <nav class="tabs workspace-tabs" aria-label="项目信息"><button data-panel="overview" aria-pressed="true">项目概览</button><button data-panel="relations">依赖与并行</button><button data-panel="contracts">接口冻结</button><button data-panel="assets">项目资产</button><button data-panel="handoff">角色与交接</button></nav>
+      <nav class="tabs workspace-tabs" aria-label="项目信息"><button data-panel="overview" aria-pressed="true">项目概览</button><button data-panel="tasks">任务与验收</button><button data-panel="relations">依赖与并行</button><button data-panel="contracts">接口冻结</button><button data-panel="assets">项目资产</button><button data-panel="handoff">角色与交接</button></nav>
       <div class="section-head"><div><h2 id="workspace-title">项目概览</h2><p class="muted" id="workspace-subtitle"></p></div><button id="workspace-edit" hidden>管理资料</button></div>
       <div id="workspace-body"></div>
     </section>
-    <section class="metrics" aria-label="项目状态">
+    <section id="task-metrics" class="metrics" aria-label="项目状态" hidden>
       <button class="metric" data-view="review"><span>待验收</span><strong id="count-review">—</strong><small>交付声明与待审材料</small></button>
       <button class="metric" data-view="rework"><span>需返修</span><strong id="count-rework">—</strong><small>保留原提交，追加修正</small></button>
       <button class="metric" data-view="active"><span>进行中</span><strong id="count-active">—</strong><small>已登记的执行任务</small></button>
       <div class="metric"><span>原子任务</span><strong id="count-family">—</strong><small>任务包作为组合与历史来源</small></div>
     </section>
-    <section class="panel board" aria-labelledby="queue-title">
+    <section id="task-board" class="panel board" aria-labelledby="queue-title" hidden>
       <div class="section-head"><div><h2 id="queue-title">交付与验收队列</h2><p class="muted" id="scope-note">正在读取任务范围</p></div><span class="badge" id="identity">只读视图</span></div>
       <nav class="tabs" aria-label="任务视图"><button data-view="review" aria-pressed="true">待验收</button><button data-view="rework">需返修</button><button data-view="active">执行范围</button><button data-view="archive">已接收资料</button><button data-view="all">全部</button></nav>
       <div class="filters">

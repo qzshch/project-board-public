@@ -1,17 +1,30 @@
 # 部署、恢复与归档
 
-当前产品目录 G:/project-board；状态 G:/project-board/state；私有入口 state/_private/operator.html。入口URL不变： http://DEVELOPMENT-HOST.example-tailnet.ts.net:18785 → 127.0.0.1:24710。服务由tools/task_board.py静默管理，运行记录含PID、真实创建时间、完整命令与用途。仅用户要求持续运行的正式服务保留。
+当前正式服务部署在 **server**，与PC开关机无关。独立开发仓库仍在G:/project-board。
 
-```powershell
-python -B -X utf8 tools/task_board.py status
-python -B -X utf8 tools/task_board.py --project sampleapp verify
-python -B -X utf8 tools/task_board.py --project task-board verify
-python -B -X utf8 tools/task_board.py stop
-python -B -X utf8 tools/task_board.py start
-python -B -X utf8 tools/task_board.py --project task-board operator
+- 正式入口：http://example-server.example-tailnet.ts.net:18785（Tailscale私网）；无MagicDNS时客户端用 `--connect-ip 100.64.0.10` 保持规范Host。
+- server根目录：`/srv/project-board`。
+- 代码：`releases/nas-20261113/source`；运行状态：`state`；独立Python环境：`.venv`。
+- 正式服务：用户级systemd `project-board.service`，已enable，用户Linger=yes，退出失败会自动重启。
+- server Tailscale Serve仅管理18785→server 127.0.0.1:24710。PC原18781/18783不变，PC公告板应用和原18785入口已停用。
+- 私有管理入口在server `state/_private/operator.html`。普通Agent只获得自己的项目身份文件。
+
+在server的已授权SSH会话执行：
+
+```sh
+systemctl --user status project-board.service
+systemctl --user restart project-board.service
+journalctl --user -u project-board.service --no-pager -n 50
+'/srv/project-board/.venv/bin/python' -B '/srv/project-board/releases/nas-20261113/source/tools/task_board.py' --state '/srv/project-board/state' --project task-board verify
 ```
 
-最后一条生成新的私有一次性管理入口，只输出位置。既有入口可能已使用/过期。项目负责人使用项目profile生成portal，不能拿全局入口给Agent。
+生成新的私有管理入口时，将最后的 `verify` 改为 `operator`，只输出位置。项目负责人用自己的profile生成portal；不要给执行Agent全局入口。已有客户端保留原token与project_id，将profile.url改为server正式地址即可；不重新注册、不扩大权限。
+
+PC运行数据已迁出，原state只保留MIGRATED_TO.json指针。PC端start/init/project操作拒绝重建旧实例。后续部署必须按本段server路径执行，不能再启动PC主服务。
+
+本次server迁移、快速重启、图与tab验收、演练清理证据见 `evidence/nas-ui-20261113`。保留真实项目的任务/事件ID、历史链及权限；演练项目、身份、当前私有资产、共享可见版本和生成文件已移除。只留不可变历史审计和清理摘要，不能重用退役项目/资产ID。
+
+下面是前一轮PC拆离迁移的历史恢复记录，不是当前部署路径：
 
 本次从旧目录实际迁移的证据在 evidence/migration/20261113/MIGRATION.json。完整私有一致性恢复备份在同目录 `_private/recovery` 和 `_private/final-source`。这些包含身份库/配置，只交付位置。旧源状态 G:/sampleapp/offline/state/task-board 已停止，保留为迁移时恢复点；不是现用数据库。禁止同时对两份状态写入或把旧实例当当前入口使用。
 
