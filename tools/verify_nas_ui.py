@@ -52,16 +52,17 @@ async def main():
                 r=await context.request.get(PUBLIC+'/api/projects/sampleapp/graph');check(r.status==404,'NAS project session cannot read foreign graph')
                 # A second project-bound session validates the user's current
                 # sampleapp view, including old package nodes previously omitted.
+                expected=admin.call('/api/projects/sampleapp/graph');expected_nodes=len(expected['nodes']);expected_hard=sum(r['type']=='hard' for r in expected['graph']);expected_parent=sum(r['type']=='containment' for r in expected['graph']);report['dhy_expected']={'nodes':expected_nodes,'hard':expected_hard,'containment':expected_parent}
                 dc=await browser.new_context(viewport={'width':1280,'height':960});ticket=admin.call('/api/projects/sampleapp/access',{})['ticket'];await dc.request.post(PUBLIC+'/api/projects/sampleapp/session',data={'ticket':ticket});dp=await dc.new_page();dp.on('pageerror',lambda error:report['errors'].append(str(error)))
                 await dp.goto(PUBLIC+'/?project=sampleapp&panel=relations',wait_until='networkidle');await dp.wait_for_selector('svg.dependency-graph')
-                check(await dp.locator('g[data-task]').count()==330,'sampleapp graph draws all 330 historical task nodes')
-                check(await dp.locator('[data-edge-type=hard]').count()==8,'sampleapp graph draws its 8 recorded hard dependencies')
-                check(await dp.locator('[data-edge-type=containment]').count()==190,'sampleapp graph separately draws 190 package hierarchy links')
+                check(await dp.locator('g[data-task]').count()==expected_nodes,'sampleapp graph draws every authorized snapshot node')
+                check(await dp.locator('[data-edge-type=hard]').count()==expected_hard,'sampleapp graph draws actual recorded hard dependencies')
+                check(await dp.locator('[data-edge-type=containment]').count()==expected_parent,'sampleapp graph separately draws actual hierarchy links')
                 check(await dp.locator('#task-board').is_hidden(),'sampleapp relationship view excludes delivery queue')
                 await dp.screenshot(path=str(E/'sampleapp-graph-desktop.png'),full_page=True)
                 await dp.locator('[name=graph-mode]').select_option('hard');check(await dp.locator('[data-edge-type=containment]').count()==0,'hard-only filter does not relabel hierarchy as prerequisites')
                 await dp.locator('[name=graph-mode]').select_option('all');families=dp.locator('[name=graph-family] option');check(await families.count()>1,'historical task family filter available')
-                family=await families.nth(1).get_attribute('value');await dp.locator('[name=graph-family]').select_option(family);check(0<await dp.locator('g[data-task]').count()<330,'family filter produces a focused relationship diagram')
+                family=await families.nth(1).get_attribute('value');await dp.locator('[name=graph-family]').select_option(family);check(0<await dp.locator('g[data-task]').count()<expected_nodes,'family filter produces a focused relationship diagram')
                 await dp.set_viewport_size({'width':375,'height':812});await dp.emulate_media(color_scheme='dark');check(await dp.evaluate('document.documentElement.scrollWidth<=innerWidth'),'historical graph mobile view does not overflow');await dp.screenshot(path=str(E/'sampleapp-family-mobile-dark.png'),full_page=True)
                 check(not report['errors'],'no production JavaScript errors');capture();await dc.close();await context.close()
             finally:await browser.close()

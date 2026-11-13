@@ -74,7 +74,7 @@ profile=lifecycle.read(state/'_private/admin.json');client=Client('http://127.0.
 def anchors():
  projects=client.call('/api/projects')['projects']
  return {{p['id']:{{'task_head':client.call('/api/projects/'+p['id']+'/snapshot')['head'],'governance_head':client.call('/api/projects/'+p['id']+'/governance')['head']}} for p in projects}}
-before=anchors();assert set(before)=={{'sampleapp','task-board'}}
+before=anchors();assert set(before)=={{'sampleapp','task-board'}};old_schema=client.call('/health')['governance_schema'];assert old_schema in (1,2)
 secrets_before={{str(p.relative_to(state)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (state/'_private').rglob('*.json') if p.name not in ('server.json',)}}
 def command(args,purpose):
  code,out,err=run(args,cwd=source,evidence=e,purpose=purpose,timeout=30)
@@ -101,7 +101,7 @@ try:
  # Backups contain credentials and are never included in a public source kit.
  os.chmod(backup.parent,0o700)
  unit.write_text(newunit,encoding='utf8');command(['systemctl','--user','daemon-reload'],'load candidate NAS unit');service('start');report['candidate']=readiness(2)
- install(original);report['rollback']=readiness(1)
+ install(original);report['rollback']=readiness(old_schema)
  install(newunit);report['restored_candidate']=readiness(2)
  service('restart');report['restart']=readiness(2)
  after=anchors();assert after==before
@@ -113,7 +113,7 @@ try:
  report.update(complete=True,after=after,credentials_preserved=True,service=lifecycle.read(state/'service.json'),finished=time.time())
 finally:
  if not report['complete']:
-  install(original);report['failure_restored_old_source']=readiness(1)
+  install(original);report['failure_restored_old_source']=readiness(old_schema)
  lifecycle.write(e/'RESULT.json',report)
 print(json.dumps(report))
 ''','NAS backup, candidate switch, actual source rollback, restart and chain validation',150)
