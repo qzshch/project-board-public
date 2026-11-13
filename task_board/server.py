@@ -29,6 +29,7 @@ STATIC = {
     "/app.js": "app.js",
     "/workspace.js": "workspace.js",
     "/graph-layout.js": "graph-layout.js",
+    "/help.css": "help.css",
     "/app.css": "app.css",
     "/tokens.css": "tokens.css",
     "/theme.css": "theme.css",
@@ -330,6 +331,20 @@ class Handler(BaseHTTPRequestHandler):
             self.guard()
             parsed = urlsplit(self.path)
             path = self.route(parsed.path)
+            from .help import DOCS, RAW_DOCS, PUBLIC_TEMPLATES, ROOT, INDEX, document_page, template_index
+            if path in ('/help','/help/'):
+                return self.send(200,document_page('使用手册',INDEX),content_type='text/html; charset=utf-8')
+            if path=='/help/templates':
+                return self.send(200,document_page('模板目录',template_index()),content_type='text/html; charset=utf-8')
+            if path in DOCS or path in RAW_DOCS:
+                title,relative,private=DOCS[path] if path in DOCS else ('操作文档',*RAW_DOCS[path])
+                if private and (not self.server.hub or not self.identity()['global_admin']):
+                    raise BoardError('此文档需要实例管理员会话；项目协作请阅读负责人/SE或Agent指南',403)
+                body=(ROOT/relative).read_text('utf8')
+                return self.send(200,document_page(title,body) if path in DOCS else body.encode('utf8'),content_type='text/html; charset=utf-8' if path in DOCS else 'text/markdown; charset=utf-8')
+            if path.startswith('/templates/') and path.removeprefix('/templates/') in PUBLIC_TEMPLATES:
+                filename=path.removeprefix('/templates/')
+                return self.send(200,(ROOT/'templates'/filename).read_bytes(),content_type='application/octet-stream' if filename.endswith('.json') else 'text/markdown; charset=utf-8',headers={'Content-Disposition':'attachment; filename="'+filename+'"'})
             if path in STATIC:
                 p = WEB_ROOT / STATIC[path]
                 kind = (

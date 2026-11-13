@@ -21,7 +21,7 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
   <main class="shell">
     <header class="page-head">
       <div><p class="eyebrow">PROJECT WORKSPACE</p><h1>项目公告板</h1><p class="secondary intro">交付有记录，返修有去向，范围有依据。</p></div>
-      <div class="head-actions"><span id="connection" class="connection" role="status">正在连接</span><button id="access">Agent 接入</button><button id="create" hidden>新建范围</button><button id="review-shortcut" class="primary">查看待验收</button></div>
+      <div class="head-actions"><span id="connection" class="connection" role="status">正在连接</span><a id="help" href="/help" target="_blank" rel="noopener">使用手册</a><button id="access">Agent 接入</button><button id="create" hidden>新建范围</button><button id="review-shortcut" class="primary">查看待验收</button></div>
     </header>
     <section class="project-bar panel" aria-label="当前项目"><label for="project-select">当前项目<select id="project-select" disabled><option>请先授权</option></select></label><p id="project-description" class="secondary">使用项目专属入口或负责人签发的身份访问。</p><button id="new-project" hidden>新建项目</button><button id="logout" hidden>退出</button></section>
     <div id="notice" class="notice" hidden role="status"></div>
@@ -51,7 +51,7 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
     <footer class="page-footer"><span>Agent 上报后进入待验收；验收、合入和运行验收分别记录。</span><span id="last-updated">2 秒自动更新</span></footer>
   </main>
   <dialog id="detail"><div class="dialog-head"><div><p id="detail-kind" class="eyebrow"></p><h2 id="detail-title"></h2></div><button id="close-detail" aria-label="关闭详情">关闭</button></div><div id="stale" class="notice" hidden>此任务已有新记录。<button id="refresh-detail">重新读取</button></div><div id="detail-body"></div></dialog>
-  <dialog id="access-dialog"><div class="dialog-head"><h2>Agent 接入</h2><button id="close-access">关闭</button></div><div class="dialog-content"><p>其他电脑先连接同一 Tailscale 网络。每份身份仅授权一个项目；请向负责人领取该项目的独立身份文件，再按当前范围版本上报。</p><pre id="access-command"></pre><p class="secondary">交付需要冻结实现提交、证据 SHA256、测试结果和剩余范围。上报回执放在证据目录，避免提交回执改变实现 HEAD。</p><p class="muted">审核入口由项目负责人单独授权。新任务仍需先登记输入包和修改范围。</p></div></dialog>
+  <dialog id="access-dialog"><div class="dialog-head"><h2>Agent 接入</h2><button id="close-access">关闭</button></div><div class="dialog-content"><p>其他电脑先连接同一 Tailscale 网络。每份身份仅授权一个项目；请向负责人领取该项目的独立身份文件，再按当前范围版本上报。</p><p><a href="/help/agent" target="_blank" rel="noopener">执行 Agent 完整操作指南</a> · <a href="/help/owner" target="_blank" rel="noopener">负责人 / 继承 SE 指南</a> · <a href="/help/templates" target="_blank" rel="noopener">模板目录</a></p><pre id="access-command"></pre><p class="secondary">交付需要冻结实现提交、证据 SHA256、测试结果和剩余范围。上报回执放在证据目录，避免提交回执改变实现 HEAD。</p><p class="muted">审核入口由项目负责人单独授权。新任务仍需先登记输入包和修改范围。</p></div></dialog>
   <template id="task-template"><article class="task-row"><div class="task-main"><button class="task-title"></button><p class="task-description"></p><div class="task-meta"></div></div><div class="task-state"><span class="badge status"></span><span class="owner secondary"></span></div><div class="task-update"><span class="version"></span><time class="muted"></time></div></article></template>
 </body>
 </html>

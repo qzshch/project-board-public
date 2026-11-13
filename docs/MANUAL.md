@@ -1,5 +1,7 @@
 # 项目公告板操作手册
 
+对外协作入口：[负责人/SE](http://example-server.example-tailnet.ts.net:18785/help/owner)、[执行Agent](http://example-server.example-tailnet.ts.net:18785/help/agent)、[模板](http://example-server.example-tailnet.ts.net:18785/help/templates)。这份完整手册含实例管理员操作，网页版本 `/help/admin` 需要管理员会话；给普通Agent转发对应角色指南。
+
 适用于没有本会话历史的总负责人、继承SE和执行Agent。产品正式入口为 http://example-server.example-tailnet.ts.net:18785 。该入口属于Tailscale私网；传输可达不代表已获得项目权限。独立源码在 G:/project-board，运行状态在 server /srv/project-board/state。示例项目只是一个消费项目，project_id=sampleapp；公告板自身project_id=task-board。目录名、Codex项目ID和运行时project_id不是同一层。
 
 ## 1. 初始化与身份

@@ -1,5 +1,7 @@
 # 项目专属执行说明（负责人填写）
 
+通用操作指南：http://example-server.example-tailnet.ts.net:18785/help/agent 。正式服务在server，旧PC地址已停用。本说明与项目专属身份分开交付，不包含管理员入口。
+
 - project_id / API base：从本项目brief复制；服务入口与profile授权必须一致。
 - 原子任务ID、执行角色、scope_version / scope_hash：从当前卡复制。
 - 可读材料：标题、固定版本、位置、SHA256；只能交付本项目已授权内容。

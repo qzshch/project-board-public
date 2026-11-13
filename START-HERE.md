@@ -1,18 +1,16 @@
-# 新独立会话入口
+# 公告板接手与使用入口
 
-当前正式服务已部署到server：http://example-server.example-tailnet.ts.net:18785；PC仅为开发仓库，旧PC运行入口已停用。原有演练工作区已从线上清理。后续接手先读 [操作手册](docs/MANUAL.md)、[验收台账](docs/ACCEPTANCE.md) 和 [运行/回滚](docs/RUNBOOK.md)；下文保留最初移交背景，不能当作当前部署状态。
+正式服务及运行数据在server：[公告板](http://example-server.example-tailnet.ts.net:18785)；旧PC入口已停用。PC只保留独立开发仓库，不能重新建立PC生产状态。
 
-用户要求把公告板作为独立产品，另开会话完成五项升级。本仓库是专门为该会话准备的G盘独立Git仓库，不是示例项目worktree。
+其他会话不需要本聊天历史，按角色阅读：
 
-先读：
+1. [在线手册首页](http://example-server.example-tailnet.ts.net:18785/help)。
+2. [负责人/继承SE](http://example-server.example-tailnet.ts.net:18785/help/owner)。
+3. [执行Agent接入与交付](http://example-server.example-tailnet.ts.net:18785/help/agent)。
+4. [模板目录](http://example-server.example-tailnet.ts.net:18785/help/templates)。
 
-1. [用户原文](docs/USER-REQUEST-20261113.md)。
-2. [交接上下文、已验与未实现范围](docs/HANDOFF-20261113.md)。
-3. AGENTS.md。
-4. legacy-v2/SOURCE-MANIFEST.json及相邻源码，仅作为拆离参考。
+交接项目时，另给该项目的任务brief和经私有渠道签发的项目身份。不能把全局管理员入口或其他项目材料发给普通Agent。原身份只更新server连接地址，actor/token/project_id保持。
 
-你接手的第一步是核对交接锚点，建立本项目里程碑与原子任务，并完成源代码/运行数据从示例项目项目拆离；随后连续推进其余升级和完整手册。不要假定复制了参考代码就已解耦，也不要重新从头调查已通过的认证/事件机制。
+实例管理员在自己的管理员会话阅读[完整手册](http://example-server.example-tailnet.ts.net:18785/help/admin)与[部署恢复](http://example-server.example-tailnet.ts.net:18785/help/deployment)，两者需要全局管理员授权。
 
-当前线上入口：http://DEVELOPMENT-HOST.example-tailnet.ts.net:18785 。公告板自身已存在的运行时project_id是 `task-board`；独立文件夹叫 `project-board`，两者不是同一层ID。示例项目project_id是 `sampleapp`，保持不变。应用中的新会话/项目ID由Codex创建，不等同运行时project_id。
-
-线上在你完成可回滚迁移前继续由旧目录提供服务。本移交没有复制运行数据库、密钥或私有恢复检查点。授权工具在真正需要迁移/管理时按交接中的**位置**使用，不输出原值。
+开发/运维接手继续读AGENTS.md、docs/MANUAL.md、docs/RUNBOOK.md和docs/ACCEPTANCE.md。docs/USER-REQUEST-20261113.md、docs/HANDOFF-20261113.md及legacy-v2是最初移交历史，里面的PC部署位置不能当作当前运行入口。原参考76项测试不计作本仓库本轮通过。

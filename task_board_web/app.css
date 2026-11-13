@@ -29,3 +29,5 @@
 @media(max-width:600px) { .graph-stage { height:480px; } }
 .relation-details { margin-top:var(--space-24); }
 .relation-details summary { cursor:pointer; color:var(--secondary); font-weight:600; padding:var(--space-12) 0; }
+#help { color:var(--action); font-size:var(--type-14); font-weight:600; padding:var(--space-8); text-underline-offset:var(--space-4); }
+#help:focus-visible { outline:2px solid var(--focus); outline-offset:var(--space-4); }
