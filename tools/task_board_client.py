@@ -27,6 +27,11 @@ class ClientError(Exception):
         self.status = status
 
 
+def suite_digest(value):
+    """operations schema1 canonical UTF-8 JSON manifest fingerprint."""
+    return hashlib.sha256(json.dumps(value,ensure_ascii=False,sort_keys=True,separators=(',',':'),allow_nan=False).encode('utf8')).hexdigest()
+
+
 def save(path: Path, value: dict):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -202,6 +207,10 @@ def main():
     governance.add_argument('--action',required=True)
     governance.add_argument('--payload',type=Path,required=True)
     governance.add_argument('--out',type=Path,required=True)
+    operations = sub.add_parser('prepare-operations',help='Freeze operational revision and request ID')
+    operations.add_argument('--action',required=True)
+    operations.add_argument('--payload',type=Path,required=True)
+    operations.add_argument('--out',type=Path,required=True)
     sharing = sub.add_parser('prepare-shared',help='Freeze a shared-asset request ID')
     sharing.add_argument('--action',required=True)
     sharing.add_argument('--payload',type=Path,required=True)
@@ -215,6 +224,8 @@ def main():
     join.add_argument("--join-file", type=Path)
     sub.add_parser("status")
     sub.add_parser("projects")
+    benchmark=sub.add_parser('export-benchmark',help='Export aggregate time reference without task/actor IDs; review context before sharing')
+    benchmark.add_argument('--out',type=Path,required=True)
     portal = sub.add_parser("portal")
     portal.add_argument("--out", type=Path, required=True)
     task = sub.add_parser("task")
@@ -242,10 +253,11 @@ def main():
         parser.error("--url or an existing --profile is required")
     try:
         client = Client(url, profile, args.connect_ip, args.project)
-        if args.command in ('prepare-governance','prepare-shared'):
+        if args.command in ('prepare-governance','prepare-shared','prepare-operations'):
             if args.out.exists():raise ClientError('请求目标已存在，不能覆盖')
             value={'request_id':str(uuid.uuid4()),'action':args.action,'payload':read(args.payload)}
             if args.command=='prepare-governance':value['expected_revision']=client.call('/api/governance')['revision']
+            if args.command=='prepare-operations':value['expected_revision']=client.call('/api/operations')['revision']
             save(args.out,value)
             print(json.dumps({'request':str(args.out),'project_id':client.project,'frozen':True}));return 0
         if args.command in ('read','request'):
@@ -287,6 +299,12 @@ def main():
             )
         elif args.command == "projects":
             print(json.dumps(client.call("/api/projects"), ensure_ascii=False))
+        elif args.command=='export-benchmark':
+            if args.out.exists():raise ClientError('目标已存在，拒绝覆盖')
+            data=client.call('/api/operations')['time_report']['benchmark']
+            if not data['groups']:raise ClientError('不足5个已确认完整的同类完成样本，不能生成基准')
+            save(args.out,data)
+            print(json.dumps({'file':str(args.out),'sha256':hashlib.sha256(args.out.read_bytes()).hexdigest(),'groups':len(data['groups']),'note':'不含任务/人员ID；context仍需负责人审核脱敏，按资产版本显式发布'}))
         elif args.command == "portal":
             if not client.project or not profile:
                 raise ClientError("项目网页入口需要含project_id的独立身份文件")

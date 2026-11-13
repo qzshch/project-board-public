@@ -237,7 +237,8 @@ class ProjectHub:
     def create(self, identity: dict, value: dict, *, legacy_import=False) -> dict:
         if not identity["global_admin"]:
             raise BoardError("需要全局管理员", 403)
-        fields(value, {"id", "name", "description", "knowledge"}, {"id", "name", "description"})
+        fields(value, {"id", "name", "description", "knowledge", "governance_profile"}, {"id", "name", "description"})
+        if value.get('governance_profile','standard') not in ('light','standard','strict'):raise BoardError('治理档位无效')
         project = project_id(value["id"])
         name = text(value["name"], "项目名称", 200)
         description = text(value["description"], "项目说明", 4000)
@@ -265,6 +266,8 @@ class ProjectHub:
                 governance.apply({'id':'root','role':'reviewer'},{'request_id':'initial-knowledge','expected_revision':0,'action':'knowledge','payload':value['knowledge']})
             if not legacy_import:
                 governance.apply({'id':'root','role':'reviewer'},{'request_id':'initial-planning','expected_revision':governance.snapshot()['revision'],'action':'planning_enable','payload':{'reason':'新项目默认启用项目规划与接口覆盖门禁'}})
+                from .operations import Operations
+                Operations(store).apply({'id':'root','role':'reviewer'},{'request_id':'initial-operations','expected_revision':0,'action':'policy','payload':{'profile':value.get('governance_profile','standard'),'reason':'新项目采用可按任务风险裁剪的治理策略'}})
             enrollment = self.state / f"_private/enrollment/{project}.json"
             self.write_private(enrollment, {"project_id": project, "join_key": secret})
             db.execute(

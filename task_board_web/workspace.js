@@ -1,27 +1,28 @@
 'use strict';
-const ws={panel:new URLSearchParams(location.search).get('panel')||'overview',data:null,shared:null,signature:null,graphFamily:'',graphQuery:'',graphMode:'all',zoom:1};
+const ws={panel:new URLSearchParams(location.search).get('panel')||'overview',data:null,shared:null,ops:null,signature:null,graphFamily:'',graphQuery:'',graphMode:'all',zoom:1};
 const categoryNames={research:'研究 / 调研',collection:'素材采集',generation:'资源生成',infrastructure:'框架 / 基建',frontend:'前端开发',backend:'后端开发',library:'公共库',documentation:'记录 / 约束 / 交接文档',test:'测试',integration:'集成',release:'发布'};
-const roleNames={owner:'总负责人',se:'继承 SE',researcher:'研究员',collector:'素材采集',generator:'资源生成',developer:'开发',documenter:'文档',tester:'测试',agent:'Agent',viewer:'只读'};
-const panelNames={overview:'项目概览',planning:'框架与规划',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
-function clearWorkspace(){ws.data=null;ws.shared=null;ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
+const roleNames={owner:'总负责人',se:'继承 SE',researcher:'研究员',collector:'素材采集',generator:'资源生成',developer:'开发',documenter:'文档',tester:'测试',agent:'Agent',viewer:'只读',runner:'测试执行器'};
+const panelNames={overview:'项目概览',planning:'框架与规划',policy:'治理策略',time:'时间与效率',quality:'测试与自动化',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
+function clearWorkspace(){ws.data=null;ws.shared=null;ws.ops=null;ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
 async function refreshWorkspace(generation){
-  const [data,shared]=await Promise.all([api('/api/governance'),api('/api/shared')]);
+  const [data,shared,ops]=await Promise.all([api('/api/governance'),api('/api/shared'),api('/api/operations')]);
   if(generation!==app.generation)return;
-  const signature=JSON.stringify([app.project,data,shared]);ws.data=data;ws.shared=shared;$('workspace').hidden=false;if(signature!==ws.signature){ws.signature=signature;renderWorkspace();}
+  const signature=JSON.stringify([app.project,data,shared,['policy','time','quality','assets'].includes(ws.panel)?ops.revision:0]);ws.data=data;ws.shared=shared;ws.ops=ops;$('workspace').hidden=false;if(signature!==ws.signature){ws.signature=signature;renderWorkspace();}
 }
 function listLines(box,title,rows,format){const sectionBox=section(title);if(!rows.length)sectionBox.append(el('p','尚未登记。','muted'));for(const row of rows)sectionBox.append(el('p',format(row),'detail-text'));box.append(sectionBox);}
 function relationDetails(box,title,rows,format){const details=el('details',undefined,'relation-details');details.append(el('summary',`${title} · ${rows.length} 项`));listLines(details,title,rows,format);box.append(details);}
 function cards(box,items){const grid=el('div',undefined,'workspace-grid');for(const [label,value] of items)grid.append(field(label,value||'待负责人登记'));box.append(grid);}
 function renderWorkspace(){
-  const d=ws.data;if(!d)return;if(!panelNames[ws.panel])ws.panel='overview';$('task-metrics').hidden=ws.panel!=='tasks';$('task-board').hidden=ws.panel!=='tasks';document.querySelectorAll('[data-panel]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.panel===ws.panel)));const box=$('workspace-body');box.replaceChildren();$('workspace-title').textContent=panelNames[ws.panel];$('workspace-subtitle').textContent=`本项目专属资料 · 记录 ${d.revision}`;$('workspace-edit').hidden=app.role!=='reviewer'||ws.panel==='tasks';$('workspace-body').hidden=ws.panel==='tasks';$('workspace-title').closest('.section-head').hidden=ws.panel==='tasks';
+  const d=ws.data;if(!d)return;if(!panelNames[ws.panel])ws.panel='overview';$('task-metrics').hidden=ws.panel!=='tasks';$('task-board').hidden=ws.panel!=='tasks';document.querySelectorAll('[data-panel]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.panel===ws.panel)));const box=$('workspace-body');box.replaceChildren();$('workspace-title').textContent=panelNames[ws.panel];$('workspace-subtitle').textContent=`本项目专属资料 · 治理记录 ${d.revision} · 操作记录 ${ws.ops?.revision||0}`;$('workspace-edit').hidden=app.role!=='reviewer'||ws.panel==='tasks';$('workspace-body').hidden=ws.panel==='tasks';$('workspace-title').closest('.section-head').hidden=ws.panel==='tasks';
   if(ws.panel==='overview'){
-    const planning=section('项目规划');planning.append(el('p',d.planning_policy.mode==='enforced'?'已启用规划门禁：执行任务需绑定通过评审的模块版本。':'历史兼容模式：任务尚未按新规划门禁核定。','secondary'));const go=el('button','打开框架与规划');go.onclick=()=>selectWorkspacePanel('planning');planning.append(go);box.append(planning);
+    const planning=section('项目规划');planning.append(el('p',ws.ops?.policy.enabled?`项目默认${tierNames[ws.ops.policy.profile]}治理：按当前任务风险决定规划与验证门禁。`:d.planning_policy.mode==='enforced'?'已启用规划门禁：执行任务需绑定通过评审的模块版本。':'历史兼容模式：任务尚未按新规划门禁核定。','secondary'));const go=el('button','打开框架与规划');go.onclick=()=>selectWorkspacePanel('planning');planning.append(go);box.append(planning);
     cards(box,[['项目背景',d.knowledge.background],['目标',d.knowledge.goals],['非目标',d.knowledge.non_goals],['约束',d.knowledge.constraints]]);
     for(const [key,title] of [['materials','必读材料 · 固定版本'],['entries','项目入口']])listLines(box,title,d.knowledge[key]||[],r=>`${r.title} · ${r.version}\n${r.location}\nSHA256 ${r.sha256}`);
     listLines(box,'里程碑与验收',Object.values(d.milestones),r=>`${r.id} · ${r.status} · ${r.goal}\n验收：${r.acceptance}${r.evidence.length?' · 证据 '+r.evidence.length+' 项':''}`);
     listLines(box,'决策与历史变更',d.decisions.slice(-8).reverse(),r=>`${r.summary}\n依据：${r.reason} · ${r.actor}`);
   }
   if(ws.panel==='planning')renderPlanning(box,d);
+  if(['policy','time','quality'].includes(ws.panel))renderOperations(box);
   if(ws.panel==='relations'){
     const eligible=d.queue.filter(r=>!r.blockers.length);box.append(el('p',`可领取 ${eligible.length} 项；执行时会再次原子检查角色、前置、写路径、资源和固定版本。`,'secondary'));
     drawGraph(box,d);
@@ -37,6 +38,7 @@ function renderWorkspace(){
     }
   }
   if(ws.panel==='assets'){
+    renderAssetLearning(box);
     listLines(box,'本项目私有资产',Object.entries(d.assets),([ref,r])=>`${ref} · ${r.kind} · ${r.sensitivity}\n来源：${r.source} · 许可：${r.license}\n${r.location}\nSHA256 ${r.sha256}`);
     listLines(box,'已审核共享版本',ws.shared.releases,r=>`${r.ref} · ${r.status}\n${r.location}\n许可：${r.license} · SHA256 ${r.sha256}`);
     listLines(box,'本项目固定消费',Object.entries(ws.shared.consumption),([alias,r])=>`${alias} → ${r.release} · ${r.status}\n提供方发布新版不会自动更新此引用。`);
@@ -76,7 +78,7 @@ function drawGraph(box,d,planningGraph=false){
 }
 function selectInput(form,label,name,values,current){const group=el('label',label),input=el('select');input.name=name;for(const [v,l] of Object.entries(values)){const o=el('option',l);o.value=v;input.append(o);}input.value=current||Object.keys(values)[0];group.append(input);form.append(group);return input;}
 function atomicInputs(form,task){
-  const w=task?.spec.work;selectInput(form,'任务分类','category',{'':'历史任务包（不自动推断原子范围）',...categoryNames},w?.category||'');selectInput(form,'执行角色','work_role',roleNames,w?.role||'developer');
+  const w=task?.spec.work;selectInput(form,'任务分类','category',{'':'历史任务包（不自动推断原子范围）',...categoryNames},w?.category||'');selectInput(form,'执行角色','work_role',Object.fromEntries(Object.entries(roleNames).filter(([k])=>!['runner','viewer'].includes(k))),w?.role||'developer');
   const label=el('label',undefined,'check'),check=el('input');check.type='checkbox';check.name='inputs_known';check.checked=w?.inputs_known||false;label.append(check,el('span','输入、来源版本与耦合已核定'));form.append(label);
   for(const [key,title] of [['inputs','输入与SHA引用'],['outputs','输出产物'],['contracts','固定接口（id@版本）'],['assets','固定资产（本项目引用ID）'],['resources','排他资源（端口/设备等）'],['couplings','共享修改（入口/数据库等）']])formInput(form,title+'，每行一项','work_'+key,true,w?.[key]?.join('\n')||'');
   formInput(form,'行为与反例验收条件','work_acceptance',true,w?.acceptance||'');
@@ -94,7 +96,7 @@ const actionFields={
   milestone_plan:['里程碑ID|id','新版本|version','阶段目标|goal','达成路径|path','进入条件|entry','关联模块 id@版本，每行一项|modules','关联交付任务ID，每行一项|tasks','验收条件|acceptance','检验方法|method','通过阈值|threshold','验证环境|environment','验收负责人ID|reviewer','计划日期或时间窗口|due','风险与未通过处置|risks'],
   milestone_review:['里程碑 id@版本|ref','当前评审摘要|scope','结论 pass/fail|result','实际检验结果与进入条件核对|summary','阶段验证证据（每行 路径 | SHA256）|evidence'],
   milestone:['里程碑ID|id','目标|goal','验收条件|acceptance','状态 planned/active/passed/blocked|status','证据（每行 路径 | SHA256）|evidence'],
-  decision:['决策|summary','原因|reason','证据（每行 路径 | SHA256）|evidence'],member:['已登记Agent ID|actor','角色|role','职责与范围|scope'],
+  decision:['决策|summary','原因|reason','证据（每行 路径 | SHA256）|evidence'],member:['已登记Agent ID|actor','角色|role','职责与范围|scope','执行者类型 human/agent/unknown|actor_kind'],
   package:['任务包ID|id','原子任务ID，每行一项|tasks','历史来源|source','未知/待核定边界|unknown'],
   contract_freeze:['接口ID|id','不可变版本|version','接口拥有者ID|owner','签名/字段|signature','单位|units','错误|errors','事务|transaction','幂等|idempotency','来源版本|source','生产者，每行一项|producers','消费者，每行一项|consumers','兼容窗口|compatibility','证据（每行 路径 | SHA256）|evidence'],
   contract_propose:['提案ID|id','旧接口 id@版本|contract','新接口 id@版本|replacement','迁移清单|migration','测试清单|tests'],
@@ -109,7 +111,7 @@ function editWorkspace(fixed,seed={}){
   const choices={overview:['knowledge',...(ws.data.planning_policy.mode==='enforced'?[]:['milestone']),'decision'],planning:['module_plan','planning_decision','module_review','milestone_plan','milestone_review','planning_enable'],relations:['package'],contracts:['contract_freeze','contract_propose','contract_confirm','contract_execute'],assets:['asset','publish','consume','upgrade','deprecate','withdraw'],handoff:['member','handoff_propose']}[ws.panel];
   app.selected=null;$('detail-title').textContent='管理'+panelNames[ws.panel];$('detail-kind').textContent='项目专属记录';$('stale').hidden=true;const body=$('detail-body');body.replaceChildren();const form=el('form',undefined,'review-form');
   const choose=selectInput(form,'操作','operation',Object.fromEntries((fixed?[fixed]:choices).map(k=>[k,actionLabels[k]])),fixed||choices[0]);const dynamic=el('div');form.append(dynamic);
-  function draw(){dynamic.replaceChildren();const action=choose.value;const initial=action==='knowledge'?ws.data.knowledge:seed;for(const row of actionFields[action]){const at=row.lastIndexOf('|'),label=row.slice(0,at),key=row.slice(at+1);let value=initial?.[key]||'';if(Array.isArray(value))value=value.map(r=>typeof r==='string'?r:key==='evidence'?[r.path,r.sha256].join(' | '):[r.title,r.location,r.version,r.sha256].join(' | ')).join('\n');if(key==='role')selectInput(dynamic,label,key,roleNames,value||'developer');else if(key==='stage')selectInput(dynamic,label,key,{draft:'待澄清',research:'调研中',design:'方案待确认'},value||'draft');else if(key==='result')selectInput(dynamic,label,key,action==='module_review'?{approve:'批准方案',reject:'退回方案'}:{pass:'阶段通过',fail:'阶段未通过'},value);else formInput(dynamic,label,key,true,value);}if(action==='asset'){const l=el('label',undefined,'check'),c=el('input');c.type='checkbox';c.name='shareable';l.append(c,el('span','具备通用共享资格（发布仍需单独审核）'));dynamic.append(l);}}
+  function draw(){dynamic.replaceChildren();const action=choose.value;const initial=action==='knowledge'?ws.data.knowledge:seed;for(const row of actionFields[action]){const at=row.lastIndexOf('|'),label=row.slice(0,at),key=row.slice(at+1);let value=initial?.[key]||'';if(Array.isArray(value))value=value.map(r=>typeof r==='string'?r:key==='evidence'?[r.path,r.sha256].join(' | '):[r.title,r.location,r.version,r.sha256].join(' | ')).join('\n');if(key==='actor_kind')selectInput(dynamic,label,key,{unknown:'未分类',human:'人员',agent:'Agent'},value||'unknown');else if(key==='role')selectInput(dynamic,label,key,roleNames,value||'developer');else if(key==='stage')selectInput(dynamic,label,key,{draft:'待澄清',research:'调研中',design:'方案待确认'},value||'draft');else if(key==='result')selectInput(dynamic,label,key,action==='module_review'?{approve:'批准方案',reject:'退回方案'}:{pass:'阶段通过',fail:'阶段未通过'},value);else formInput(dynamic,label,key,true,value);}if(action==='asset'){const l=el('label',undefined,'check'),c=el('input');c.type='checkbox';c.name='shareable';l.append(c,el('span','具备通用共享资格（发布仍需单独审核）'));dynamic.append(l);}}
   choose.onchange=draw;draw();const message=el('p','','form-message'),save=el('button','追加项目记录','primary');save.type='submit';form.append(message,save);body.append(form);
   const revision=ws.data.revision;
   form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{const action=choose.value,p={};for(const row of actionFields[action]){const key=row.slice(row.lastIndexOf('|')+1);p[key]=form.elements[key].value.trim();}
@@ -123,5 +125,5 @@ function editWorkspace(fixed,seed={}){
 }
 function selectWorkspacePanel(panel){if(!panelNames[panel])return;ws.panel=panel;const params=new URLSearchParams(location.search);params.set('panel',panel);history.replaceState(null,'',location.pathname+'?'+params.toString());renderWorkspace();}
 document.querySelectorAll('[data-panel]').forEach(b=>b.onclick=()=>selectWorkspacePanel(b.dataset.panel));
-$('workspace-edit').onclick=()=>editWorkspace();
+$('workspace-edit').onclick=()=>['policy','time','quality'].includes(ws.panel)?editOperations():editWorkspace();
 for(const [value,label] of Object.entries(categoryNames)){const option=el('option',label);option.value=value;$('kind').append(option);}

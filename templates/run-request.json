@@ -1,0 +1,11 @@
+{
+  "tasks": [
+    "impl/one"
+  ],
+  "scopes": {
+    "impl/one": "<当前任务scope_hash>"
+  },
+  "suite": "checks@1",
+  "input_anchor": "git:0000000000000000000000000000000000000000",
+  "reason": "验证当前实现输入"
+}

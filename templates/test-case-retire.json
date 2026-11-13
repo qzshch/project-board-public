@@ -1,0 +1,5 @@
+{
+  "ref": "behavior@1",
+  "mode": "deprecated",
+  "reason": "新版取代；若预期错误用withdrawn阻止验收"
+}

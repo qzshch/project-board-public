@@ -1,0 +1,8 @@
+{
+  "task": "impl/one",
+  "scope": "<当前任务scope_hash>",
+  "mode": "work",
+  "phase": "implementation",
+  "reason": "明确当前作业或等待原因",
+  "rework": false
+}

@@ -74,7 +74,7 @@ profile=lifecycle.read(state/'_private/admin.json');client=Client('http://127.0.
 def anchors():
  projects=client.call('/api/projects')['projects']
  return {{p['id']:{{'task_head':client.call('/api/projects/'+p['id']+'/snapshot')['head'],'governance_head':client.call('/api/projects/'+p['id']+'/governance/verify')['head']}} for p in projects}}
-before=anchors();assert set(before)=={{'sampleapp','task-board'}};old_schema=client.call('/health')['governance_schema'];assert old_schema in (1,2)
+before=anchors();assert {{'sampleapp','task-board'}}<=set(before);old_schema=client.call('/health')['governance_schema'];assert old_schema in (1,2)
 secrets_before={{str(p.relative_to(state)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (state/'_private').rglob('*.json') if p.name not in ('server.json',)}}
 def command(args,purpose):
  code,out,err=run(args,cwd=source,evidence=e,purpose=purpose,timeout=30)
@@ -98,6 +98,18 @@ try:
  assert lifecycle.read(state/'service.json').get('closed'),'Graceful service stop not recorded'
  assert not backup.exists(),'Backup must not overwrite previous checkpoint'
  copied=clone_stopped(state,backup);report['backup_files']=len(copied)
+ # Freeze the authoritative baseline after stop, including legitimate writes
+ # completed between the online observation and shutdown. No candidate schema
+ # is created until the consistent checkpoint exists.
+ import sqlite3
+ with sqlite3.connect(str(state/'projects.sqlite')) as catalog:projects=catalog.execute('SELECT id,storage FROM projects').fetchall()
+ stable={{}}
+ for pid,storage in projects:
+  with sqlite3.connect(str(state/storage)) as data:
+   seq,h=data.execute('SELECT seq,hash FROM events ORDER BY seq DESC LIMIT 1').fetchone() or (0,'0'*64)
+   gov=data.execute('SELECT hash FROM governance_events ORDER BY seq DESC LIMIT 1').fetchone()
+   stable[pid]={{'task_head':{{'seq':seq,'hash':h}},'governance_head':gov[0] if gov else '0'*64}}
+ report['observed_before_stop']=before;before=stable;report['before']=before
  # Backups contain credentials and are never included in a public source kit.
  os.chmod(backup.parent,0o700)
  unit.write_text(newunit,encoding='utf8');command(['systemctl','--user','daemon-reload'],'load candidate NAS unit');service('start');report['candidate']=readiness(2)
@@ -108,8 +120,11 @@ try:
  secrets_after={{str(p.relative_to(state)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (state/'_private').rglob('*.json') if p.name not in ('server.json',)}}
  assert secrets_before==secrets_after,'Project identity files changed'
  hub=ProjectHub(state);assert hub.verify()['passed']
- for project in before:assert Governance(hub.store(project)).verify()['passed']
- connection=lifecycle.read(state/'connection.json');connection.update(code_root=str(source),code_commit={commit!r},client_script=str(source/'tools/task_board_client.py'),governance_version=2);lifecycle.write(state/'connection.json',connection)
+ from task_board.operations import Operations
+ for project in before:
+  assert Governance(hub.store(project)).verify()['passed']
+  assert Operations(hub.store(project)).verify()['passed']
+ connection=lifecycle.read(state/'connection.json');connection.update(code_root=str(source),code_commit={commit!r},client_script=str(source/'tools/task_board_client.py'),governance_version=2,operations_schema=1);lifecycle.write(state/'connection.json',connection)
  report.update(complete=True,after=after,credentials_preserved=True,service=lifecycle.read(state/'service.json'),finished=time.time())
 finally:
  if not report['complete']:

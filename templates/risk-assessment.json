@@ -1,0 +1,7 @@
+{
+  "task": "impl/one",
+  "scope": "<当前任务scope_hash>",
+  "level": "light",
+  "flags": [],
+  "reason": "已核实仅模块内部、可逆且无共享行为/权限/持久化影响"
+}

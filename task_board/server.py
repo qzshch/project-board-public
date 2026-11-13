@@ -29,6 +29,7 @@ STATIC = {
     "/app.js": "app.js",
     "/workspace.js": "workspace.js",
     "/planning.js": "planning.js",
+    "/operations.js": "operations.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",
@@ -83,7 +84,7 @@ class BoardServer(ThreadingHTTPServer):
 
 
 class Handler(BaseHTTPRequestHandler):
-    server_version = "ProjectBoard/3"
+    server_version = "ProjectBoard/4"
     protocol_version = "HTTP/1.1"
 
     def setup(self):
@@ -337,6 +338,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,document_page('使用手册',INDEX),content_type='text/html; charset=utf-8')
             if path=='/help/templates':
                 return self.send(200,document_page('模板目录',template_index()),content_type='text/html; charset=utf-8')
+            if path=='/runner-kit.zip':
+                from .help import runner_kit
+                return self.send(200,runner_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-runner.zip"'})
             if path in DOCS or path in RAW_DOCS:
                 title,relative,private=DOCS[path] if path in DOCS else ('操作文档',*RAW_DOCS[path])
                 if private and (not self.server.hub or not self.identity()['global_admin']):
@@ -378,13 +382,19 @@ class Handler(BaseHTTPRequestHandler):
                     {
                         "ready": True,
                         "api_version": 2 if self.server.hub else 1,
-                        "product_version": 3,
+                        "product_version": 4,
                         "governance_schema": 2,
+                        "operations_schema": 1,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )
             self.read_access()
             query = parse_qs(parsed.query)
+            if path in ('/api/operations','/api/operations/verify'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .operations import Operations
+                op=Operations(self.store)
+                return self.send(200,op.verify() if path.endswith('/verify') else op.snapshot())
             if path in ('/api/governance','/api/graph','/api/search','/api/governance/export','/api/governance/verify','/api/brief','/api/shared','/api/shared/impact'):
                 if not self.server.hub or not self.project:
                     raise BoardError('请使用项目路径',404)
@@ -565,6 +575,10 @@ class Handler(BaseHTTPRequestHandler):
                     },
                 )
             actor = self.actor()
+            if path=='/api/operations':
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .operations import Operations
+                return self.send(201,Operations(self.store).apply(actor,value))
             if path in ('/api/governance','/api/shared'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .governance import Governance

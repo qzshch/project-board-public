@@ -1,0 +1,6 @@
+{
+  "actor": "<本项目runner ActorID>",
+  "environment": "project-python",
+  "enabled": true,
+  "reason": "本机已核对批准套件摘要"
+}

@@ -1,0 +1,16 @@
+{
+  "id": "behavior",
+  "version": "1",
+  "title": "行为与反例",
+  "kind": "automated",
+  "priority": "normal",
+  "targets": [
+    "task:impl/one"
+  ],
+  "preconditions": "固定输入版本",
+  "inputs": "输入/fixture版本与来源",
+  "steps": "执行约定输入和边界反例",
+  "expected": "明确可观察结果",
+  "environment": "project-python",
+  "resources": []
+}

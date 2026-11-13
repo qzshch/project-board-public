@@ -15,7 +15,7 @@ class CleanupCase(unittest.TestCase):
         self.tmp=tempfile.TemporaryDirectory(dir=root);self.state=Path(self.tmp.name)
         lifecycle.init_state(self.state,public_url='http://127.0.0.1:24999',port=24999)
         self.hub=ProjectHub(self.state);self.identity=self.hub.resolve(lifecycle.read(self.state/'_private/admin.json')['token'])
-        for p in ('task-board','real-project','onboarding-20261113-000000'):self.hub.create(self.identity,{'id':p,'name':p,'description':'fixture'})
+        for p in ('task-board','real-project','onboarding-20261113-000000'):self.hub.create(self.identity,{'id':p,'name':p,'description':'fixture'},legacy_import=True)
         self.demo='onboarding-20261113-000000';self.profile=self.hub.invite(self.demo,'demo-agent')
         self.manifest={'projects':[self.hub.metadata(self.demo)],'reason':'explicit user cleanup of this bounded rehearsal'}
     def tearDown(self):self.tmp.cleanup()

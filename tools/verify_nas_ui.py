@@ -41,8 +41,8 @@ async def main():
                 await page.locator('[data-panel=tasks]').click();check(await page.locator('#task-board').is_visible(),'task tab contains delivery queue')
                 for panel in ('overview','relations','contracts','assets','handoff'):
                     await page.locator('[data-panel='+panel+']').click();check(await page.locator('#task-board').is_hidden(),panel+' tab excludes delivery queue')
-                await page.locator('[data-panel=relations]').click();check(await page.locator('g[data-task]').count()==18,'board graph includes all real and historical task nodes')
-                check(await page.locator('[data-edge-type=hard]').count()==21,'board graph draws the 21 actual prerequisite edges')
+                await page.locator('[data-panel=relations]').click();expected_board=owner.call('/api/graph');check(await page.locator('g[data-task]').count()==len(expected_board['nodes']),'board graph includes every current authorized node')
+                check(await page.locator('[data-edge-type=hard]').count()==sum(r['type']=='hard' for r in expected_board['graph']),'board graph draws actual recorded prerequisite edges')
                 tests_x=float(await page.locator('g[data-task="upgrade/M0.tests"] rect').get_attribute('x'));remote_x=float(await page.locator('g[data-task="upgrade/M0.remote"] rect').get_attribute('x'));code_x=float(await page.locator('g[data-task="upgrade/M0.code"] rect').get_attribute('x'))
                 check(tests_x==remote_x,'real parallel sibling tasks occupy the same dependency layer')
                 check(code_x<tests_x,'real predecessor is laid out before its consumers')

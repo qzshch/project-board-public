@@ -1,0 +1,9 @@
+{
+  "workspace": "<本机本项目Git仓库绝对路径>",
+  "scratch": "<独立临时目录绝对路径，Windows非C盘>",
+  "output": "<本项目正式证据目录>",
+  "environment": "project-python",
+  "approved_suites": {
+    "checks@1": "<本机审核后的套件manifest_hash>"
+  }
+}

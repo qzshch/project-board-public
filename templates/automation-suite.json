@@ -1,0 +1,20 @@
+{
+  "id": "checks",
+  "version": "1",
+  "commands": [
+    {
+      "case": "behavior@1",
+      "argv": [
+        "{python}",
+        "-m",
+        "unittest",
+        "tests.test_example",
+        "-v"
+      ]
+    }
+  ],
+  "environment": "project-python",
+  "resources": [],
+  "timeout_seconds": 120,
+  "artifact_paths": []
+}

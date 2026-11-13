@@ -1,0 +1,5 @@
+{
+  "task": "impl/one",
+  "scope": "<当前任务scope_hash>",
+  "summary": "全部作业/等待已记录，当前范围无未关闭时段"
+}

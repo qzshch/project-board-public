@@ -13,7 +13,7 @@ import time
 from .store import BoardError, canonical, digest, fields, text, integer, identifiers, evidence
 
 CATEGORIES = {'research','collection','generation','infrastructure','frontend','backend','library','documentation','test','integration','release'}
-ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer'}
+ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer','runner'}
 MANAGERS = {'owner','se','reviewer'}
 DONE = {'accepted','merged','native_accepted','baseline_merged'}
 ACTIVE = {'active','submitted','changes_requested','partial_accepted','partial_merged','partial_native'}
@@ -23,11 +23,13 @@ def work_spec(value):
            {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'})
     if value['category'] not in CATEGORIES or value['role'] not in ROLES:
         raise BoardError('未知任务分类或执行角色')
+    if value['role'] in ('runner','viewer'):raise BoardError('只读者和执行器不领取开发任务；自动测试使用运行队列')
     if type(value['inputs_known']) is not bool:
         raise BoardError('inputs_known需布尔值；未知输入不能自动领取')
     for k in ('inputs','outputs','contracts','assets','resources','couplings'):
         identifiers(value[k], k)
-    if not re.fullmatch('[0-9a-f]{40}', str(value['baseline'])):
+    from .assurance import NONCODE
+    if not re.fullmatch('[0-9a-f]{40}', str(value['baseline'])) and not (value['category'] in NONCODE and re.fullmatch('artifact:sha256:[0-9a-f]{64}',str(value['baseline']))):
         raise BoardError('基线需完整Git提交')
     text(value['acceptance'], '验收条件', 8000)
     if 'planning' in value:
@@ -146,9 +148,19 @@ def blockers(db, task, actor=None, registry=None, context=None):
     # Reuse it for every queue item rather than decoding the whole project N
     # times. Admission calls still read fresh rows under the write transaction.
     spec=task['spec'];work=spec.get('work');out=[]
-    all_tasks,gov=context if context is not None else (tasks(db),load(db))
+    all_tasks,gov=context[:2] if context is not None else (tasks(db),load(db))
+    from .operations import load as operations_load
+    from .assurance import effective
+    ops=context[2] if context is not None and len(context)>2 else operations_load(db)
+    level=effective(ops,task,gov)
     from .planning import task_blockers
-    planning_reasons=task_blockers(gov,all_tasks,spec)
+    planning_context={**gov,'planning_policy':{'mode':'enforced'}} if level['enabled'] and level['level']!='light' else gov
+    planning_reasons=task_blockers(planning_context,all_tasks,spec) if not (level['enabled'] and level['assessed'] and level['level']=='light') else []
+    if level['enabled']:
+        if not level['assessed']:planning_reasons.append('当前任务范围尚未由SE评估风险')
+        if level['level']=='light':
+            from .planning import charter_blockers
+            planning_reasons.extend(charter_blockers(gov))
     if not work:return ['legacy/unknown：需SE核定原子任务输入与耦合']+planning_reasons
     out.extend(planning_reasons)
     if not work['inputs_known']:out.append('输入未知')
@@ -188,6 +200,8 @@ class Governance:
         with self.store.connection() as db:
             db.execute('BEGIN')
             value=load(db);all_tasks=tasks(db)
+            from .operations import load as operations_load
+            ops=operations_load(db)
             value.pop('removed_assets',None)
             from .planning import snapshot as planning_snapshot
             planning_snapshot(value,all_tasks)
@@ -195,7 +209,7 @@ class Governance:
             if getattr(self.store,'registry',None):value['consumption']=self.store.registry.consumption()
             queue=[]
             for t in all_tasks.values():
-                if t['status']=='planned':queue.append({'id':t['spec']['id'],'blockers':blockers(db,t,registry=getattr(self.store,'registry',None),context=(all_tasks,value))})
+                if t['status']=='planned':queue.append({'id':t['spec']['id'],'blockers':blockers(db,t,registry=getattr(self.store,'registry',None),context=(all_tasks,value,ops))})
             graph=[]
             for tid,t in all_tasks.items():
                 graph += [{'from':d,'to':tid,'type':'hard'} for d in t['spec']['depends_on']]
@@ -238,16 +252,17 @@ class Governance:
         elif action=='knowledge':
             v['knowledge']=knowledge_spec(p)
         elif action=='member':
-            fields(p,{'actor','role','scope'}, {'actor','role','scope'})
+            fields(p,{'actor','role','scope','actor_kind'}, {'actor','role','scope'})
+            if p.get('actor_kind','unknown') not in ('human','agent','unknown'):raise BoardError('执行者类型需human/agent/unknown')
             if p['role'] not in ROLES or p['actor']=='root':raise BoardError('角色无效或保留身份')
-            if p['role']=='owner' and any(m['role']=='owner' for m in v['members'].values()):raise BoardError('已有owner；必须接受交接后移交',409)
+            if p['role']=='owner' and any(k!=p['actor'] and m['role']=='owner' for k,m in v['members'].items()):raise BoardError('已有owner；必须接受交接后移交',409)
             if p['role'] in ('owner','se') and r not in ('owner','reviewer'):raise BoardError('仅owner可授予管理职责',403)
             if not db.execute('SELECT 1 FROM actors WHERE id=?',(p['actor'],)).fetchone():raise BoardError('先签发本项目身份',409)
             current=v['members'].get(p['actor'],{})
             if current.get('role') in ('owner','se') and r not in ('owner','reviewer'):
                 raise BoardError('继承SE不能自行更改其他管理职责',403)
             if current.get('role')=='owner' and p['role']!='owner':raise BoardError('owner降权需正式交接',409)
-            v['members'][p['actor']]={'role':p['role'],'scope':text(p['scope'],'职责',8000)}
+            v['members'][p['actor']]={'role':p['role'],'scope':text(p['scope'],'职责',8000),'actor_kind':p.get('actor_kind',current.get('actor_kind','unknown'))}
         elif action=='decision':
             fields(p,{'summary','reason','evidence'}, {'summary','reason','evidence'})
             text(p['summary'],'决策');text(p['reason'],'依据');evidence(p['evidence'])

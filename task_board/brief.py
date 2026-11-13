@@ -6,6 +6,8 @@ def build_brief(store, task_id, project, url):
     task=store.get(task_id);spec=task['spec'];w=spec.get('work')
     if not w:raise BoardError('历史任务包尚未核定原子输入，不能自动派发',409)
     g=Governance(store).snapshot()
+    from .operations import Operations
+    op=Operations(store).snapshot()
     assets={}
     for ref in w['assets']:
         lock=w.get('asset_locks',{}).get(ref)
@@ -19,6 +21,10 @@ def build_brief(store, task_id, project, url):
             'allowed_paths':spec['allowed_paths'],'inputs':w['inputs'],'outputs':w['outputs'],
             'contracts':{ref:g['contracts'].get(ref) for ref in w['contracts']},
             'planning_policy':g['planning_policy'],
+            'assurance':op['effective'][task_id],
+            'test_plan':op['test_plans'].get(task_id),
+            'estimate':op['estimates'].get(task_id,[]),
+            'suggested_cases':op['suggested_cases'].get(task_id,[]),
             'planning':w.get('planning'),
             'module_plan':g['modules'].get(w.get('planning',{}).get('module')),
             'module_readiness':g['module_readiness'].get(w.get('planning',{}).get('module')),

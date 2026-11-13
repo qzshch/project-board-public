@@ -1,5 +1,9 @@
 # 执行 Agent 接入与交付
 
+先读brief中的assurance、test_plan、estimate和suggested_cases。风险评估由SE绑定当前范围，执行者不能自行豁免。轻量交付可提交verification={method,summary,reason}与变更/产物锚点，不额外制造报告；标准/严格交付引用匹配输入和范围的test_runs。非代码任务可用artifact={ref,sha256}。范围变化后先重新核定，不能复用过期评估或测试。
+
+领取后用time_change明确记录本人作业、等待、暂停、结束及原因；返修作为标签。估算重估保留原依据；记录结束用time_complete确认完整性。不把领取到完成的间隔填写成有效工时。可从本人已验收交付提议资产候选，或反馈实际固定资产的接入成本/问题。测试执行器使用独立runner身份，普通Agent不能冒充自动实跑。见[时间与质量操作](/help/operations)。
+
 任务 brief 包含固定模块规划、研究决策及当前就绪检查。领取前核对 work.planning：planning 用途只处理明确的研究/采集/文档问题，不能据此开始未批准的功能开发；execution 用途依据已评审模块版本执行。模块版本、研究结论或接口边界变化时，先向 SE 提交范围提案，不自行换版本或删去接口引用。无共享接口声明须符合真实修改边界。
 
 正式入口：http://example-server.example-tailnet.ts.net:18785 。旧 PC 地址已停用。先连接同一 Tailscale 私网；网络可达不代表获得项目权限。

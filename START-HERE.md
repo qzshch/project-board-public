@@ -8,6 +8,7 @@
 2. [负责人/继承SE](http://example-server.example-tailnet.ts.net:18785/help/owner)。
 3. [执行Agent接入与交付](http://example-server.example-tailnet.ts.net:18785/help/agent)。
 4. [模板目录](http://example-server.example-tailnet.ts.net:18785/help/templates)。
+5. [分级治理、时间、测试与资产操作](http://example-server.example-tailnet.ts.net:18785/help/operations)及[项目测试执行器](http://example-server.example-tailnet.ts.net:18785/help/runner)。
 
 交接项目时，另给该项目的任务brief和经私有渠道签发的项目身份。不能把全局管理员入口或其他项目材料发给普通Agent。原身份只更新server连接地址，actor/token/project_id保持。
 

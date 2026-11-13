@@ -1,0 +1,26 @@
+{
+  "tasks": [
+    "impl/one"
+  ],
+  "scopes": {
+    "impl/one": "<当前任务scope_hash>"
+  },
+  "input_anchor": "git:0000000000000000000000000000000000000000",
+  "reason": "实际手工检验",
+  "results": [
+    {
+      "case": "manual-behavior@1",
+      "status": "passed",
+      "exit_code": null,
+      "seconds": 0,
+      "summary": "填写实际观察，不能将未执行写为通过"
+    }
+  ],
+  "evidence": [
+    {
+      "path": "<真实证据路径>",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000"
+    }
+  ],
+  "artifacts": []
+}

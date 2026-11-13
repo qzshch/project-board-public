@@ -1,0 +1,8 @@
+{
+  "task": "impl/one",
+  "scope": "<当前任务scope_hash>",
+  "cases": [
+    "behavior@1"
+  ],
+  "reason": "覆盖变更及关键边界"
+}

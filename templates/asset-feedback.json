@@ -1,0 +1,9 @@
+{
+  "asset": "method@1",
+  "task": "impl/consume",
+  "scope": "<当前任务scope_hash>",
+  "outcome": "succeeded",
+  "integration_minutes": 0,
+  "estimated_saved_minutes": null,
+  "issues": "填写实测接入成本与维护问题；节省为预估"
+}

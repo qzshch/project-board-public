@@ -1,0 +1,12 @@
+{
+  "task": "impl/one",
+  "scope": "<当前任务scope_hash>",
+  "low": 10,
+  "likely": 20,
+  "high": 40,
+  "due": "",
+  "size": "small",
+  "uncertainty": "low",
+  "context": "填写执行者/模型、工具、环境与复用条件",
+  "reason": "相似历史或分解依据"
+}

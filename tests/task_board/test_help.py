@@ -1,4 +1,7 @@
 import json
+import io
+import hashlib
+import zipfile
 from pathlib import Path
 import unittest
 from urllib.request import Request
@@ -17,7 +20,7 @@ class HelpCase(unittest.TestCase):
         except HTTPError as error:return error.code,error.read(),dict(error.headers)
 
     def test_shareable_guides_are_available_without_project_or_admin_material(self):
-        for path in ('/help','/help/admin','/help/connectivity','/help/agent','/help/owner','/help/templates','/agent-guide.md','/owner-guide.md'):
+        for path in ('/help','/help/admin','/help/connectivity','/help/operations','/help/runner','/help/agent','/help/owner','/help/templates','/agent-guide.md','/owner-guide.md'):
             code,body,_=self.get(path);self.assertEqual(code,200,path)
             self.assertNotIn(b'alpha private',body);self.assertNotIn(b'beta private',body)
             self.assertNotIn(b'operator.html',body);self.assertNotIn(b'_private/admin',body)
@@ -43,7 +46,7 @@ class HelpCase(unittest.TestCase):
         self.assertEqual(fixtures.ProjectCase.call(self,'/api/projects/beta/governance',profile=self.a)[0],404)
 
     def test_template_whitelist_does_not_serve_arbitrary_files(self):
-        code,body,_=self.get('/templates/project-init.json');self.assertEqual(code,200);self.assertEqual(set(json.loads(body)),{'id','name','description','knowledge'})
+        code,body,_=self.get('/templates/project-init.json');self.assertEqual(code,200);self.assertEqual(set(json.loads(body)),{'id','name','description','knowledge','governance_profile'})
         for path in ('/templates/../../state/_private/admin.json','/templates/server.json','/help/../../state/_private/admin.json'):
             code,body,_=self.get(path,self.admin);self.assertEqual(code,404,path);self.assertNotIn(self.admin['token'].encode(),body)
 
@@ -58,3 +61,13 @@ class HelpCase(unittest.TestCase):
         for link in (b'href="/help"',b'href="/help/agent"',b'href="/help/owner"'):self.assertIn(link,body)
         body=render_markdown('| Method | Route |\n|---|---|\n| GET | /help |')
         self.assertIn('<table>',body);self.assertEqual(body.count('<tr>'),2)
+
+    def test_runner_download_is_only_whitelisted_sources_and_verified_manifest(self):
+        code,body,_=self.get('/runner-kit.zip');self.assertEqual(code,200)
+        self.assertEqual(body,self.get('/runner-kit.zip')[1])
+        with zipfile.ZipFile(io.BytesIO(body)) as kit:
+            self.assertEqual(set(kit.namelist()),{'tools/quality_runner.py','tools/task_board_client.py','tools/owned_process.py','tools/runner_process.py','tools/__init__.py','requirements.txt','README.md','MANIFEST.json'})
+            manifest=json.loads(kit.read('MANIFEST.json'))
+            for name,sha in manifest.items():
+                self.assertEqual(hashlib.sha256(kit.read(name)).hexdigest(),sha);self.assertNotIn(self.admin['token'].encode(),kit.read(name))
+            self.assertNotIn(self.admin['token'].encode(),body)

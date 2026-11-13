@@ -62,7 +62,9 @@ class Registry:
                 if action=='publish':
                     fields(p,{'asset','audience','shared_location','review','evidence'}, {'asset','audience','shared_location','review','evidence'})
                     asset=load(local)['assets'].get(p['asset'])
-                    if not asset or not asset['shareable'] or asset['sensitivity']!='public' or asset['kind'] not in ('skill','methodology','infrastructure') or asset['license'].lower() in ('unknown','private','none'):
+                    from .learning import publication_guard
+                    publication_guard(local,p['asset'])
+                    if not asset or not asset['shareable'] or asset['sensitivity']!='public' or asset['kind'] not in ('skill','methodology','infrastructure','test_case','test_data','test_tool') or asset['license'].lower() in ('unknown','private','none'):
                         raise BoardError('仅审核过的通用公开技能/方法/基建可发布；敏感或业务私有资产拒绝',403)
                     if type(p['audience']) is not list or not p['audience'] or any(type(x) is not str for x in p['audience']):raise BoardError('需显式共享受众')
                     for audience in p['audience']:

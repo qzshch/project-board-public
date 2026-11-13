@@ -1,15 +1,37 @@
 """Whitelisted operational docs, with private operator material kept separate."""
 import html
+import hashlib
+import io
+import json
+import zipfile
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
 
 ROOT=Path(__file__).resolve().parents[1]
+
+
+def runner_kit():
+    """Only executable client sources, never state/config/identities."""
+    files={name:(ROOT/name).read_bytes() for name in ('tools/quality_runner.py','tools/task_board_client.py','tools/owned_process.py','tools/runner_process.py')}
+    files['tools/__init__.py']=b''
+    files['requirements.txt']=b'psutil>=6,<8\n'
+    files['README.md']=('Project-scoped runner kit. Python 3.11+. Install requirements in a non-C project environment.\nRead http://example-server.example-tailnet.ts.net:18785/help/runner\nObtain only your project runner profile; approve exact suite hashes locally. No credentials are included.\n').encode()
+    files['MANIFEST.json']=json.dumps({name:hashlib.sha256(data).hexdigest() for name,data in files.items()},sort_keys=True,indent=2).encode()
+    output=io.BytesIO()
+    with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as bundle:
+        for name,data in files.items():
+            entry=zipfile.ZipInfo(name,(2026,1,1,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.create_system=3;entry.external_attr=0o100644<<16
+            bundle.writestr(entry,data)
+    return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
     'agent-brief.md','se-handoff.md','archive-checklist.md','project-init.json',
     'knowledge.json','member.json','milestone.json','package.json','contract-freeze.json',
     'contract-change.json','asset-private.json','asset-publish.json','asset-consume.json',
     'claim.json','submit.json','rework.json','handoff-propose.json','delivery-manifest.json','task-create.json',
+    'governance-policy.json','risk-assessment.json','work-estimate.json','work-time.json','test-case.json','automation-suite.json','quality-plan.json','run-request.json','manual-run.json','runner-config.json','asset-candidate.json','asset-refinement.json','asset-validation.json','asset-promotion.json','asset-feedback.json',
+    'package-assessment.json','work-time-complete.json','work-time-correct.json','work-time-close.json','runner-authorization.json','run-cancel.json','asset-retire.json',
+    'benchmark-import.json','test-case-retire.json',
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
@@ -17,6 +39,8 @@ DOCS={
     '/help/owner':('负责人 / 继承 SE','docs/OWNER-GUIDE.md',False),
     '/help/api':('任务与身份 API','docs/TASK_BOARD_API_V2.md',False),
     '/help/governance':('治理 API','docs/API-GOVERNANCE.md',False),
+    '/help/operations':('治理、时间、质量与资产操作','docs/API-OPERATIONS.md',False),
+    '/help/runner':('项目测试执行器','docs/RUNNER-GUIDE.md',False),
     '/help/admin':('管理手册 · 协作阅读版','docs/ADMIN-READONLY-GUIDE.md',False),
     '/help/connectivity':('其他电脑与 Agent 连通性','docs/CONNECTIVITY.md',False),
     '/help/operator':('实例管理员私有操作手册','docs/MANUAL.md',True),
@@ -37,6 +61,7 @@ INDEX='''# 使用手册
 - [执行 Agent 接入与交付](/help/agent)：领取项目身份、核对 brief、登记/领取、实现测试、保存回执、返修重提。
 - [管理手册 · 协作阅读版](/help/admin)：所有协作 Agent 可阅读管理流程，阅读文档不授予操作权限。
 - [其他电脑与 Agent 连通性](/help/connectivity)：Tailscale、DNS、本地执行通道和权限问题的排查步骤。
+- [分级治理、时间、测试与资产](/help/operations)、[自动化执行器](/help/runner)、[独立执行器下载](/runner-kit.zip)：风险裁剪、工时估算与实测、用例/运行以及候选提炼闭环。
 - [可复制模板目录](/help/templates)：项目、任务、接口、资产、交付、交接和归档模板。
 - [任务与身份 API](/help/api)、[治理 API](/help/governance)；[下载标准库客户端](/client.py)。
 

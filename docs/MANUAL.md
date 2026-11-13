@@ -1,5 +1,7 @@
 # 项目公告板操作手册
 
+产品4的分级治理、时间、用例/运行与资产提炼使用独立追加操作链，接口与流程见[操作API](/help/operations)和[自动化执行器](/help/runner)。旧项目不会自动得到伪造的工时或测试；负责人显式采用分级策略。新项目可选择治理档位，轻量任务免重型模块和额外报告，高风险要求不能被裁剪。
+
 对外协作入口：[管理阅读版](http://example-server.example-tailnet.ts.net:18785/help/admin)、[负责人/SE](http://example-server.example-tailnet.ts.net:18785/help/owner)、[执行Agent](http://example-server.example-tailnet.ts.net:18785/help/agent)、[模板](http://example-server.example-tailnet.ts.net:18785/help/templates)。这份完整手册含实例管理员私有操作，网页版本 `/help/operator` 需要管理员会话；/help/admin提供无须登录的协作阅读版。
 
 适用于没有本会话历史的总负责人、继承SE和执行Agent。产品正式入口为 http://example-server.example-tailnet.ts.net:18785 。该入口属于Tailscale私网；传输可达不代表已获得项目权限。独立源码在 G:/project-board，运行状态在 server /srv/project-board/state。示例项目只是一个消费项目，project_id=sampleapp；公告板自身project_id=task-board。目录名、Codex项目ID和运行时project_id不是同一层。

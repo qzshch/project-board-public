@@ -1,0 +1,16 @@
+"""Stable regression artifacts for the approved project-board runner suite."""
+import hashlib,json,os,re,sys
+from pathlib import Path
+ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT))
+from tools.owned_process import run
+from task_board.help import runner_kit
+
+def main():
+    e=ROOT/'evidence/automation-regression';e.mkdir(parents=True,exist_ok=True)
+    code,out,err=run([sys.executable,'-B','-X','utf8','-m','unittest','discover','-s','tests','-t','.','-v'],cwd=ROOT,evidence=e,purpose='Approved fixed-input complete regression',timeout=120)
+    (e/'stdout.log').write_bytes(out);(e/'stderr.log').write_bytes(err)
+    found=re.search(rb'Ran (\d+) tests?',err);count=int(found[1]) if found else 0
+    (ROOT/'project-runner.zip').write_bytes(runner_kit())
+    result={'passed':code==0 and count>0,'tests':count,'exit_code':code,'logs':{p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in e.glob('*.log')},'runner_kit_sha256':hashlib.sha256((ROOT/'project-runner.zip').read_bytes()).hexdigest(),'source_files':{str(p.relative_to(ROOT)):hashlib.sha256(p.read_bytes()).hexdigest() for folder in ('task_board','tools','tests','task_board_web') for p in (ROOT/folder).rglob('*') if p.is_file() and '__pycache__' not in p.parts}}
+    (ROOT/'automation-results.json').write_text(json.dumps(result,ensure_ascii=False,indent=2)+'\n',encoding='utf8');print(json.dumps({'passed':result['passed'],'tests':count}));return 0 if result['passed'] else 1
+if __name__=='__main__':raise SystemExit(main())

@@ -346,6 +346,8 @@ class BoardStore:
 
             from .governance import setup
             setup(db)
+            from .operations import setup as setup_operations
+            setup_operations(db)
 
     @contextmanager
     def connection(self):
@@ -552,6 +554,7 @@ class BoardStore:
                 actor = effective(db, actor)
                 if actor['project_role'] == 'viewer':
                     raise BoardError('此身份已移交管理职责或仅有读取权限',403)
+                if actor['project_role']=='runner':raise BoardError('测试执行器不能修改开发任务',403)
                 if action in REVIEW_ACTIONS and actor['role'] != 'reviewer':
                     raise BoardError('此操作需要本项目审核权限',403)
                 prior = db.execute(
@@ -640,7 +643,8 @@ class BoardStore:
         if action == "assign":
             fields(payload, {"owner", "reason", "registered"}, {"owner", "reason"})
             from .governance import load as load_governance
-            if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced':
+            from .operations import load as load_operations
+            if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced' or load_operations(db)['policy']['enabled']:
                 from .governance import blockers
                 reasons=blockers(db,state,registry=getattr(self,'registry',None))
                 if reasons:raise BoardError('；'.join(reasons),409)
@@ -667,7 +671,8 @@ class BoardStore:
         if action == "claim":
             fields(payload, {"summary"}, {"summary"})
             from .governance import load as load_governance
-            if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced':
+            from .operations import load as load_operations
+            if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced' or load_operations(db)['policy']['enabled']:
                 from .governance import blockers
                 reasons = blockers(db, state, actor, getattr(self,'registry',None))
                 if reasons:
@@ -711,11 +716,18 @@ class BoardStore:
             fields(payload, {"summary"}, {"summary"})
             return {"summary": text(payload["summary"], "进展")}
         if action == "submit":
+            if type(payload.get('implementation_commit','')) is not str:raise BoardError('实现提交需字符串')
+            if 'artifact' in payload:
+                fields(payload['artifact'],{'ref','sha256'},{'ref','sha256'});text(payload['artifact']['ref'],'产物来源',2000)
+                if not re.fullmatch('[0-9a-f]{64}',str(payload['artifact']['sha256'])):raise BoardError('产物需完整SHA256')
+            from .governance import load as load_governance
+            from .assurance import validation,delivery_evidence,NONCODE
+            assurance=validation(db,state,payload,load_governance(db))
             if state['spec'].get('work',{}).get('planning'):
                 from .governance import load as load_governance, tasks as governance_tasks
                 from .planning import task_blockers
                 reasons=task_blockers(load_governance(db),governance_tasks(db),state['spec'])
-                if reasons:raise BoardError('；'.join(reasons),409)
+                if reasons and not (assurance and assurance['level']=='light'):raise BoardError('；'.join(reasons),409)
             fields(
                 payload,
                 {
@@ -727,20 +739,23 @@ class BoardStore:
                     "tests",
                     "remaining",
                     "addresses",
+                    "artifact", "verification", "test_runs",
                 },
                 {
                     "summary",
                     "completeness",
                     "deliverable_ids",
-                    "implementation_commit",
                     "evidence",
-                    "tests",
                     "remaining",
                 },
             )
-            commit = payload["implementation_commit"]
+            commit = payload.get("implementation_commit",'')
             if type(commit) is not str or not re.fullmatch("[0-9a-f]{40}", commit):
-                raise BoardError("提交需冻结40位实现提交或原件Git锚点")
+                artifact=payload.get('artifact')
+                if state['spec'].get('work',{}).get('category') not in NONCODE:raise BoardError("提交需冻结40位实现提交或原件Git锚点")
+                fields(artifact,{'ref','sha256'},{'ref','sha256'});text(artifact['ref'],'产物来源',2000)
+                if not re.fullmatch('[0-9a-f]{64}',str(artifact['sha256'])):raise BoardError('非代码交付需产物SHA256')
+                commit=''
             selected = identifiers(payload["deliverable_ids"], "已交付项")
             allowed = {x["id"] for x in state["spec"]["deliverables"]}
             if not selected or not set(selected) <= allowed:
@@ -759,10 +774,11 @@ class BoardStore:
                 "completeness": mode,
                 "deliverable_ids": selected,
                 "implementation_commit": commit,
-                "evidence": evidence(payload["evidence"]),
-                "tests": text(payload["tests"], "测试结果或不适用依据"),
+                "evidence": delivery_evidence(payload["evidence"],assurance['level'] if assurance else 'standard'),
+                "tests": text(payload.get("tests") or payload.get('verification',{}).get('summary'), "测试结果或不适用依据"),
                 "remaining": text(payload["remaining"], "剩余范围"),
                 "addresses": addresses,
+                **{k:deepcopy(payload[k]) for k in ('artifact','verification','test_runs') if k in payload},
             }
         latest = state["latest_submission"]
         if action in ("accept", "request_changes", "merge", "native"):
@@ -805,6 +821,9 @@ class BoardStore:
                 "findings": findings,
             }
         if action == "accept":
+            from .governance import load as load_governance
+            from .assurance import validation,delivery_evidence
+            assurance=validation(db,state,latest,load_governance(db),actor)
             fields(
                 payload,
                 {"submission", "summary", "deliverable_ids", "evidence"},
@@ -821,7 +840,7 @@ class BoardStore:
                 "submission": latest["id"],
                 "summary": text(payload["summary"], "验收结论"),
                 "deliverable_ids": selected,
-                "evidence": evidence(payload["evidence"]),
+                "evidence": delivery_evidence(payload["evidence"],assurance['level'] if assurance else 'standard'),
             }
         if action in ("merge", "native"):
             allowed_status = (

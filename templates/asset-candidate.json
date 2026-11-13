@@ -1,0 +1,17 @@
+{
+  "id": "method",
+  "version": "1",
+  "title": "候选名称",
+  "kind": "methodology",
+  "source_tasks": [
+    "impl/one"
+  ],
+  "source_scopes": {
+    "impl/one": "<当前任务scope_hash>"
+  },
+  "problem": "解决的问题",
+  "applicability": "适用条件",
+  "exclusions": "不适用条件",
+  "dependencies": [],
+  "owner": "<维护者Actor ID>"
+}

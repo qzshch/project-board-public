@@ -22,7 +22,7 @@ async function api(path, value, global=false) {
   if(!global) path=projectPath(path);
   const response=await fetch(path,{method:value===undefined?'GET':'POST',credentials:'same-origin',
     headers:value===undefined?{}:{'Content-Type':'application/json'},body:value===undefined?undefined:JSON.stringify(value),cache:'no-store'});
-  const result=await response.json(); if(!response.ok) throw new Error(result.error || '请求失败'); return result;
+  const result=await response.json(); if(!response.ok){const error=new Error(result.error||'请求失败');error.status=response.status;throw error;}return result;
 }
 function matchView(task) {
   if(app.view==='review') return ['reported','submitted'].includes(task.status);
@@ -121,6 +121,10 @@ async function showDetail(id) {
     body.append(returned);
   }
   if(app.role==='reviewer') body.append(reviewForm(task));
+  if(ws.ops){const sectionBox=section('治理、时间与测试'),risk=ws.ops.effective[task.spec.id];sectionBox.append(el('p',risk?`${tierNames[risk.level]} · ${risk.assessed?'当前范围已核定':'待SE核定'} · ${risk.reason}`:'尚未采用分级策略','detail-text'));
+    const plan=ws.ops.test_plans[task.spec.id];if(plan)sectionBox.append(el('p','验证计划：'+plan.cases.join('、'),'detail-text'));
+    if(app.role==='reviewer')operationButton(sectionBox,'核定当前任务风险','assess',{task:task.spec.id,level:risk?.level||'light'});
+    if(task.owner===app.actor||app.role==='reviewer')operationButton(sectionBox,'记录当前作业','time_change',{task:task.spec.id,phase:'implementation',mode:'work',rework:false});body.append(sectionBox);}
   const history=section('历史时间线');const timeline=el('div','正在读取…','timeline');history.append(timeline);body.append(history);
   if(!$('detail').open) $('detail').showModal();
   $('detail').scrollTop=0;
@@ -261,11 +265,12 @@ function createProject() {
   const form=el('form',undefined,'review-form');formInput(form,'项目ID（小写字母、数字、连字符）','projectid');formInput(form,'项目名称','projectname');formInput(form,'项目说明','projectdescription',true);
   form.append(el('p','新项目默认启用规划门禁。先建立上下文；模块可保留未知项，逐步调研与展开。','secondary'));
   for(const [key,label]of [['background','项目背景'],['goals','目标与成功标准'],['non_goals','非目标'],['constraints','约束'],['history_notes','历史材料说明'],['resource_notes','项目资源与准备计划']])formInput(form,label,'init_'+key,true);
+  selectInput(form,'项目默认治理档位','init_governance_profile',{light:'轻量 · 可逆小项目，按任务风险升级',standard:'标准 · 多模块协作',strict:'严格 · 高风险交付'},'standard');
   formInput(form,'历史材料（每行 标题 | 位置 | 版本 | SHA256）','init_materials',true);formInput(form,'资源入口（同上格式）','init_entries',true);
   const message=el('p','','form-message');const submit=el('button','建立项目','primary');submit.type='submit';form.append(message,submit);body.append(form);
   form.addEventListener('submit',async event=>{event.preventDefault();submit.disabled=true;try {
     const knowledge={};for(const key of ['background','goals','non_goals','constraints','history_notes','resource_notes'])knowledge[key]=form.elements['init_'+key].value.trim();for(const key of ['materials','entries'])knowledge[key]=form.elements['init_'+key].value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const [title,location,version,sha256]=s.split('|').map(x=>x.trim());return{title,location,version,sha256};});
-    const project=await api('/api/projects',{id:form.elements.projectid.value.trim(),name:form.elements.projectname.value,description:form.elements.projectdescription.value,knowledge},true);
+    const project=await api('/api/projects',{id:form.elements.projectid.value.trim(),name:form.elements.projectname.value,description:form.elements.projectdescription.value,knowledge,governance_profile:form.elements.init_governance_profile.value},true);
     $('detail').close();await loadProjects(project.id);
   }catch(error){message.textContent=error.message;}finally{submit.disabled=false;}});$('detail').showModal();
 }
