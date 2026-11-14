@@ -31,7 +31,7 @@ const opFields={
 function hours(s){return s===null||s===undefined?'未知':s<60?s.toFixed(1)+' 秒':s<3600?(s/60).toFixed(1)+' 分钟':(s/3600).toFixed(2)+' 小时';}
 function opRole(){return ws.data.members[app.actor]?.role||(app.role==='reviewer'?'reviewer':'agent');}
 function opActions(){
-  if(opRole()==='tracker')return [];
+  if(['tracker','restorer'].includes(opRole()))return [];
   if(app.role==='reviewer')return {policy:['policy','assess','assess_package'],time:['estimate','time_change','time_complete','time_correct','time_close','benchmark_import'],quality:['case','case_retire','suite','test_plan','runner','run_request','manual_run','run_cancel'],assets:['candidate','candidate_refine','candidate_validate','candidate_promote','candidate_retire','asset_feedback']}[ws.panel]||[];
   return {time:['estimate','time_change','time_complete'],quality:opRole()==='tester'?['case','run_request','manual_run','run_cancel']:['run_request','run_cancel'],assets:['candidate','asset_feedback']}[ws.panel]||[];
 }
@@ -47,7 +47,7 @@ function renderOperations(box){
     const t=o.time_report;cards(box,[['申报有效投入',hours(t.work_seconds)],['等待',hours(t.wait_seconds)],['返修（投入子集）',hours(t.rework_seconds)],['治理与协调',hours(t.phases_seconds.governance||0)]]);
     box.append(el('p',`统计截至 ${new Date(t.as_of*1000).toLocaleString()}。投入与自然历时分别记录；空白历史不是零工时。`,'muted'));
     const refresh=el('button','刷新统计');refresh.onclick=()=>renderWorkspace();box.append(refresh);
-    if(app.role!=='viewer'&&!['runner','tracker'].includes(opRole()))operationButton(box,'时间记录与估算',null);
+    if(app.role!=='viewer'&&!['runner','tracker','restorer'].includes(opRole()))operationButton(box,'时间记录与估算',null);
     listLines(box,'人员与Agent投入',Object.entries(t.actor_kind_seconds),([kind,s])=>`${{human:'人员',agent:'Agent',unknown:'未分类'}[kind]} · ${hours(s)}`);
     listLines(box,'阶段投入',Object.entries(t.phases_seconds),([phase,s])=>`${phaseNames[phase]} · ${hours(s)}`);
     listLines(box,'待验证的改进方向',t.opportunities,r=>`${r.observation} · ${hours(r.seconds)}\n${r.suggestion}`);
@@ -79,7 +79,7 @@ function renderOperations(box){
 function renderAssetLearning(box){
   if(!ws.ops)return;
   box.append(el('p','交付成果 → 候选 → 提炼 → 实际验证 → 私有版本 → 审核共享。实测接入成本与预估节省分别记录。','secondary'));
-  if(app.role!=='viewer'&&!['runner','tracker'].includes(opRole()))operationButton(box,'管理资产沉淀',null);
+  if(app.role!=='viewer'&&!['runner','tracker','restorer'].includes(opRole()))operationButton(box,'管理资产沉淀',null);
   listLines(box,'候选与提炼阶段',Object.entries(ws.ops.candidates),([ref,c])=>`${ref} · ${c.title} · ${c.stage}\n解决：${c.problem}\n适用：${c.applicability}\n不适用：${c.exclusions}\n来源：${c.source_tasks.join('、')} · 维护者 ${c.owner}\n验证运行 ${c.validation_runs.join('、')||'尚无'}`);
   listLines(box,'实际消费反馈',ws.ops.usage,r=>`${r.asset} · ${r.task} · ${r.outcome}\n实测接入 ${r.integration_minutes} 分钟 · 预估节省 ${r.estimated_saved_minutes===null?'未知':r.estimated_saved_minutes+' 分钟'}\n${r.issues}`);
 }

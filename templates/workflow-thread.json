@@ -1,0 +1,14 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "id": "question-1",
+  "kind": "blocker",
+  "title": "<obstacle>",
+  "body": "<attempts, required decision and independent work>",
+  "to": [
+    "SE"
+  ],
+  "pause": true,
+  "affected_step": "<affected step>"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "rollback-1",
+  "manifest_hash": "<approved-plan-sha256>",
+  "summary": "<actual final verification>",
+  "runs": [],
+  "commit": "",
+  "evidence": [
+    {
+      "path": "<actual-evidence>",
+      "sha256": "<actual-sha256>"
+    }
+  ]
+}

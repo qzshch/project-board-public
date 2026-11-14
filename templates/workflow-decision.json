@@ -1,0 +1,6 @@
+{
+  "thread": "<thread-id>",
+  "decision": "continue",
+  "summary": "<decision and bounds>",
+  "reference": ""
+}

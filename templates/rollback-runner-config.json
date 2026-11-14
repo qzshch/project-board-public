@@ -1,0 +1,24 @@
+{
+  "url": "http://example-server.example-tailnet.ts.net:18785",
+  "project_id": "<project-id>",
+  "approved_plans": {
+    "rollback-1": "<exact-manifest-sha256>"
+  },
+  "scratch": "G:/<project>/rollback-scratch",
+  "output": "G:/<project>/rollback-output",
+  "repositories": {
+    "main": {
+      "path": "G:/<approved-project-repository>"
+    }
+  },
+  "checks": [
+    [
+      "{python}",
+      "-B",
+      "-m",
+      "unittest",
+      "discover"
+    ]
+  ],
+  "deployments": {}
+}

@@ -556,7 +556,7 @@ class BoardStore:
                 actor = effective(db, actor)
                 if actor['project_role'] == 'viewer':
                     raise BoardError('此身份已移交管理职责或仅有读取权限',403)
-                if actor['project_role'] in ('runner','tracker'):raise BoardError('测试执行器和Git同步器不能修改开发任务',403)
+                if actor['project_role'] in ('runner','tracker','restorer'):raise BoardError('项目执行器和Git同步器不能修改开发任务',403)
                 if action in REVIEW_ACTIONS and actor['role'] != 'reviewer':
                     raise BoardError('此操作需要本项目审核权限',403)
                 prior = db.execute(
@@ -588,6 +588,9 @@ class BoardStore:
                 payload = self._validate(
                     db, actor, task_id, state, action, request["payload"]
                 )
+                if state and action in ('submit','accept','merge','native'):
+                    from .workflow import enforce
+                    enforce(db,state,action,payload)
                 result = self._append(db, actor, task_id, action, payload)
                 db.execute(
                     "INSERT INTO requests VALUES(?,?,?,?,?)",

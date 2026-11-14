@@ -11,12 +11,14 @@ from urllib.parse import urlsplit
 ROOT=Path(__file__).resolve().parents[1]
 
 
-def runner_kit():
+def runner_kit(rollback=False):
     """Only executable client sources, never state/config/identities."""
     files={name:(ROOT/name).read_bytes() for name in ('tools/quality_runner.py','tools/task_board_client.py','tools/owned_process.py','tools/runner_process.py')}
+    if rollback:files['tools/rollback_runner.py']=(ROOT/'tools/rollback_runner.py').read_bytes()
     files['tools/__init__.py']=b''
     files['requirements.txt']=b'psutil>=6,<8\n'
     files['README.md']=('Project-scoped runner kit. Python 3.11+. Install requirements in a non-C project environment.\nRead http://example-server.example-tailnet.ts.net:18785/help/runner\nObtain only your project runner profile; approve exact suite hashes locally. No credentials are included.\n').encode()
+    if rollback:files['README.md']+=b'Rollback runner: read /help/workflow; obtain a separate project restorer profile and locally approve the exact manifest and fixed targets. Creates candidates without push.\n'
     files['MANIFEST.json']=json.dumps({name:hashlib.sha256(data).hexdigest() for name,data in files.items()},sort_keys=True,indent=2).encode()
     output=io.BytesIO()
     with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as bundle:
@@ -25,6 +27,7 @@ def runner_kit():
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'workflow-thread.json','workflow-decision.json','workflow-thread-ack.json','workflow-criteria-plan.json','workflow-criteria-claim.json','workflow-criteria-review.json','workflow-review-finding.json','workflow-review-disposition.json','workflow-review-resolve.json','workflow-git-check.json','workflow-rollback-plan.json','workflow-rollback-confirm.json','workflow-rollback-approve.json','workflow-rollback-apply.json','rollback-runner-config.json',
     'resource-entry.json','resource-retire.json',
     'git-binding.json','git-storage-policy.json','git-task-link.json','git-sync.json',
     'agent-brief.md','se-handoff.md','archive-checklist.md','project-init.json',
@@ -37,6 +40,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/workflow':('评论、验收、SE待办与受控回退','docs/WORKFLOW-GUIDE.md',False),
     '/help/resources':('本地与NAS资源目录及Agent接手','docs/RESOURCE-GUIDE.md',False),
     '/help/github':('GitHub提交与本地存储边界','docs/GITHUB-GUIDE.md',False),
     '/help/agent':('执行 Agent','docs/AGENT-QUICKSTART.md',False),
@@ -69,6 +73,7 @@ INDEX='''# 使用手册
 - [可复制模板目录](/help/templates)：项目、任务、接口、资产、交付、交接和归档模板。
 - [GitHub代码提交追踪](/help/github)：提交图、差异、文件历史、逐行溯源与本地/NAS存储边界。
 - [本地与NAS资源目录](/help/resources)：在项目资产页查找缓存、调研、美术、归档、测试记录、日志、运行态与接手入口。
+- [协作、逐项验收与受控回退](/help/workflow)：阻塞求助、偏离决策、精确Git核验、SE待办和回退执行器。
 - [任务与身份 API](/help/api)、[治理 API](/help/governance)；[下载标准库客户端](/client.py)。
 
 把对应角色的指南链接和本项目说明发给其他会话。项目身份通过私有渠道单独交付，不放在文档链接里。

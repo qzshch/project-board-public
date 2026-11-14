@@ -13,11 +13,12 @@ def main():
     target=ROOT/'evidence/checks'/time.strftime('%Y%m%d-%H%M%S');target.mkdir(parents=True)
     fixture=target/'fixtures';fixture.mkdir()
     try:
-        # The suite now includes real merge/rename and 50-row pagination Git
-        # fixtures. Measured Windows setup plus existing tests exceeds 120s.
-        code,out,err=run([sys.executable,'-B','-X','utf8','-m','unittest','discover','-s','tests','-t','.','-v'],cwd=ROOT,evidence=target,purpose='independent full behavioral regression',timeout=180,env={**os.environ,'PROJECT_BOARD_TEST_ROOT':str(fixture)},stdout_path=target/'stdout.log',stderr_path=target/'stderr.log')
+        # Actual Windows full run exceeded 180s after adding contained Git
+        # reversal, standalone-kit and deployment-fallback fixtures. Individual
+        # command bounds stay unchanged; allow 300s for the whole finite suite.
+        code,out,err=run([sys.executable,'-B','-X','utf8','-m','unittest','discover','-s','tests','-t','.','-v'],cwd=ROOT,evidence=target,purpose='independent full behavioral regression',timeout=300,env={**os.environ,'PROJECT_BOARD_TEST_ROOT':str(fixture)},stdout_path=target/'stdout.log',stderr_path=target/'stderr.log')
     except subprocess.TimeoutExpired as error:
-        code=124;out=(target/'stdout.log').read_bytes();err=(target/'stderr.log').read_bytes()+b'\nFull suite exceeded 180 seconds; owned processes were stopped.\n'
+        code=124;out=(target/'stdout.log').read_bytes();err=(target/'stderr.log').read_bytes()+b'\nFull suite exceeded 300 seconds; owned processes were stopped.\n'
         # Only logs from these generated fixtures are retained, never profiles.
         import shutil
         for p in fixture.rglob('*.log'):

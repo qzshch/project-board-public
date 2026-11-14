@@ -1,0 +1,11 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "finding": "finding-1",
+  "status": "fixed",
+  "input_anchor": "git:<full-commit>",
+  "summary": "<actual fix or falsifiable objection>",
+  "runs": [],
+  "evidence": []
+}

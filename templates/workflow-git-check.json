@@ -1,0 +1,11 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "repo": "main",
+  "baseline": "<fixed-baseline>",
+  "implementation": "<implementation-sha>",
+  "target": "<exact-stage-target-sha>",
+  "phase": "submit",
+  "reason": "<check basis>"
+}

@@ -1,0 +1,18 @@
+{
+  "id": "rollback-1",
+  "kind": "task",
+  "object": "<task-id>",
+  "target": "current",
+  "tasks": [
+    "<task-id>"
+  ],
+  "repo": "",
+  "target_ref": "",
+  "base": "",
+  "commits": [],
+  "mainlines": {},
+  "mapping": {},
+  "reason": "<why>",
+  "data_plan": "<actual data/interface/artifact recovery plan>",
+  "tests": "<verification and readback>"
+}

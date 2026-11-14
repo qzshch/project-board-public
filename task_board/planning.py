@@ -82,7 +82,13 @@ def module_check(v, all_tasks, ref, visiting=None):
     deps = {r: module_check(v, all_tasks, r, visiting) for r in m['depends_on']}
     for r, check in deps.items():
         if not check['ready']:out.append('规划依赖模块未就绪：' + r)
-    scope = digest({'plan': {k: val for k, val in m.items() if k != 'reviews'}, 'knowledge': v.get('knowledge', {}),
+    knowledge=v.get('knowledge',{})
+    if 'knowledge_refs' in m:
+        sources={item['location']:item for key in ('materials','entries') for item in knowledge.get(key,[])}
+        for ref in m['knowledge_refs']:
+            if ref not in sources:out.append('模块引用材料不存在：'+ref)
+        knowledge={**{key:knowledge.get(key) for key in ('background','goals','non_goals','constraints')},'sources':{ref:sources.get(ref) for ref in m['knowledge_refs']}}
+    scope = digest({'plan': {k: val for k, val in m.items() if k != 'reviews'}, 'knowledge': knowledge,
                     'research': task_state(all_tasks, m['planning_tasks']), 'decisions': decisions, 'contracts': contracts,
                     'boundaries': boundaries, 'dependencies': {r: {'scope': c['scope'], 'ready': c['ready']} for r, c in deps.items()}})
     last = m['reviews'][-1] if m['reviews'] else None
@@ -144,7 +150,8 @@ def mutate(v, all_tasks, actor, action, p):
         v['planning_decisions'][p['id']] = {**deepcopy(p), 'research_scope': task_state(all_tasks,p['research_tasks']), 'actor': actor['id']}
     elif action == 'module_plan':
         keys = {'id','version','title','parent','goal','scope','non_goals','owner','path','inputs','outputs','interfaces','no_interface_reason','risks','unknowns','planning_tasks','decisions','depends_on','acceptance','stage','evidence'}
-        fields(p, keys, keys);ref = ref_of(p)
+        fields(p, keys|{'knowledge_refs'}, keys);ref = ref_of(p)
+        if 'knowledge_refs' in p:identifiers(p['knowledge_refs'],'固定引用材料')
         if ref in v['modules']:raise BoardError('模块版本不可覆盖',409)
         for k in ('title','goal','scope','non_goals','owner','path','risks','acceptance'):text(p[k], k, 8000)
         for k in ('parent','no_interface_reason'):

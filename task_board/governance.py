@@ -13,7 +13,7 @@ import time
 from .store import BoardError, canonical, digest, fields, text, integer, identifiers, evidence
 
 CATEGORIES = {'research','collection','generation','infrastructure','frontend','backend','library','documentation','test','integration','release'}
-ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer','runner','tracker'}
+ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer','runner','tracker','restorer'}
 MANAGERS = {'owner','se','reviewer'}
 DONE = {'accepted','merged','native_accepted','baseline_merged'}
 ACTIVE = {'active','submitted','changes_requested','partial_accepted','partial_merged','partial_native'}
@@ -23,7 +23,7 @@ def work_spec(value):
            {'category','role','inputs_known','inputs','outputs','contracts','assets','resources','couplings','baseline','acceptance'})
     if value['category'] not in CATEGORIES or value['role'] not in ROLES:
         raise BoardError('未知任务分类或执行角色')
-    if value['role'] in ('runner','viewer','tracker'):raise BoardError('只读者、同步器和执行器不领取开发任务')
+    if value['role'] in ('runner','viewer','tracker','restorer'):raise BoardError('只读者、同步器和执行器不领取开发任务')
     if type(value['inputs_known']) is not bool:
         raise BoardError('inputs_known需布尔值；未知输入不能自动领取')
     for k in ('inputs','outputs','contracts','assets','resources','couplings'):
@@ -169,6 +169,12 @@ def blockers(db, task, actor=None, registry=None, context=None):
             from .planning import charter_blockers
             planning_reasons.extend(charter_blockers(gov))
     if not work:return ['legacy/unknown：需SE核定原子任务输入与耦合']+planning_reasons
+    from .workflow import current as workflow_current
+    for rollback in ops.get('wf_rollbacks',{}).values():
+        if rollback['status']!='applied':continue
+        for tid in [spec['id'],*spec['depends_on']]:
+            candidate=all_tasks.get(tid)
+            if candidate and tid in rollback['affected_tasks'] and workflow_current(rollback['task_scopes'][tid],candidate):out.append('成果已回退，需核定新范围：'+tid)
     out.extend(planning_reasons)
     if not work['inputs_known']:out.append('输入未知')
     if not spec['allowed_paths']:out.append('写范围未知')
@@ -176,6 +182,9 @@ def blockers(db, task, actor=None, registry=None, context=None):
         out.append('执行角色不匹配')
     for dep in spec['depends_on']:
         if dep not in all_tasks or all_tasks[dep]['status'] not in DONE:out.append('硬前置未验收：'+dep)
+        elif all_tasks[dep].get('latest_submission'):
+            from .workflow import blockers as workflow_blockers,submission_anchor
+            if workflow_blockers(ops,all_tasks[dep],'accept',submission_anchor(all_tasks[dep])):out.append('硬前置有未解决的协作/验收/回退：'+dep)
     for ref in work['contracts']:
         contract=gov['contracts'].get(ref)
         if not contract or contract['status']!='frozen':out.append('接口未冻结：'+ref)

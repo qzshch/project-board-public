@@ -1,0 +1,18 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "id": "acceptance-v1",
+  "items": [
+    {
+      "id": "AC1",
+      "deliverable": "D1",
+      "expected": "<observable expected behavior>",
+      "method": "manual"
+    }
+  ],
+  "defaults": "",
+  "git_required": false,
+  "repo": "",
+  "reason": "<coverage and verification>"
+}

@@ -1,0 +1,17 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "id": "finding-1",
+  "criterion": "AC1",
+  "description": "<specific defect>",
+  "acceptance": "<reproduction and expected fix>",
+  "blocking": true,
+  "anchor": {
+    "commit": "",
+    "path": "",
+    "line": 0,
+    "resource": ""
+  },
+  "previous": ""
+}

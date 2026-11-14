@@ -32,6 +32,7 @@ STATIC = {
     "/operations.js": "operations.js",
     "/git.js": "git.js",
     "/resources.js": "resources.js",
+    "/workflow.js": "workflow.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",
@@ -340,9 +341,9 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,document_page('使用手册',INDEX),content_type='text/html; charset=utf-8')
             if path=='/help/templates':
                 return self.send(200,document_page('模板目录',template_index()),content_type='text/html; charset=utf-8')
-            if path=='/runner-kit.zip':
+            if path in ('/runner-kit.zip','/rollback-kit.zip'):
                 from .help import runner_kit
-                return self.send(200,runner_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-runner.zip"'})
+                return self.send(200,runner_kit(path=='/rollback-kit.zip'),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-runner.zip"'})
             if path in DOCS or path in RAW_DOCS:
                 title,relative,private=DOCS[path] if path in DOCS else ('操作文档',*RAW_DOCS[path])
                 if private and (not self.server.hub or not self.identity()['global_admin']):
@@ -389,6 +390,7 @@ class Handler(BaseHTTPRequestHandler):
                         "operations_schema": 1,
                         "git_schema": 1,
                         "resource_directory_schema": 1,
+                        "workflow_schema": 1,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )
@@ -397,6 +399,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,ignore_template().encode('utf8'),content_type='text/plain; charset=utf-8')
             self.read_access()
             query = parse_qs(parsed.query)
+            if path in ('/api/workflow','/api/workflow/task','/api/workflow/inbox'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .workflow import snapshot
+                task=query.get('task',[''])[0] if path.endswith('/task') else None
+                if path.endswith('/task') and not task:raise BoardError('需任务ID')
+                return self.send(200,snapshot(self.store,self.actor(),task,path.endswith('/inbox')))
             if path=='/api/resources' or path.startswith('/api/resources/'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .resources import Directory
@@ -415,7 +423,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .operations import Operations
                 op=Operations(self.store)
-                return self.send(200,op.verify() if path.endswith('/verify') else op.snapshot())
+                return self.send(200,op.verify() if path.endswith('/verify') else op.snapshot(self.actor()))
             if path in ('/api/governance','/api/graph','/api/search','/api/governance/export','/api/governance/verify','/api/brief','/api/shared','/api/shared/impact'):
                 if not self.server.hub or not self.project:
                     raise BoardError('请使用项目路径',404)

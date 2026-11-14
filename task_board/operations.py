@@ -59,10 +59,21 @@ class Operations:
                 if old['request_hash']!=digest(request):raise BoardError('请求ID绑定其他内容',409)
                 return {'revision':old['seq'],'hash':old['hash'],'replayed':True,**json.loads(old['payload'])['result']}
             v=load(db);seq=v.pop('revision');previous=v.pop('head')
-            if seq!=request['expected_revision']:raise BoardError('操作记录已变化；重读后决定',409)
+            commuted=False
+            if seq!=request['expected_revision']:
+                from .workflow import ACTIONS,commutes
+                old_state=db.execute('SELECT payload FROM operations_events WHERE seq=?',(request['expected_revision'],)).fetchone()
+                baseline=json.loads(old_state['payload'])['state'] if old_state else {}
+                if request['expected_revision']>seq or action not in ACTIONS or not commutes(action,p,actor,baseline,v):raise BoardError('操作对象已变化；重读后决定',409)
+                commuted=True
             if r=='runner' and action not in ('run_claim','run_heartbeat','run_finish'):raise BoardError('执行器只能领取、续租及回传测试',403)
+            if r=='restorer' and action not in ('rollback_claim','rollback_heartbeat','rollback_finish'):raise BoardError('回退执行器只能领取、续租和回传批准执行单',403)
             now=time.time();g=governance_load(db);all_tasks=tasks(db)
-            if action in ('policy','assess','assess_package'):
+            from .workflow import ACTIONS
+            if action in ACTIONS:
+                from .workflow import mutate as workflow_mutate
+                def mutate(*args):return workflow_mutate(*args,self.store)
+            elif action in ('policy','assess','assess_package'):
                 from .assurance import mutate
             elif action=='benchmark_import':
                 from .timing import import_benchmark
@@ -75,18 +86,21 @@ class Operations:
                 from .learning import mutate
             else:raise BoardError('未知操作动作',404)
             result=mutate(v,db,actor,r,action,p,now,g,all_tasks) or {}
+            if commuted:result={**result,'independent_changes_since':request['expected_revision']}
             event={'action':action,'payload':deepcopy(p),'state':v,'result':result,'at':now}
             hashed=digest({'seq':seq+1,'actor':actor['id'],'request_id':rid,'event':event,'previous':previous})
             db.execute('INSERT INTO operations_events VALUES(?,?,?,?,?,?,?)',(seq+1,actor['id'],rid,digest(request),canonical(event),previous,hashed));db.commit()
             return {'revision':seq+1,'hash':hashed,**result}
 
-    def snapshot(self):
+    def snapshot(self,actor=None):
         from .governance import tasks,load as governance_load
         from .assurance import effective
         from .timing import report
         from .quality import suggestions
         with self.store.connection() as db:
             db.execute('BEGIN');v=load(db);ts=tasks(db);g=governance_load(db)
+            from .workflow import prepare
+            prepare(v)
             v['effective']={k:effective(v,t,g) for k,t in ts.items()}
             for b in v['benchmarks'].values():
                 try:
@@ -98,6 +112,7 @@ class Operations:
             v['time_report']=report(v,ts,time.time(),db)
             v['suggested_cases']={k:suggestions(v,t) for k,t in ts.items()}
             for ref,suite in v['suites'].items():suite['manifest_hash']=digest(suite)
+            if actor:v['wf_reads']={actor['id']:v['wf_reads'].get(actor['id'],{})}
             return v
 
     def verify(self):

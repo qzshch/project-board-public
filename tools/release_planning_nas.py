@@ -51,11 +51,11 @@ source=Path({source!r});sys.path.insert(0,str(source/'tools'))
 os.environ['PATH']={NAS!r}+'/.venv/bin:'+os.environ.get('PATH','/usr/bin:/bin')
 from owned_process import run
 e=source/'evidence/linux-planning';e.mkdir(parents=True)
-code,out,err=run([{NAS!r}+'/.venv/bin/python','-B','-X','utf8','tools/run_checks.py'],cwd=source,evidence=e,purpose='NAS isolated full planning regression',timeout=210)
+code,out,err=run([{NAS!r}+'/.venv/bin/python','-B','-X','utf8','tools/run_checks.py'],cwd=source,evidence=e,purpose='NAS isolated full planning regression',timeout=330)
 (e/'stdout.log').write_bytes(out);(e/'stderr.log').write_bytes(err)
 assert code==0,(out+err).decode('utf8',errors='replace')[-1400:]
 print(json.dumps({{'passed':True,'result':out.decode().strip(),'evidence':str(e)}}))
-''','validate isolated Linux candidate before any production mutation',240)
+''','validate isolated Linux candidate before any production mutation',360)
     report['linux_tests']=preflight
     lifecycle.write(E/'LINUX-TESTS.json',preflight)
     remote_report=remote(f'''import sys,json,hashlib,socket,time,os
@@ -86,6 +86,18 @@ def service(action):command(['systemctl','--user',action,'project-board.service'
 # A Git mirror is runtime data, so its project synchronizer must also stop
 # before the consistent checkpoint. Only units owned by this instance qualify.
 git_units=[]
+chain_prefixes=None
+def prefixes_preserved():
+ if chain_prefixes is None:return anchors()==before
+ # Other projects can legitimately append as soon as any candidate/rollback
+ # instance is online. Verify frozen immutable prefixes instead of forbidding
+ # those writes or mistaking them for a failed source switch.
+ for pid,storage in projects:
+  path=state/storage;assert path.resolve().is_relative_to(state.resolve()) and not path.is_symlink()
+  with sqlite3.connect(str(path)) as db:
+   for table,head in chain_prefixes[pid].items():
+    if head['seq'] and db.execute('SELECT hash FROM '+table+' WHERE seq=?',(head['seq'],)).fetchone()!=(head['hash'],):return False
+ return True
 listed=command(['systemctl','--user','list-units','--type=service','--state=active','--plain','--no-legend','project-board-git-*.service'],'identify only active instance Git synchronizers').decode().splitlines()
 for line in listed:
  name=line.split()[0];p=root/'deploy'/name
@@ -95,7 +107,7 @@ def readiness(schema):
  for _ in range(60):
   try:
    health=client.call('/health')
-   if health.get('governance_schema')==schema and anchors()==before:return health
+   if health.get('governance_schema')==schema and prefixes_preserved():return health
   except Exception:pass
   time.sleep(.2)
  raise RuntimeError('NAS readiness/head verification timeout')
@@ -114,20 +126,25 @@ try:
  # is created until the consistent checkpoint exists.
  import sqlite3
  with sqlite3.connect(str(state/'projects.sqlite')) as catalog:projects=catalog.execute('SELECT id,storage FROM projects').fetchall()
- stable={{}}
+ stable={{}};chain_prefixes={{}}
  for pid,storage in projects:
   with sqlite3.connect(str(state/storage)) as data:
+   chain_prefixes[pid]={{}}
+   for table in ('events','governance_events','operations_events','git_events'):
+    row=data.execute('SELECT seq,hash FROM '+table+' ORDER BY seq DESC LIMIT 1').fetchone() or (0,'0'*64)
+    chain_prefixes[pid][table]={{'seq':row[0],'hash':row[1]}}
    seq,h=data.execute('SELECT seq,hash FROM events ORDER BY seq DESC LIMIT 1').fetchone() or (0,'0'*64)
    gov=data.execute('SELECT hash FROM governance_events ORDER BY seq DESC LIMIT 1').fetchone()
    stable[pid]={{'task_head':{{'seq':seq,'hash':h}},'governance_head':gov[0] if gov else '0'*64}}
  report['observed_before_stop']=before;before=stable;report['before']=before
+ report['frozen_prefixes']=chain_prefixes
  # Backups contain credentials and are never included in a public source kit.
  os.chmod(backup.parent,0o700)
  unit.write_text(newunit,encoding='utf8');command(['systemctl','--user','daemon-reload'],'load candidate NAS unit');service('start');report['candidate']=readiness(2)
  install(original);report['rollback']=readiness(old_schema)
  install(newunit);report['restored_candidate']=readiness(2)
  service('restart');report['restart']=readiness(2)
- after=anchors();assert after==before
+ after=anchors();assert prefixes_preserved();report['chain_prefixes_preserved']=True
  secrets_after={{str(p.relative_to(state)):hashlib.sha256(p.read_bytes()).hexdigest() for p in (state/'_private').rglob('*.json') if p.name not in ('server.json',)}}
  assert secrets_before==secrets_after,'Project identity files changed'
  hub=ProjectHub(state);assert hub.verify()['passed']
@@ -147,5 +164,5 @@ finally:
 print(json.dumps(report))
 ''','NAS backup, candidate switch, actual source rollback, restart and chain validation',150)
     report.update(remote_report);lifecycle.write(E/'DEPLOYMENT.json',report)
-    print(json.dumps({'complete':report['complete'],'source':source,'backup':report['backup'],'url':URL,'heads_preserved':report['before']==report['after']}))
+    print(json.dumps({'complete':report['complete'],'source':source,'backup':report['backup'],'url':URL,'heads_preserved':report['chain_prefixes_preserved']}))
 if __name__=='__main__':main()

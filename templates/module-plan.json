@@ -21,5 +21,6 @@
   "depends_on": [],
   "acceptance": "Behavior and counterexamples",
   "stage": "design",
-  "evidence": []
+  "evidence": [],
+  "knowledge_refs": []
 }

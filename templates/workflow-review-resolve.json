@@ -1,0 +1,10 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "finding": "finding-1",
+  "disposition": "<latest-disposition-id>",
+  "result": "fixed",
+  "summary": "<actual recheck>",
+  "evidence": []
+}

@@ -129,6 +129,7 @@ async function showDetail(id) {
     const plan=ws.ops.test_plans[task.spec.id];if(plan)sectionBox.append(el('p','验证计划：'+plan.cases.join('、'),'detail-text'));
     if(app.role==='reviewer')operationButton(sectionBox,'核定当前任务风险','assess',{task:task.spec.id,level:risk?.level||'light'});
     if(task.owner===app.actor||app.role==='reviewer')operationButton(sectionBox,'记录当前作业','time_change',{task:task.spec.id,phase:'implementation',mode:'work',rework:false});body.append(sectionBox);}
+  renderTaskWorkflow(body,task);
   const history=section('历史时间线');const timeline=el('div','正在读取…','timeline');history.append(timeline);body.append(history);
   if(!$('detail').open) $('detail').showModal();
   $('detail').scrollTop=0;
