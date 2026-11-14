@@ -595,7 +595,7 @@ class BoardStore:
                     from .workflow import enforce
                     enforce(db,state,action,payload)
                     from .coordination import enforce as coordination_enforce
-                    coordination_enforce(db,state,action,payload)
+                    coordination_enforce(db,state,action,payload,getattr(self,'registry',None))
                 result = self._append(db, actor, task_id, action, payload)
                 db.execute(
                     "INSERT INTO requests VALUES(?,?,?,?,?)",
@@ -732,7 +732,7 @@ class BoardStore:
                 if not re.fullmatch('[0-9a-f]{64}',str(payload['artifact']['sha256'])):raise BoardError('产物需完整SHA256')
             from .governance import load as load_governance
             from .assurance import validation,delivery_evidence,NONCODE
-            assurance=validation(db,state,payload,load_governance(db))
+            assurance=validation(db,state,payload,load_governance(db),registry=getattr(self,'registry',None))
             if state['spec'].get('work',{}).get('planning'):
                 from .governance import load as load_governance, tasks as governance_tasks
                 from .planning import task_blockers
@@ -833,7 +833,7 @@ class BoardStore:
         if action == "accept":
             from .governance import load as load_governance
             from .assurance import validation,delivery_evidence
-            assurance=validation(db,state,latest,load_governance(db),actor)
+            assurance=validation(db,state,latest,load_governance(db),actor,registry=getattr(self,'registry',None))
             fields(
                 payload,
                 {"submission", "summary", "deliverable_ids", "evidence"},

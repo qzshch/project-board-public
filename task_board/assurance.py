@@ -54,11 +54,13 @@ def admission(db,task,g):
     return e,(['当前任务范围尚未由SE评估风险'] if e['enabled'] and not e['assessed'] else [])
 
 
-def validation(db,task,p,g,actor=None):
+def validation(db,task,p,g,actor=None,registry=None):
     from .operations import load
     from .quality import validate_delivery
     from .governance import tasks
     g={**g,'_cv_tasks':tasks(db)};v=load(db);e=effective(v,task,g)
+    if registry:
+        g['consumption']=registry.consumption();e=effective(v,task,g)
     if not e['enabled']:return None
     if not e['assessed']:raise BoardError('当前范围缺少风险评估',409)
     if e['level']=='light':

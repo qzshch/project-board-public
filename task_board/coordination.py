@@ -96,11 +96,12 @@ def gate_ok(v,gate,anchor,now):
 def gate_blockers(v,t,stage,anchor,now):
     return ['条件门未满足或观察已过期：'+e['id'] for e in v.get('co_gates',{}).values() if not e.get('retired') and e['task']==t['spec']['id'] and (not current(e,t) or stage in e['stages'] and not gate_ok(v,e,anchor,now))]
 
-def enforce(db,t,stage,p):
+def enforce(db,t,stage,p,registry=None):
     from .operations import load
     from .governance import load as gov,tasks
     from .workflow import submission_anchor
-    v=load(db);g=gov(db)
+    v=load(db);g=gov(db);g['_cv_tasks']=tasks(db)
+    if registry:g['consumption']=registry.consumption()
     reasons=[]
     if plan_required(v,t,g):
         plan=v.get('co_plans',{}).get(v.get('co_plan_heads',{}).get(t['spec']['id']))
@@ -408,6 +409,7 @@ def snapshot(store,actor,task_id=None):
     from .governance import load as gov,tasks,role
     with store.connection() as db:
         db.execute('BEGIN');v=prepare(load(db));g=gov(db);ts=tasks(db);g['_cv_tasks']=ts;r=role(db,actor);now=time.time()
+        if getattr(store,'registry',None):g['consumption']=store.registry.consumption()
         if task_id and task_id not in ts:raise BoardError('本项目任务不存在',404)
         data={k:deepcopy(v['co_'+k]) for k in KEYS}
         data['analytics']=analytics(db,v,ts,g,now);data['cursor']=cursor_encode(heads(db));data['revision']=v['revision'];data['schema']=1

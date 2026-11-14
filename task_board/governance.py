@@ -159,7 +159,9 @@ def blockers(db, task, actor=None, registry=None, context=None):
     from .operations import load as operations_load
     from .assurance import effective
     ops=context[2] if context is not None and len(context)>2 else operations_load(db)
-    gov={**gov,'_cv_tasks':all_tasks};level=effective(ops,task,gov)
+    gov={**gov,'_cv_tasks':all_tasks}
+    if registry:gov['consumption']=registry.consumption()
+    level=effective(ops,task,gov)
     from .planning import task_blockers
     planning_context={**gov,'planning_policy':{'mode':'enforced'}} if level['enabled'] and level['level']!='light' else gov
     planning_reasons=task_blockers(planning_context,all_tasks,spec) if not (level['enabled'] and level['assessed'] and level['level']=='light') else []

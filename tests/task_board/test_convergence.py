@@ -155,3 +155,15 @@ class ConvergenceCase(unittest.TestCase):
         self.assertEqual(governance.GovernanceCase.shared(self,'consume',{'alias':'fixed','ref':'alpha/method@1','reason':'Explicit fixed template consumption','tests':'Exact bytes SHA verified'},'beta')[0],201)
         self.assertEqual(beta('template_import',{'asset':'fixed','document':document+' ','reason':'Changed bytes'})[0],409);self.assertEqual(beta('template_import',{'asset':'fixed','document':document,'reason':'Exact fixed bytes'})[0],201)
         t=self.call('/api/projects/beta/convergence',profile=self.admin)[1]['templates']['starter@1'];self.assertIsNone(t['review']);self.assertEqual(beta('template_instantiate',{'template':'starter@1','id':'instance','version':'1','parameters':{'owner':'root'},'reason':'Cannot skip consumer review','evidence':EV})[0],409)
+    def test_fixed_shared_asset_rule_can_dispatch_submit_then_blocks_withdrawal(self):
+        from . import test_governance as governance
+        self.prepared();governance.GovernanceCase.asset(self);governance.GovernanceCase.shared(self,'publish',{'asset':'method@1','audience':['alpha'],'shared_location':'https://shared.invalid/method.json','review':'Approved immutable source and license','evidence':EV});governance.GovernanceCase.shared(self,'consume',{'alias':'fixed','ref':'alpha/method@1','reason':'SE explicit fixed consumption','tests':'Actual fixture hash matched'})
+        spec=deepcopy(self.hub.store('alpha').get('new/one')['spec']);spec['work']['assets']=['fixed'];self.assertEqual(self.event('new/one','scope',{'spec':spec,'reason':'Use explicitly approved fixed asset'},self.admin)[0],201)
+        self.bind(self.rule(assets={'fixed':'b'*64}));self.assertEqual(self.event('new/one','claim',{'summary':'Valid current rule with fixed asset'})[0],201)
+        plan=self.call('/api/projects/alpha/workflow/task?task=new/one',profile=self.a)[1]['current_plan'];anchor='sha256:'+'f'*64
+        for item in plan['items']:
+            claim=self.ok('criteria_claim',{**self.scope(),'plan':plan['id'],'criterion':item['id'],'input_anchor':anchor,'summary':'Actual bounded fixture inspection','runs':[],'evidence':EV},self.a)
+            self.ok('criteria_review',{**self.scope(),'plan':plan['id'],'criterion':item['id'],'claim':claim['claim'],'result':'passed','summary':'Reviewer verified current artifact','evidence':EV})
+        p={'summary':'Document artifact with approved fixed asset','completeness':'full','deliverable_ids':['D1'],'artifact':{'ref':'fixture/document.md','sha256':'f'*64},'verification':{'method':'inspection','summary':'Actual fixture inspection','reason':'SE approved finite documentation boundary'},'evidence':[],'remaining':'none'}
+        result=self.event('new/one','submit',p);self.assertEqual(result[0],201,result[1])
+        governance.GovernanceCase.shared(self,'withdraw',{'ref':'alpha/method@1','reason':'Fixture source revoked','migration':'SE must replace the fixed consumption','evidence':EV});self.assertEqual(self.event('new/one','accept',{'submission':result[1]['event_id'],'summary':'Cannot accept revoked input','deliverable_ids':['D1'],'evidence':EV},self.admin)[0],409)
