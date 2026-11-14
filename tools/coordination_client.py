@@ -34,10 +34,12 @@ def consume(client,consumer,output,processed=False):
     atomic_json(state,{**binding,'cursor':batch['cursor']});return batch
 
 def main():
-    p=argparse.ArgumentParser();p.add_argument('--profile',required=True);p.add_argument('--consumer',required=True);p.add_argument('--output',required=True);p.add_argument('--processed',action='store_true');p.add_argument('--task');p.add_argument('--connect-ip');a=p.parse_args();profile=json.loads(Path(a.profile).read_text('utf8'));c=Client(profile['url'],profile,a.connect_ip)
+    p=argparse.ArgumentParser();p.add_argument('--profile',required=True);p.add_argument('--consumer',default='worker');p.add_argument('--output',required=True);p.add_argument('--processed',action='store_true');p.add_argument('--task');p.add_argument('--context',action='store_true');p.add_argument('--since',default='');p.add_argument('--connect-ip');a=p.parse_args();profile=json.loads(Path(a.profile).read_text('utf8'));c=Client(profile['url'],profile,a.connect_ip)
+    if a.context and not a.task:p.error('--context requires --task')
     if a.task:
         from urllib.parse import quote
-        data=c.call('/api/coordination?task='+quote(a.task,safe=''));atomic_json(Path(a.output)/'RESUME.json',data);print(json.dumps({'task':a.task,'resume':data['resume']},ensure_ascii=False))
+        endpoint='/api/convergence/context?task=' if a.context else '/api/coordination?task='
+        data=c.call(endpoint+quote(a.task,safe='')+('&since='+quote(a.since,safe='') if a.context and a.since else ''));atomic_json(Path(a.output)/('CONTEXT.json' if a.context else 'RESUME.json'),data);print(json.dumps({'task':a.task,**({'sha256':data['sha256'],'has_more':data['changes']['has_more']} if a.context else {'resume':data['resume']})},ensure_ascii=False))
     else:
         batch=consume(c,a.consumer,a.output,a.processed);print(json.dumps({'events':len(batch['items']),'has_more':batch['has_more']},ensure_ascii=False))
 if __name__=='__main__':main()

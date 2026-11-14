@@ -7,7 +7,7 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
     if not w:raise BoardError('历史任务包尚未核定原子输入，不能自动派发',409)
     g=Governance(store).snapshot(actor=actor,operator=operator)
     from .operations import Operations
-    op=Operations(store).snapshot()
+    op=Operations(store).snapshot(actor)
     from .git_tracking import Tracking
     git=Tracking(store).state()
     from .resources import Directory
@@ -26,6 +26,9 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
             'role':w['role'],'scope_version':task['scope_version'],'scope_hash':task['scope_hash'],
             'collaboration':{k:workflow[k] for k in ('threads','current_plan','findings','blockers','rollbacks')},
             'continuation':{k:coordination[k] for k in ('resume','plans','batches','gates','intakes','cursor')},
+            'context_pack':{'endpoint':url+'/api/projects/'+project+'/convergence/context?task='+__import__('urllib.parse',fromlist=['quote']).quote(task_id,safe=''),'instruction':'按实际引用裁剪材料；摘要保留来源与哈希，变化继续按游标分页读取'},
+            'execution_records':{'attempts':[{k:e.get(k) for k in ('id','actor','workspace','status','scope','scope_version','baseline','result')} for e in op.get('cv_attempts',{}).values() if e['task']==task_id],
+                                 'sessions':[{k:e.get(k) for k in ('id','attempt','session','tool','model','machine','previous','checkpoint')} for e in op.get('cv_sessions',{}).values() if e['task']==task_id]},
             'baseline':w['baseline'],'read_materials':g['knowledge'].get('materials',[]),
             'git':{'repositories':[{k:r.get(k) for k in ('id','repository','title','synced_at')} for r in git['repos'].values() if r['enabled']],
                    'local_storage_policy':git['policy'],'instruction':'仅审核纳入的源码/说明/测试代码进Git；资料和运行产物留本地/NAS；此接入不执行add/commit/push'},

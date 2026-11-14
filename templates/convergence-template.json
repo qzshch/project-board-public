@@ -1,0 +1,83 @@
+{
+  "instruction": "Choose one action payload, replace placeholders with current real values, then prepare-operations. expiry is a future UTC integer; stopped is an actual attributed check, not a default confirmation.",
+  "payloads": {
+    "template_register": {
+      "id": "<template-id>",
+      "version": "1",
+      "title": "<portable-workflow>",
+      "description": "<applicability>",
+      "parameters": [
+        "module",
+        "owner"
+      ],
+      "items": [
+        {
+          "key": "module",
+          "kind": "module_plan",
+          "payload": {
+            "id": "${module}",
+            "version": "1",
+            "title": "<module-goal>",
+            "parent": "",
+            "goal": "<measurable-goal>",
+            "scope": "<bounded-scope>",
+            "non_goals": "<excluded-work>",
+            "owner": "${owner}",
+            "path": "<investigate-decide-implement-verify>",
+            "inputs": [],
+            "outputs": [],
+            "interfaces": [],
+            "no_interface_reason": "<actual-basis>",
+            "risks": "<actual-risks>",
+            "unknowns": [],
+            "planning_tasks": [],
+            "decisions": [],
+            "depends_on": [],
+            "acceptance": "<method-and-pass-condition>",
+            "stage": "design",
+            "knowledge_refs": [],
+            "evidence": []
+          }
+        }
+      ],
+      "resource_categories": [
+        "research",
+        "test_records",
+        "logs",
+        "runtime"
+      ],
+      "reason": "<portable-boundary>"
+    },
+    "template_review": {
+      "ref": "<template-id>@1",
+      "definition_hash": "<current-definition-hash>",
+      "result": "approve",
+      "reason": "<SE-checked-portability-and-sensitive-data>"
+    },
+    "template_retire": {
+      "ref": "<template-id>@1",
+      "reason": "<impact>"
+    },
+    "template_instantiate": {
+      "template": "<template-id>@1",
+      "id": "<new-draft-id>",
+      "version": "1",
+      "parameters": {
+        "module": "<actual-new-module-id>",
+        "owner": "<actual-project-member>"
+      },
+      "reason": "<new-project-actual-basis>",
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ]
+    },
+    "template_import": {
+      "asset": "<explicit-fixed-consumption-alias>",
+      "document": "<exact-exported-document-bytes>",
+      "reason": "<SE-import-basis>"
+    }
+  }
+}

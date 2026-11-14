@@ -67,6 +67,9 @@ def plan_required(v,t,g):
     from .assurance import effective,STRICT
     policy=v.get('co_plan_policy',{}).get(t['spec']['id'])
     e=effective(v,t,g)
+    binding=v.get('cv_bindings',{}).get(t['spec']['id'])
+    rule=v.get('cv_rules',{}).get(binding['ref']) if binding and current(binding,t) else None
+    if rule and rule['plan_mode']=='se_review':return True
     # Adoption is explicit per task; historical strict deliveries stay readable.
     return bool(policy and e['level']!='light' and (policy['required'] or e['level']=='strict' and bool(set(e['flags']) & STRICT)))
 
@@ -178,8 +181,14 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
                 if key not in seen:seen.add(key);pending+=adjacency.get(key,[])
         v['co_links'][p['id']]=record(p,actor,now);return
     if action=='checkpoint':
-        checked(p,'task scope scope_version id input_anchor completed remaining tests obstacles resources next_step recheck session')
+        keys=set('task scope scope_version id input_anchor completed remaining tests obstacles resources next_step recheck session'.split())
+        fields(p,keys|{'attempt_id','attempt_lease','selection_id'},keys)
         t=task(db,p);own(t,actor,r);uid(p['id']);input_anchor(p['input_anchor'])
+        from .convergence import attempt_enforce
+        if p.get('selection_id'):
+            anchor=p['input_anchor'];fixed={'implementation_commit':anchor[4:]} if anchor.startswith('git:') else {'artifact':{'sha256':anchor[7:]}}
+            attempt_enforce(v,t,'submit',{**p,**fixed},actor,now)
+        else:attempt_enforce(v,t,'progress',p,actor,now)
         if p['id'] in v['co_checkpoints']:raise BoardError('检查点不可覆盖',409)
         for key in ('completed','remaining','tests','obstacles','next_step','recheck','session'):bounded(p[key],key,4000)
         identifiers(p['resources'],'资源')
@@ -342,6 +351,11 @@ def feed(store,actor,query):
                     if safe_state is None:safe_state=sanitize(prepare(load(db)),g,actor,r)
                     if action=='source_link' and p.get('id') not in safe_state['co_links']:continue
                     if action!='source_link' and p.get('id') not in safe_state['co_intakes']:continue
+                if action.startswith('draft_') or action=='template_instantiate':
+                    from .convergence import prepare as cv_prepare,sanitize as cv_sanitize
+                    cv_safe=cv_sanitize(cv_prepare(prepare(load(db))),g,actor,r)
+                    ref=p.get('ref') or (p.get('id','')+'@'+p.get('version',''))
+                    if ref not in cv_safe['cv_drafts']:continue
                 if action in ('observer_authorize',) and r not in ('owner','se','reviewer') and p.get('actor')!=actor['id']:continue
                 # Only safe metadata is projected; event state and private
                 # payloads never leave the journal through this endpoint.
@@ -393,7 +407,7 @@ def snapshot(store,actor,task_id=None):
     from .operations import load
     from .governance import load as gov,tasks,role
     with store.connection() as db:
-        db.execute('BEGIN');v=prepare(load(db));g=gov(db);ts=tasks(db);r=role(db,actor);now=time.time()
+        db.execute('BEGIN');v=prepare(load(db));g=gov(db);ts=tasks(db);g['_cv_tasks']=ts;r=role(db,actor);now=time.time()
         if task_id and task_id not in ts:raise BoardError('本项目任务不存在',404)
         data={k:deepcopy(v['co_'+k]) for k in KEYS}
         data['analytics']=analytics(db,v,ts,g,now);data['cursor']=cursor_encode(heads(db));data['revision']=v['revision'];data['schema']=1

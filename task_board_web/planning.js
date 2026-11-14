@@ -17,6 +17,7 @@ function renderPlanning(box,d){
     cards(card,[['阶段目标',m.goal],['达成路径',m.path],['职责与范围',m.scope],['不包含',m.non_goals],['验收',m.acceptance],['风险',m.risks]]);
     card.append(el('p',`父模块：${m.parent||'顶层'}\n输入：${m.inputs.join('、')||'无'}\n输出：${m.outputs.join('、')||'无'}\n规划前置任务：${m.planning_tasks.join('、')||'无'}\n规划依赖模块：${m.depends_on.join('、')||'无'}\n公共接口：${m.interfaces.join('、')||m.no_interface_reason||'待核定'}\n未知项：${m.unknowns.join('；')||'无'}`,'detail-text'));
     card.append(el('p',c.blockers.join('；')|| (c.review_current?'当前规划评审有效':'等待SE评审当前范围'),'secondary'));
+    if(c.invalidation_reasons?.length)card.append(el('p','评审失效：'+c.invalidation_reasons.join('；'),'notice'));
     if(app.role==='reviewer'){
       const revise=el('button','新增规划版本');revise.onclick=()=>editWorkspace('module_plan',{...m,version:'',stage:'design'});
       const review=el('button','评审当前范围');review.onclick=()=>editWorkspace('module_review',{ref,scope:c.scope,result:'approve'});card.append(revise,review);

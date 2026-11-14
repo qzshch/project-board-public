@@ -588,6 +588,9 @@ class BoardStore:
                 payload = self._validate(
                     db, actor, task_id, state, action, request["payload"]
                 )
+                if state and action in ('progress','submit','accept','merge','native'):
+                    from .convergence import enforce as convergence_enforce
+                    convergence_enforce(self,db,state,action,payload,actor)
                 if state and action in ('submit','accept','merge','native'):
                     from .workflow import enforce
                     enforce(db,state,action,payload)
@@ -720,8 +723,8 @@ class BoardStore:
                     "此范围已完成；请提交新FOLLOWUP或由审核者重新打开", 409
                 )
         if action == "progress":
-            fields(payload, {"summary"}, {"summary"})
-            return {"summary": text(payload["summary"], "进展")}
+            fields(payload, {"summary","attempt_id","attempt_lease"}, {"summary"})
+            return {**payload,"summary": text(payload["summary"], "进展")}
         if action == "submit":
             if type(payload.get('implementation_commit','')) is not str:raise BoardError('实现提交需字符串')
             if 'artifact' in payload:
@@ -746,7 +749,7 @@ class BoardStore:
                     "tests",
                     "remaining",
                     "addresses",
-                    "artifact", "verification", "test_runs",
+                    "artifact", "verification", "test_runs", "attempt_id", "selection_id",
                 },
                 {
                     "summary",
@@ -785,7 +788,7 @@ class BoardStore:
                 "tests": text(payload.get("tests") or payload.get('verification',{}).get('summary'), "测试结果或不适用依据"),
                 "remaining": text(payload["remaining"], "剩余范围"),
                 "addresses": addresses,
-                **{k:deepcopy(payload[k]) for k in ('artifact','verification','test_runs') if k in payload},
+                **{k:deepcopy(payload[k]) for k in ('artifact','verification','test_runs','attempt_id','selection_id') if k in payload},
             }
         latest = state["latest_submission"]
         if action in ("accept", "request_changes", "merge", "native"):

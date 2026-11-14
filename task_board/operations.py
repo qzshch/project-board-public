@@ -63,16 +63,23 @@ class Operations:
             if seq!=request['expected_revision']:
                 from .workflow import ACTIONS,commutes
                 from .coordination import ACTIONS as CO_ACTIONS,commutes as co_commutes
+                from .convergence import ACTIONS as CV_ACTIONS,commutes as cv_commutes
                 old_state=db.execute('SELECT payload FROM operations_events WHERE seq=?',(request['expected_revision'],)).fetchone()
                 baseline=json.loads(old_state['payload'])['state'] if old_state else {}
-                if request['expected_revision']>seq or not (action in ACTIONS and commutes(action,p,actor,baseline,v) or action in CO_ACTIONS and co_commutes(action,p,actor,baseline,v)):raise BoardError('操作对象已变化；重读后决定',409)
+                if request['expected_revision']>seq or not (action in ACTIONS and commutes(action,p,actor,baseline,v) or action in CO_ACTIONS and co_commutes(action,p,actor,baseline,v) or action in CV_ACTIONS and cv_commutes(action,p,actor,baseline,v)):raise BoardError('操作对象已变化；重读后决定',409)
                 commuted=True
             if r=='runner' and action not in ('run_claim','run_heartbeat','run_finish','condition_observe','resource_observe','consumer_ack'):raise BoardError('执行器只能处理授权运行及观察',403)
             if r=='restorer' and action not in ('rollback_claim','rollback_heartbeat','rollback_finish'):raise BoardError('回退执行器只能领取、续租和回传批准执行单',403)
             now=time.time();g=governance_load(db);all_tasks=tasks(db)
+            g['_cv_tasks']=all_tasks
+            if getattr(self.store,'registry',None):g['consumption']=self.store.registry.consumption()
             from .workflow import ACTIONS
             from .coordination import ACTIONS as CO_ACTIONS
-            if action in CO_ACTIONS:
+            from .convergence import ACTIONS as CV_ACTIONS
+            if action in CV_ACTIONS:
+                from .convergence import mutate as cv_mutate
+                def mutate(*args):return cv_mutate(*args,self.store)
+            elif action in CO_ACTIONS:
                 from .coordination import mutate as co_mutate
                 def mutate(*args):return co_mutate(*args,self.store)
             elif action in ACTIONS:
@@ -108,6 +115,9 @@ class Operations:
             prepare(v)
             from .coordination import prepare as co_prepare,sanitize
             co_prepare(v)
+            from .convergence import prepare as cv_prepare
+            cv_prepare(v);g['_cv_tasks']=ts
+            if getattr(self.store,'registry',None):g['consumption']=self.store.registry.consumption()
             v['effective']={k:effective(v,t,g) for k,t in ts.items()}
             for b in v['benchmarks'].values():
                 try:
@@ -123,6 +133,8 @@ class Operations:
             if actor:
                 from .governance import role
                 sanitize(v,g,actor,role(db,actor))
+                from .convergence import sanitize as cv_sanitize
+                cv_sanitize(v,g,actor,role(db,actor))
             return v
 
     def verify(self):

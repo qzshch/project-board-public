@@ -16,3 +16,6 @@
 ## 第二批验收
 
 运行tests.task_board.test_coordination与tools/coordination_ui_check.py：需求分诊/原子转换/来源不冒充依赖、换会话游标与旧范围、消息重放与个人游标、实施计划风险裁剪、真实Git增量评审及旧锚点、根因改进/WIP、GitHub协议最新检查和过期/撤权、本机文件清单真实核验与权限过滤；桌面手机浅深色。完整suite后server独立同输入运行，真实交付仅登记本项目数据，演练独立fixture。归档源/手册/工具/失败和成功证据到server；实际结果不写入Git。
+
+
+第三批：tools/convergence_ui_check.py验证四组面板操作、桌面/手机/浅深色、工作台和项目切换；tests/task_board/test_convergence.py验证原子预览/发布、精确引用失效、批准规则与实际Git反例、失联资源保留/旧回调、会话与候选选择、模板参数/敏感内容/跨项目及接手包来源。执行与截图仅存evidence或server。沿用前两批回归，正式环境只登记本次实际开发记录，不放演练fixture。

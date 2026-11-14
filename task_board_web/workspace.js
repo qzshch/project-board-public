@@ -7,14 +7,14 @@ function clearWorkspace(){ws.data=null;ws.shared=null;ws.ops=null;ws.git=null;re
 async function refreshWorkspace(generation){
   const [data,shared,ops,git]=await Promise.all([api('/api/governance'),api('/api/shared'),api('/api/operations'),api('/api/git')]);
   if(generation!==app.generation)return;
-  const signature=JSON.stringify([app.project,data,shared,['policy','time','quality','assets','inbox','tasks','discovery'].includes(ws.panel)?ops.revision:0,ws.panel==='git'?git.revision:0]);ws.data=data;ws.shared=shared;ws.ops=ops;ws.git=git;$('workspace').hidden=false;if(app.selected&&$('detail').open&&$('task-workflow')&&Number($('task-workflow').dataset.revision)!==ops.revision){$('task-workflow').remove();renderTaskWorkflow($('detail-body'),app.selected);}if(signature!==ws.signature){ws.signature=signature;renderWorkspace();}
+  const signature=JSON.stringify([app.project,data,shared,['overview','planning','policy','time','quality','assets','inbox','tasks','discovery'].includes(ws.panel)?ops.revision:0,ws.panel==='git'?git.revision:0]);ws.data=data;ws.shared=shared;ws.ops=ops;ws.git=git;$('workspace').hidden=false;if(app.selected&&$('detail').open&&$('task-workflow')&&Number($('task-workflow').dataset.revision)!==ops.revision){$('task-workflow').remove();renderTaskWorkflow($('detail-body'),app.selected);}if(signature!==ws.signature){ws.signature=signature;renderWorkspace();}
 }
 function listLines(box,title,rows,format){const sectionBox=section(title);if(!rows.length)sectionBox.append(el('p','尚未登记。','muted'));for(const row of rows)sectionBox.append(el('p',format(row),'detail-text'));box.append(sectionBox);}
 function relationDetails(box,title,rows,format){const details=el('details',undefined,'relation-details');details.append(el('summary',`${title} · ${rows.length} 项`));listLines(details,title,rows,format);box.append(details);}
 function cards(box,items){const grid=el('div',undefined,'workspace-grid');for(const [label,value] of items)grid.append(field(label,value||'待负责人登记'));box.append(grid);}
 function renderWorkspace(){
   const d=ws.data;if(!d)return;if(!panelNames[ws.panel])ws.panel='overview';$('task-metrics').hidden=ws.panel!=='tasks';$('task-board').hidden=ws.panel!=='tasks';document.querySelectorAll('[data-panel]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.panel===ws.panel)));const box=$('workspace-body');box.replaceChildren();$('workspace-title').textContent=panelNames[ws.panel];$('workspace-subtitle').textContent=`本项目专属资料 · 治理记录 ${d.revision} · 操作记录 ${ws.ops?.revision||0}`;$('workspace-edit').hidden=app.role!=='reviewer'||['tasks','inbox','discovery'].includes(ws.panel);$('workspace-body').hidden=ws.panel==='tasks';$('workspace-title').closest('.section-head').hidden=ws.panel==='tasks';
-  if(ws.panel==='inbox'){renderWorkflowInbox(box);renderCoordinationSummary(box,'inbox');}
+  if(ws.panel==='inbox')renderWorkflowInbox(box);
   if(ws.panel==='discovery')renderDiscovery(box);
   if(ws.panel==='time'||ws.panel==='quality')renderCoordinationSummary(box,ws.panel);
   if(ws.panel==='assets')renderCoordinationSummary(box,'assets');
@@ -26,6 +26,8 @@ function renderWorkspace(){
     listLines(box,'决策与历史变更',d.decisions.slice(-8).reverse(),r=>`${r.summary}\n依据：${r.reason} · ${r.actor}`);
   }
   if(ws.panel==='planning')renderPlanning(box,d);
+  if(ws.panel==='planning')renderConvergencePlanning(box);
+  if(ws.panel==='policy')renderConvergenceRules(box);
   if(ws.panel==='git')renderGit(box);
   if(['policy','time','quality'].includes(ws.panel))renderOperations(box);
   if(ws.panel==='relations'){

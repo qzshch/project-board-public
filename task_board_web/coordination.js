@@ -30,6 +30,7 @@ function coSetup(){
 }
 function coForm(action,task,seed={}){
  if(!wfFields.intake_open)coSetup();
+ if(action==='checkpoint'&&ws.ops?.cv_attempt_policies?.[task]){if(!wfFields.checkpoint.some(x=>x[0]==='attempt_id'))wfFields.checkpoint.push(['attempt_id','当前执行尝试ID'],['attempt_lease','执行中填当前租约；已选择候选留空'],['selection_id','已选择候选填当前选择回执；执行中留空']);const e=Object.values(ws.ops.cv_attempts||{}).find(e=>e.task===task&&e.actor===app.actor&&e.status==='running'),s=ws.ops.cv_selections?.[task];seed={attempt_id:e?.id||s?.attempt||'',attempt_lease:e?.lease?.id||'',selection_id:e?'':s?.id||'',...seed};}
  return wfForm(action,task,{kind:action==='intake_open'?'bug':action==='condition_gate'?'human':'',sources:[],tasks:[],modules:[],duplicate:'',from:{kind:'task',id:task||''},to:{kind:'intake',id:''},spec:{},resources:[],paths:[],steps:[],comments:[],targets:[],runs:[],evidence:[],required:true,repo:'',checks:[],app_id:0,pr:0,not_before:0,ttl:3600,previous:'',stages:['submit'],...seed});
 }
 function coButton(box,action,task,seed={},label){const b=el('button',label||coLabels[action]);b.type='button';b.onclick=()=>coForm(action,task,seed);box.append(b);return b;}

@@ -1,0 +1,107 @@
+{
+  "instruction": "Choose one action payload, replace placeholders with current real values, then prepare-operations. expiry is a future UTC integer; stopped is an actual attributed check, not a default confirmation.",
+  "payloads": {
+    "workspace_register": {
+      "id": "<workspace-id>",
+      "task": "<task-id>",
+      "location": "<actual-non-C-workspace>",
+      "machine": "<machine-id>",
+      "branch": "<actual-branch>",
+      "paths": [
+        "<authorized-task-path>/"
+      ],
+      "resources": [],
+      "reason": "<workspace-and-resource-authorization>"
+    },
+    "attempt_policy": {
+      "task": "<task-id>",
+      "scope": "<current-scope-hash>",
+      "scope_version": 1,
+      "actors": [
+        "<project-worker>"
+      ],
+      "workspaces": [
+        "<workspace-id>"
+      ],
+      "max_parallel": 1,
+      "lease_seconds": 300,
+      "reason": "<bounded-continuation>"
+    },
+    "attempt_open": {
+      "task": "<task-id>",
+      "scope": "<current-scope-hash>",
+      "scope_version": 1,
+      "id": "<attempt-id>",
+      "workspace": "<workspace-id>",
+      "reason": "<approach>"
+    },
+    "attempt_heartbeat": {
+      "attempt": "<attempt-id>",
+      "lease": "<current-lease>"
+    },
+    "session_attach": {
+      "attempt": "<attempt-id>",
+      "lease": "<current-lease>",
+      "id": "<session-reference-id>",
+      "session": "<actual-tool-session-id>",
+      "tool": "<actual-tool>",
+      "model": "unknown",
+      "machine": "<machine-id>",
+      "previous": "",
+      "checkpoint": "",
+      "reason": "<handoff-basis>"
+    },
+    "attempt_finish": {
+      "attempt": "<attempt-id>",
+      "lease": "<current-lease>",
+      "status": "candidate",
+      "input_anchor": "git:<actual-40hex>",
+      "runs": [],
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ],
+      "stopped": false,
+      "summary": "<actual-result-and-process-resource-check>"
+    },
+    "attempt_recover": {
+      "attempt": "<attempt-id>",
+      "stopped": false,
+      "machine": "<actual-checked-machine>",
+      "summary": "<exact-process-workspace-resource-check>",
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ]
+    },
+    "attempt_select": {
+      "task": "<task-id>",
+      "scope": "<current-scope-hash>",
+      "scope_version": 1,
+      "attempt": "<attempt-id>",
+      "reason": "<SE-candidate-comparison>",
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ]
+    },
+    "task_submit_additional_fields": {
+      "attempt_id": "<selected-attempt-id>",
+      "selection_id": "<current-selection-receipt>"
+    },
+    "task_progress_and_checkpoint_additional_fields": {
+      "attempt_id": "<running-attempt-id>",
+      "attempt_lease": "<current-lease>"
+    },
+    "selected_candidate_checkpoint_additional_fields": {
+      "attempt_id": "<selected-attempt-id>",
+      "selection_id": "<current-selection-receipt>"
+    }
+  }
+}

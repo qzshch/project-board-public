@@ -34,6 +34,7 @@ STATIC = {
     "/resources.js": "resources.js",
     "/workflow.js": "workflow.js",
     "/coordination.js": "coordination.js",
+    "/convergence.js": "convergence.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",
@@ -396,6 +397,7 @@ class Handler(BaseHTTPRequestHandler):
                         "resource_directory_schema": 1,
                         "workflow_schema": 1,
                         "coordination_schema": 1,
+                        "convergence_schema": 1,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )
@@ -404,6 +406,17 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,ignore_template().encode('utf8'),content_type='text/plain; charset=utf-8')
             self.read_access()
             query = parse_qs(parsed.query)
+            if path in ('/api/convergence','/api/convergence/context','/api/convergence/template'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .convergence import snapshot,context_pack,template_definition
+                if path.endswith('/context'):return self.send(200,context_pack(self.store,self.actor(),query.get('task',[''])[0],query.get('since',[''])[0]))
+                data=snapshot(self.store,self.actor(),query.get('task',[None])[0])
+                if path.endswith('/template'):
+                    ref=query.get('ref',[''])[0];t=data['templates'].get(ref)
+                    if not t or t['retired'] or (t['review'] or {}).get('result')!='approve':raise BoardError('模板不存在或尚未批准',404)
+                    definition=template_definition(t);document=json.dumps(definition,ensure_ascii=False,sort_keys=True,indent=2)+'\n'
+                    return self.send(200,{'definition':definition,'document':document,'sha256':__import__('hashlib').sha256(document.encode()).hexdigest()})
+                return self.send(200,data)
             if path in ('/api/coordination','/api/coordination/feed'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .coordination import snapshot,feed

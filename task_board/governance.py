@@ -159,7 +159,7 @@ def blockers(db, task, actor=None, registry=None, context=None):
     from .operations import load as operations_load
     from .assurance import effective
     ops=context[2] if context is not None and len(context)>2 else operations_load(db)
-    level=effective(ops,task,gov)
+    gov={**gov,'_cv_tasks':all_tasks};level=effective(ops,task,gov)
     from .planning import task_blockers
     planning_context={**gov,'planning_policy':{'mode':'enforced'}} if level['enabled'] and level['level']!='light' else gov
     planning_reasons=task_blockers(planning_context,all_tasks,spec) if not (level['enabled'] and level['assessed'] and level['level']=='light') else []
@@ -209,6 +209,11 @@ def blockers(db, task, actor=None, registry=None, context=None):
         if set(work['couplings']) & set(ow.get('couplings',[])):out.append('共享修改需串行：'+other['spec']['id'])
     from .coordination import admission
     out.extend(admission(ops,task,gov,all_tasks))
+    for attempt in ops.get('cv_attempts',{}).values():
+        if attempt['task']!=spec['id'] and attempt['status'] in ('running','needs_recovery'):
+            ws=ops.get('cv_workspaces',{}).get(attempt['workspace'],{})
+            if any(overlaps(a,b) for a in spec['allowed_paths'] for b in ws.get('paths',[])) or set(work['resources'])&set(ws.get('resources',[])):out.append('旧尝试的工作区/资源尚未核对释放：'+attempt['task'])
+        if attempt['task']==spec['id'] and attempt['status'] in ('running','needs_recovery') and (attempt['scope']!=task['scope_hash'] or attempt['scope_version']!=task['scope_version']):out.append('旧范围尝试仍需SE核对资源：'+attempt['id'])
     return sorted(set(out))
 
 class Governance:

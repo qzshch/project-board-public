@@ -1,0 +1,63 @@
+{
+  "instruction": "Choose one action payload, replace placeholders with current real values, then prepare-operations. expiry is a future UTC integer; stopped is an actual attributed check, not a default confirmation.",
+  "payloads": {
+    "rule_register": {
+      "id": "<rule-id>",
+      "version": "1",
+      "title": "<approved-boundary>",
+      "module": "<module-id>@1",
+      "paths": [
+        "<finite-relative-path>/"
+      ],
+      "categories": [
+        "documentation"
+      ],
+      "level": "light",
+      "repo": "",
+      "contracts": [],
+      "assets": {},
+      "default_items": [
+        "<default-completion-check>"
+      ],
+      "cases": [],
+      "plan_mode": "module_covered",
+      "expires_at": 0,
+      "reason": "<scope-and-escalation-basis>",
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ]
+    },
+    "rule_review": {
+      "ref": "<rule-id>@1",
+      "context_hash": "<current-context-hash>",
+      "result": "approve",
+      "reason": "<SE-checked-boundaries>",
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ]
+    },
+    "rule_retire": {
+      "ref": "<rule-id>@1",
+      "reason": "<impact-and-treatment>"
+    },
+    "rule_bind": {
+      "task": "<task-id>",
+      "scope": "<current-scope-hash>",
+      "scope_version": 1,
+      "ref": "<rule-id>@1",
+      "reason": "<actual-match-to-approved-boundary>"
+    },
+    "rule_unbind": {
+      "task": "<task-id>",
+      "scope": "<current-scope-hash>",
+      "scope_version": 1,
+      "reason": "<SE-upgrade-and-next-assessment>"
+    }
+  }
+}

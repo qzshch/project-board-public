@@ -17,10 +17,12 @@ def effective(v,task,g):
     m=g.get('modules',{}).get(w.get('planning',{}).get('module'),{})
     if m.get('interfaces'):flags.add('cross_module')
     minimum='strict' if flags & STRICT else 'standard' if flags else 'light'
-    chosen=a['level'] if current else v['policy']['profile']
+    from .convergence import reuse_effective
+    reuse=reuse_effective(v,task,g)
+    chosen=a['level'] if current else reuse['level'] if reuse and reuse['valid'] else v['policy']['profile']
     level=max((chosen,minimum),key=LEVELS.get)
-    return {'enabled':v['policy']['enabled'],'level':level,'minimum':minimum,'flags':sorted(flags),'assessed':current,
-            'reason':a['reason'] if current else '使用项目默认；派发前需核定当前任务风险','policy_reason':v['policy']['reason']}
+    return {'enabled':v['policy']['enabled'] or bool(reuse),'level':level,'minimum':minimum,'flags':sorted(flags),'assessed':bool(reuse['valid']) if reuse else current,
+            'reason':reuse['reason'] if reuse else a['reason'] if current else '使用项目默认；派发前需核定当前任务风险','policy_reason':v['policy']['reason'],**({'rule':reuse['rule']} if reuse else {})}
 
 
 def mutate(v,db,actor,r,action,p,now,g,tasks):
@@ -46,6 +48,8 @@ def mutate(v,db,actor,r,action,p,now,g,tasks):
 
 def admission(db,task,g):
     from .operations import load
+    from .governance import tasks
+    g={**g,'_cv_tasks':tasks(db)}
     v=load(db);e=effective(v,task,g)
     return e,(['当前任务范围尚未由SE评估风险'] if e['enabled'] and not e['assessed'] else [])
 
@@ -53,7 +57,8 @@ def admission(db,task,g):
 def validation(db,task,p,g,actor=None):
     from .operations import load
     from .quality import validate_delivery
-    v=load(db);e=effective(v,task,g)
+    from .governance import tasks
+    g={**g,'_cv_tasks':tasks(db)};v=load(db);e=effective(v,task,g)
     if not e['enabled']:return None
     if not e['assessed']:raise BoardError('当前范围缺少风险评估',409)
     if e['level']=='light':

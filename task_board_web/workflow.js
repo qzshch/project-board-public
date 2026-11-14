@@ -11,7 +11,7 @@ function wfWriter(){return app.role!=='viewer'&&!['runner','tracker','restorer']
 function wfJson(box,value){const d=el('details',undefined,'relation-details');d.append(el('summary','核对固定输入、影响与证据'),el('pre',JSON.stringify(value,null,2)));box.append(d);}
 async function renderTaskWorkflow(body,task){
  const project=app.project,generation=app.generation,host=section('任务协作与逐项验收');host.id='task-workflow';body.append(host);host.append(el('p','读取当前项目协作记录…','muted'));
- try{const data=await api('/api/workflow/task?task='+encodeURIComponent(task.spec.id));if(project!==app.project||generation!==app.generation||!host.isConnected)return;host.dataset.revision=data.revision;host.replaceChildren(el('h3','任务协作与逐项验收'));renderTaskContinuation(host,task);
+ try{const data=await api('/api/workflow/task?task='+encodeURIComponent(task.spec.id));if(project!==app.project||generation!==app.generation||!host.isConnected)return;host.dataset.revision=data.revision;host.replaceChildren(el('h3','任务协作与逐项验收'));renderTaskConvergence(host,task);renderTaskContinuation(host,task);
   if(data.blockers.length)host.append(el('p',data.blockers.join('\n'),'notice detail-text'));
   const controls=el('div',undefined,'graph-controls');host.append(controls);if(wfWriter())wfButton(controls,'thread_open',task.spec.id);if(wfManager())wfButton(controls,'criteria_plan',task.spec.id);wfButton(controls,'rollback_plan',task.spec.id,{},'查看 / 发起回退').hidden=!wfManager();
   const threads=section('讨论、阻塞与计划偏离');host.append(threads);
@@ -53,11 +53,13 @@ function renderRollback(box,p){const row=section(`回退 ${p.id} · ${wfStatuses
  box.append(row);}
 async function renderWorkflowInbox(box){
  const project=app.project,generation=app.generation,host=section('当前项目 · SE待办与协作');box.append(host);
- try{const d=await api('/api/workflow');if(project!==app.project||generation!==app.generation||!host.isConnected)return;
+ try{const [d,cv]=await Promise.all([api('/api/workflow'),api('/api/convergence')]);if(project!==app.project||generation!==app.generation||!host.isConnected)return;
+  host.querySelector('h3').textContent=cv.workbench.role==='se'?'SE工作台 · 当前下一步':'执行工作台 · 当前下一步';
   host.append(el('p','待办由项目权限、评论和交付门禁生成；等待不等于投入，评论不等于范围授权。','secondary'));
   const tools=el('div',undefined,'graph-controls');host.append(tools);if(wfManager()){wfButton(tools,'rollback_plan',null);wfButton(tools,'criteria_defaults',null);wfButton(tools,'rollback_executor',null);}
-  if(!d.inbox.length)host.append(el('p','当前没有待处理事项。','empty'));
-  for(const item of d.inbox){if(item.kind==='rollback')continue;const row=el('article',undefined,'resource-card');row.dataset.inbox=item.kind;row.append(el('h4',item.title),el('p',`${item.task} · ${wfStatuses[item.status]||item.status}${item.unread?' · 未读 '+item.unread:''}${item.waiting_seconds!==undefined?' · 等待 '+hours(item.waiting_seconds):''}`,'secondary'));const b=el('button','打开相关任务');b.onclick=()=>showDetail(item.task);row.append(b);host.append(row);}
+  if(!cv.workbench.items.length)host.append(el('p','当前没有待处理事项。','empty'));
+  for(const item of cv.workbench.items){const row=el('article',undefined,'resource-card');row.dataset.inbox=item.kind;row.append(el('h4',item.title),el('p',`${item.task||item.id} · ${wfStatuses[item.status]||item.status}${item.unread?' · 未读 '+item.unread:''}${item.waiting_seconds!==undefined?' · 等待 '+hours(item.waiting_seconds):''}`,'secondary'));if(item.reason)row.append(el('p',item.reason,'secondary'));if(item.task){const b=el('button','打开相关任务');b.onclick=()=>showDetail(item.task);row.append(b);}else{const b=el('button',item.kind==='rule'?'打开治理规则':'打开规划与模板');b.onclick=()=>selectWorkspacePanel(item.kind==='rule'?'policy':'planning');row.append(b);}if(item.action){if(cvLabels[item.action])cvButton(row,item.action,item.task||null,item.seed);else coButton(row,item.action,item.task||null,item.seed);}host.append(row);}
+  for(const [title,items]of [['我正在执行',cv.workbench.my_tasks],['可领取与阻塞原因',cv.workbench.claimable]]){const group=section(title);if(!items.length)group.append(el('p','当前无任务。','muted'));for(const t of items){const b=el('button',t.title+' · '+t.id);b.onclick=()=>showDetail(t.id);group.append(b);if(t.blockers?.length)group.append(el('p',t.blockers.join('；'),'secondary'));}host.append(group);}
   for(const p of Object.values(d.rollbacks).reverse())renderRollback(host,p);
  }catch(error){if(host.isConnected)host.append(el('p',error.message,'notice'));}
 }
@@ -87,10 +89,11 @@ async function wfForm(action,taskId,seed={}){
    if(type==='json')value=JSON.stringify(value,null,2);else if(type==='criteria')value=value.map(c=>[c.id,c.deliverable,c.method,c.expected].join(' | ')).join('\n');else if(type==='evidence')value=value.map(e=>e.path+' | '+e.sha256).join('\n');else if(type==='lines')value=Array.isArray(value)?value.join('\n'):value;
    formInput(form,label,key,['text','json','lines','criteria','evidence'].includes(type),value);}
  }
+ if(['draft_save','template_register'].includes(action))cvDraftEditor(form,defaults.items);
  body.append(el('p','评论不授予越界修改权限；回退先确认影响，不删除历史或执行网页提供的命令。','secondary'));const message=el('p','','form-message'),save=el('button','追加'+wfLabels[action],'primary');save.type='submit';form.append(message,save);let frozen=null;
  form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{if(!validResourceDialog(body,project,generation))throw new Error('项目或窗口已变化');if(!frozen){const p={};
    for(const [key,,type]of wfFields[action]){let value=form.elements[key].value.trim();if(type==='bool')value=value==='true';else if(type==='number')value=Number(value);else if(type==='json')value=JSON.parse(value);else if(type==='lines')value=value.split('\n').map(s=>s.trim()).filter(Boolean);else if(type==='evidence')value=value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const [path,sha256]=s.split('|').map(x=>x.trim());return {path,sha256};});else if(type==='criteria')value=value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const [id,deliverable,method,...expected]=s.split('|').map(x=>x.trim());return {id,deliverable,method,expected:expected.join(' | ')};});p[key]=value;}
-   if(task&&['thread_open','criteria_plan','criteria_claim','criteria_review','review_open','review_disposition','review_resolve','git_check',...coScopeActions].includes(action))Object.assign(p,{task:task.spec.id,scope:task.scope_hash,scope_version:task.scope_version});
+   if(task&&['thread_open','criteria_plan','criteria_claim','criteria_review','review_open','review_disposition','review_resolve','git_check',...coScopeActions,...cvScopeActions].includes(action))Object.assign(p,{task:task.spec.id,scope:task.scope_hash,scope_version:task.scope_version});
    frozen={request_id:requestId(),expected_revision:state.revision,action,payload:p};}
   await api('/api/operations',frozen);if(!validResourceDialog(body,project,generation))return;await refreshWorkspace(generation);if(taskId){const fresh=await api('/api/task?id='+encodeURIComponent(taskId));if(app.project!==project||app.generation!==generation)return;app.tasks=app.tasks.map(t=>t.spec.id===taskId?fresh:t);await showDetail(taskId);}else $('detail').close();
  }catch(error){if(error.status===400||error instanceof SyntaxError)frozen=null;if(validResourceDialog(body,project,generation))message.textContent=error.message;}finally{save.disabled=false;}};

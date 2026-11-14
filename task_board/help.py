@@ -38,6 +38,7 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'convergence-draft.json','convergence-rule.json','convergence-attempt.json','convergence-template.json',
     'coordination-intake.json','coordination-triage.json','coordination-convert.json','coordination-link.json','coordination-checkpoint.json','coordination-plan-policy.json','coordination-plan.json','coordination-plan-review.json','coordination-review-batch.json','coordination-root-cause.json','coordination-improvement.json','coordination-wip.json','coordination-gate.json','coordination-gate-retire.json','coordination-gate-confirm.json','coordination-observer.json','project-observer-config.json',
     'workflow-thread.json','workflow-decision.json','workflow-thread-ack.json','workflow-criteria-plan.json','workflow-criteria-claim.json','workflow-criteria-review.json','workflow-review-finding.json','workflow-review-disposition.json','workflow-review-resolve.json','workflow-git-check.json','workflow-rollback-plan.json','workflow-rollback-confirm.json','workflow-rollback-approve.json','workflow-rollback-apply.json','rollback-runner-config.json',
     'resource-entry.json','resource-retire.json',
@@ -52,6 +53,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/convergence':('规划、治理复用、尝试与操作收敛','docs/CONVERGENCE-GUIDE.md',False),
     '/help/coordination':('需求、执行接续、增量评审与实际观察','docs/COORDINATION-GUIDE.md',False),
     '/help/workflow':('评论、验收、SE待办与受控回退','docs/WORKFLOW-GUIDE.md',False),
     '/help/resources':('本地与NAS资源目录及Agent接手','docs/RESOURCE-GUIDE.md',False),
@@ -88,6 +90,7 @@ INDEX='''# 使用手册
 - [本地与NAS资源目录](/help/resources)：在项目资产页查找缓存、调研、美术、归档、测试记录、日志、运行态与接手入口。
 - [协作、逐项验收与受控回退](/help/workflow)：阻塞求助、偏离决策、精确Git核验、SE待办和回退执行器。
 - [需求、接续与改进](/help/coordination)：需求分诊、执行检查点、增量评审、流动效率、外部条件和本地资源核验；[独立协作与观察工具包](/observer-kit.zip)。
+- [规划与操作收敛](/help/convergence)：关联规划草案、批准规则复用、执行尝试与保守接手、角色工作台和固定版本模板。
 - [任务与身份 API](/help/api)、[治理 API](/help/governance)；[下载标准库客户端](/client.py)。
 
 把对应角色的指南链接和本项目说明发给其他会话。项目身份通过私有渠道单独交付，不放在文档链接里。

@@ -1,0 +1,70 @@
+{
+  "instruction": "Choose one action payload, replace placeholders with current real values, then prepare-operations. expiry is a future UTC integer; stopped is an actual attributed check, not a default confirmation.",
+  "payloads": {
+    "draft_save": {
+      "id": "<draft-id>",
+      "version": "1",
+      "title": "<related-goal>",
+      "items": [
+        {
+          "key": "module",
+          "kind": "module_plan",
+          "payload": {
+            "id": "<module-id>",
+            "version": "1",
+            "title": "<module-goal>",
+            "parent": "",
+            "goal": "<measurable-goal>",
+            "scope": "<bounded-scope>",
+            "non_goals": "<excluded-work>",
+            "owner": "<project-member>",
+            "path": "<investigate-decide-implement-verify>",
+            "inputs": [],
+            "outputs": [],
+            "interfaces": [],
+            "no_interface_reason": "<actual-basis>",
+            "risks": "<actual-risks>",
+            "unknowns": [],
+            "planning_tasks": [],
+            "decisions": [],
+            "depends_on": [],
+            "acceptance": "<method-and-pass-condition>",
+            "stage": "design",
+            "knowledge_refs": [],
+            "evidence": []
+          }
+        }
+      ],
+      "references": [],
+      "reason": "<scope-basis>",
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ]
+    },
+    "draft_preview": {
+      "ref": "<draft-id>@1",
+      "approve_modules": [
+        "<module-id>@1"
+      ],
+      "approve_rules": []
+    },
+    "draft_publish": {
+      "ref": "<draft-id>@1",
+      "manifest_hash": "<actual-preview-manifest-hash>",
+      "reason": "<SE-reviewed-effects>",
+      "evidence": [
+        {
+          "path": "<actual-evidence-location>",
+          "sha256": "<actual-sha256>"
+        }
+      ]
+    },
+    "draft_reject": {
+      "ref": "<draft-id>@1",
+      "reason": "<actual-rejection>"
+    }
+  }
+}

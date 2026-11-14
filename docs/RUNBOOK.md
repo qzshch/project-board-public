@@ -61,3 +61,6 @@ GitHub只读服务按项目使用 `project-board-git-<project>.service`，运行
 ## 第二批协调能力升级
 
 新增coordination_schema1，沿用operations追加链与原项目SQLite事务；不重写旧事件，不给历史任务补造计划/检查点/实际核验。新增观察器为有限本机工具，需项目runner独立授权及本机准确配置批准，不自动增加常驻服务。部署前跑完整回归、第二批GUI及Git边界；停止三个既有服务后建立一致性备份，按原流程切换/实际源码回滚/恢复候选/重启，校验所有原四链固定前缀。API及公开手册、独立工具包可达性同时验收。
+
+
+第三批convergence_schema=1复用原operations追加链，没有新常驻服务。部署先跑隔离HTTP/Git/浏览器回归，再停止应用、quality与git同步器做一致性备份；使用不可变提交源，保留四链前缀、身份、资源原件。旧版本忽略新增键仍需验证恢复，不倒退数据。上线核对/help/convergence、convergence.js、observer-kit.zip、任务接手包与重启读回。第三批实际结果与截图在evidence/convergence-20261114及server对应交付归档，具体提交和当前目录以state/connection.json为准。

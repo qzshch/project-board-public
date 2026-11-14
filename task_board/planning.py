@@ -88,12 +88,16 @@ def module_check(v, all_tasks, ref, visiting=None):
         for ref in m['knowledge_refs']:
             if ref not in sources:out.append('模块引用材料不存在：'+ref)
         knowledge={**{key:knowledge.get(key) for key in ('background','goals','non_goals','constraints')},'sources':{ref:sources.get(ref) for ref in m['knowledge_refs']}}
-    scope = digest({'plan': {k: val for k, val in m.items() if k != 'reviews'}, 'knowledge': knowledge,
+    components={'plan': {k: val for k, val in m.items() if k != 'reviews'}, 'knowledge': knowledge,
                     'research': task_state(all_tasks, m['planning_tasks']), 'decisions': decisions, 'contracts': contracts,
-                    'boundaries': boundaries, 'dependencies': {r: {'scope': c['scope'], 'ready': c['ready']} for r, c in deps.items()}})
+                    'boundaries': boundaries, 'dependencies': {r: {'scope': c['scope'], 'ready': c['ready']} for r, c in deps.items()}}
+    scope = digest(components)
+    component_hashes={k:digest(val) for k,val in components.items()}
     last = m['reviews'][-1] if m['reviews'] else None
     approved = bool(last and last['result'] == 'approve' and last['scope'] == scope)
-    return {'ready': not out and approved, 'blockers': sorted(set(out)), 'scope': scope, 'review_current': approved}
+    labels={'plan':'规划版本','knowledge':'引用材料或章程','research':'调研任务','decisions':'确认决策','contracts':'接口版本','boundaries':'跨模块产物边界','dependencies':'依赖模块'}
+    changed=[labels[k] for k,h in component_hashes.items() if last and last.get('components') and last['components'].get(k)!=h]
+    return {'ready': not out and approved, 'blockers': sorted(set(out)), 'scope': scope, 'review_current': approved,'components':component_hashes,'invalidation_reasons':changed if changed else ['当前范围与历史评审不符'] if last and not approved else []}
 
 
 def task_blockers(v, all_tasks, spec):
@@ -130,7 +134,7 @@ def milestone_check(v, all_tasks, ref):
         if all_tasks[tid]['status'] not in DONE:out.append('阶段交付未验收：' + tid)
         if all_tasks[tid]['spec'].get('work',{}).get('planning',{}).get('module') not in m['modules']:out.append('阶段任务已迁出关联模块：'+tid)
     scope = digest({'plan': {k: val for k, val in m.items() if k != 'reviews'},
-                    'tasks': task_state(all_tasks, m['tasks']), 'modules': modules})
+                    'tasks': task_state(all_tasks, m['tasks']), 'modules': {r:{k:c[k] for k in ('ready','blockers','scope','review_current')} for r,c in modules.items()}})
     review = m['reviews'][-1] if m['reviews'] else None
     return {'scope': scope, 'blockers': out, 'passed': bool(not out and review and review['result'] == 'pass' and review['scope'] == scope)}
 
@@ -195,7 +199,7 @@ def mutate(v, all_tasks, actor, action, p):
         if check['scope'] != p['scope']:raise BoardError('评审范围已变化，请重读',409)
         if p['result'] == choices[0] and check['blockers']:raise BoardError('；'.join(check['blockers']),409)
         text(p['summary'],'评审结论',8000);evidence(p['evidence'])
-        m['reviews'].append({**deepcopy(p),'actor':actor['id'],'at':time.time()})
+        m['reviews'].append({**deepcopy(p),'actor':actor['id'],'at':time.time(),**({'components':check['components']} if action=='module_review' else {})})
     else:raise BoardError('未知规划动作',404)
 
 
