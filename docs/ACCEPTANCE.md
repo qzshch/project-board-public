@@ -19,3 +19,6 @@
 
 
 第三批：tools/convergence_ui_check.py验证四组面板操作、桌面/手机/浅深色、工作台和项目切换；tests/task_board/test_convergence.py验证原子预览/发布、精确引用失效、批准规则与实际Git反例、失联资源保留/旧回调、会话与候选选择、模板参数/敏感内容/跨项目及接手包来源。执行与截图仅存evidence或server。沿用前两批回归，正式环境只登记本次实际开发记录，不放演练fixture。
+
+
+原范围收口用tests/task_board/test_finishing.py验证不同Actor接续、批量事务、入口/分页/权限、条件图、历史过滤、成果跟踪；tools/finishing_ui_check.py实做字段编辑和批量操作、角色边界及四种渲染。测试证据在本地evidence/finishing-20261114及对应server归档，不计旧通过为本轮实跑。

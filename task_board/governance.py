@@ -244,6 +244,9 @@ class Governance:
                     graph += [{'from':ref,'to':tid,'type':typ} for ref in w.get(key,[])]
                 graph += [{'from':tid,'to':ref,'type':'produces'} for ref in w.get('outputs',[])]
             value.update(graph=graph,queue=queue,nodes=[{'id':k,'title':v['spec']['title'],'kind':v['spec']['kind'],'category':v['spec'].get('work',{}).get('category','unknown'),'status':v['status'],'planning':v['spec'].get('work',{}).get('planning')} for k,v in all_tasks.items()])
+            from .finishing import conditions
+            condition_nodes,condition_edges=conditions(ops,all_tasks)
+            value['condition_nodes']=condition_nodes;value['graph']+=condition_edges;value['nodes']+=condition_nodes
             from .resources import filtered,audience
             resource_role,resource_operator=audience(actor,value,operator)
             value['resource_entries']=filtered(value,resource_role,resource_operator)

@@ -125,7 +125,7 @@ def cursor_decode(value):
 
 def mutate(v,db,actor,r,action,p,now,g,ts,store):
     prepare(v)
-    for key in {'id','title','body','status','reason','duplicate','scope','task','session','input_anchor','completed','remaining','tests','obstacles','next_step','recheck','validation','risks','stop_conditions','plan','result','repo','base','target','previous','summary','finding','category','hypothesis','module','gate_hash','commit','entry_hash','observed_sha256','consumer','cursor','state'} & p.keys():
+    for key in {'attempt_id','attempt_lease','selection_id','id','title','body','status','reason','duplicate','scope','task','session','input_anchor','completed','remaining','tests','obstacles','next_step','recheck','validation','risks','stop_conditions','plan','result','repo','base','target','previous','summary','finding','category','hypothesis','module','gate_hash','commit','entry_hash','observed_sha256','consumer','cursor','state'} & p.keys():
         if type(p[key]) is not str or len(p[key])>8000:raise BoardError(key+'需有界字符串')
     if action=='intake_open':
         checked(p,'id kind title body sources');uid(p['id']);sequence(p['sources'],'来源',16)
@@ -184,7 +184,10 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
     if action=='checkpoint':
         keys=set('task scope scope_version id input_anchor completed remaining tests obstacles resources next_step recheck session'.split())
         fields(p,keys|{'attempt_id','attempt_lease','selection_id'},keys)
-        t=task(db,p);own(t,actor,r);uid(p['id']);input_anchor(p['input_anchor'])
+        t=task(db,p);uid(p['id']);input_anchor(p['input_anchor'])
+        from .finishing import participant,public_record
+        if p.get('selection_id'):own(t,actor,r)
+        else:participant(v,t,p,actor)
         from .convergence import attempt_enforce
         if p.get('selection_id'):
             anchor=p['input_anchor'];fixed={'implementation_commit':anchor[4:]} if anchor.startswith('git:') else {'artifact':{'sha256':anchor[7:]}}
@@ -194,7 +197,10 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
         for key in ('completed','remaining','tests','obstacles','next_step','recheck','session'):bounded(p[key],key,4000)
         identifiers(p['resources'],'资源')
         if not set(p['resources'])<=set(t['spec'].get('work',{}).get('resources',[])):raise BoardError('检查点资源越出任务登记',409)
-        v['co_checkpoints'][p['id']]={**record(p,actor,now),'cursor':cursor_encode(heads(db)),'task_revision':t['revision'],'plan':v['co_plan_heads'].get(p['task']),'evidence_class':'worker_statement'};return {'checkpoint':p['id']}
+        if p.get('attempt_id') and not p.get('selection_id'):
+            active=v['cv_attempts'][p['attempt_id']];workspace=v['cv_workspaces'][active['workspace']]
+            if not set(p['resources'])<=set(workspace['resources']):raise BoardError('检查点资源越出本人尝试授权',409)
+        v['co_checkpoints'][p['id']]={**record(public_record(p),actor,now),'cursor':cursor_encode(heads(db)),'task_revision':t['revision'],'plan':v['co_plan_heads'].get(p['task']),'evidence_class':'worker_statement'};return {'checkpoint':p['id']}
     if action=='execution_policy':
         manager(r);checked(p,'task scope scope_version required reason');task(db,p);boolean(p['required']);bounded(p['reason'],'实施评审选择依据');v['co_plan_policy'][p['task']]=record(p,actor,now);return
     if action=='execution_plan':
@@ -314,6 +320,8 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
     raise BoardError('未知协调动作',404)
 
 def sanitize(v,g,actor,r):
+    # Legacy checkpoints can contain proof fields; preserve journal bytes, hide proofs.
+    for point in v.get('co_checkpoints',{}).values():point.pop('attempt_lease',None)
     from .resources import visible
     allowed={rid for rid,e in g.get('resource_entries',{}).items() if visible(e,r,actor.get('global_admin',False))}
     def can_ref(ref):return ref.get('kind')!='resource' or ref.get('id') in allowed
@@ -336,6 +344,11 @@ def feed(store,actor,query):
     if not 1<=limit<=100:raise BoardError('分页超限')
     with store.connection() as db:
         db.execute('BEGIN');end=heads(db);g=gov(db);r=role(db,actor)
+        task_filter=get('task')
+        from .finishing import related_tasks,event_tasks
+        from .governance import tasks
+        relevant=related_tasks(tasks(db),g,task_filter) if task_filter else None
+        event_state=load(db) if task_filter else None
         if any(cursor[k]>end[k] for k in TABLES):raise BoardError('游标不属于当前项目历史',409)
         rows=[];scanned=0;safe_state=None
         for table in TABLES:
@@ -361,9 +374,14 @@ def feed(store,actor,query):
                 # Only safe metadata is projected; event state and private
                 # payloads never leave the journal through this endpoint.
                 tid=row['task_id'] if table=='events' else p.get('task','')
-                rows.append({'id':table+':'+str(row['seq']),'chain':table,'seq':row['seq'],'hash':row['hash'],'action':action,'actor':row['actor'],'task':tid,'object':p.get('id',p.get('thread',p.get('finding',''))),'at':row['created_at'] if table=='events' else payload.get('at')})
+                scope={}
+                if relevant is not None:
+                    linked=event_tasks(event_state,action,p,tid)
+                    if linked and not relevant&linked:continue
+                    scope={'relevance':'task' if task_filter in linked else 'related_task' if linked else 'project_boundary'}
+                rows.append({'id':table+':'+str(row['seq']),'chain':table,'seq':row['seq'],'hash':row['hash'],'action':action,'actor':row['actor'],'task':tid,'object':p.get('id',p.get('thread',p.get('finding',''))),'at':row['created_at'] if table=='events' else payload.get('at'),**scope})
             if len(rows)>=limit or scanned>=200:break
-        return {'items':rows,'cursor':cursor_encode(cursor),'head':cursor_encode(end),'has_more':any(cursor[k]<end[k] for k in TABLES),'scanned':scanned}
+        return {'items':rows,'cursor':cursor_encode(cursor),'head':cursor_encode(end),'has_more':any(cursor[k]<end[k] for k in TABLES),'scanned':scanned,**({'task_filter':task_filter,'includes_related_tasks':True,'includes_project_boundaries':True} if task_filter else {})}
 
 def analytics(db,v,ts,g,now):
     from .governance import ACTIVE
@@ -412,6 +430,7 @@ def snapshot(store,actor,task_id=None):
         if getattr(store,'registry',None):g['consumption']=store.registry.consumption()
         if task_id and task_id not in ts:raise BoardError('本项目任务不存在',404)
         data={k:deepcopy(v['co_'+k]) for k in KEYS}
+        for point in data['checkpoints'].values():point.pop('attempt_lease',None)
         data['analytics']=analytics(db,v,ts,g,now);data['cursor']=cursor_encode(heads(db));data['revision']=v['revision'];data['schema']=1
         for gate in data['gates'].values():
             gate['gate_hash']=digest(gate);gate['satisfied']=not gate.get('retired') and current(gate,ts[gate['task']]) and gate_ok(v,v['co_gates'][gate['id']],gate['input_anchor'],now)
@@ -429,8 +448,18 @@ def snapshot(store,actor,task_id=None):
         if task_id:
             for k in ('plans','checkpoints','batches','gates'):data[k]={key:e for key,e in data[k].items() if e['task']==task_id}
             data['intakes']={key:e for key,e in data['intakes'].items() if task_id in e['tasks'] or {'kind':'task','id':task_id} in e['sources']}
-            t=ts[task_id];points=list(data['checkpoints'].values());latest=max(points,key=lambda e:e['at'],default=None)
+            t=ts[task_id];points=list(data['checkpoints'].values())
+            for point in points:point.pop('attempt_lease',None)
+            by_attempt={}
+            for point in points:
+                aid=point.get('attempt_id')
+                if aid and (aid not in by_attempt or point['at']>by_attempt[aid]['at']):by_attempt[aid]=point
+            selection=v.get('cv_selections',{}).get(task_id,{})
+            mine=[p for p in points if p['actor']==actor['id']]
+            if t['owner']==actor['id'] or r in ('owner','se','reviewer') or not mine:mine=[p for p in points if p['actor']==t['owner'] or selection.get('attempt') and p.get('attempt_id')==selection['attempt']]
+            latest=max(mine,key=lambda e:e['at'],default=None)
             data['resume']={'checkpoint':latest,'checkpoint_current':bool(latest and current(latest,t)),'since':latest['cursor'] if latest else cursor_encode({k:0 for k in TABLES}),'recheck':['核对当前任务范围、实施计划、接口及资产版本','核对未决线程、条件门及评审发现','核对真实进程和工作区；离线不代表资源已释放'],'plan_required':plan_required(v,t,g)}
             submission=(t.get('latest_submission') or {}).get('implementation_commit')
+            data['resume']['attempt_checkpoints']=by_attempt
             for b in data['batches'].values():b['anchor_current']=b['target']==submission if submission else None
         return data

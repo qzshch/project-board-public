@@ -31,7 +31,10 @@ def mutate(v,db,actor,r,action,p,now,g,tasks):
         if not s or s['end'] is not None:raise BoardError('时段未开启',409)
         text(p['reason'],'关闭依据');s.update(end=now,closed_by=actor['id'],close_reason=p['reason']);return
     task=task_at(db,p)
-    if r not in ('owner','se','reviewer') and task['owner']!=actor['id']:raise BoardError('只能记录自己负责的任务',403)
+    if r not in ('owner','se','reviewer') and task['owner']!=actor['id']:
+        if action!='time_change':raise BoardError('仅负责人可核定整个任务的时间完整性或估算',403)
+        from .finishing import participant
+        participant(v,task,p,actor)
     if action=='estimate':
         keys={'task','scope','low','likely','high','due','size','uncertainty','context','reason'};fields(p,keys,keys)
         for k in ('low','likely','high'):number(p[k],k)
@@ -51,7 +54,11 @@ def mutate(v,db,actor,r,action,p,now,g,tasks):
         if not any(s['task']==p['task'] and s['scope']==p['scope'] and s['scope_version']==task['scope_version'] for s in v['sessions'].values()):raise BoardError('没有当前范围的时间记录',409)
         v['time_complete'][p['task']]={**deepcopy(p),'scope_version':task['scope_version'],'actor':actor['id'],'at':now}
     else:
-        fields(p,{'task','scope','mode','phase','reason','rework'},{'task','scope','mode','phase','reason','rework'})
+        fields(p,{'task','scope','mode','phase','reason','rework','attempt_id','attempt_lease'},{'task','scope','mode','phase','reason','rework'})
+        if p.get('attempt_id'):
+            from .finishing import participant
+            participant(v,task,p,actor)
+        p={k:val for k,val in p.items() if k!='attempt_lease'}
         if p['mode'] not in ('work','wait','pause','stop') or p['phase'] not in PHASES or type(p['rework']) is not bool:raise BoardError('时间状态/阶段/返修标记无效')
         text(p['reason'],'作业或等待原因')
         for s in v['sessions'].values():

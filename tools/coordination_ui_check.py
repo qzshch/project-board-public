@@ -18,6 +18,10 @@ def capture():
         try:
             if not any(x['pid']==p.pid and x['created']==p.create_time() for x in report['processes']):report['processes'].append({'pid':p.pid,'created':p.create_time(),'command':p.cmdline(),'purpose':'Isolated second-batch UI acceptance'})
         except psutil.NoSuchProcess:pass
+async def expand_continuation(page):
+    node=page.get_by_text('实施计划、检查点与增量评审',exact=True);await node.wait_for()
+    if not await page.locator('#task-continuation').is_visible():await node.click()
+
 async def main():
     c=CoordinationCase();c.setUp();original=asyncio.create_subprocess_exec
     async def hidden(*a,**kw):kw['creationflags']=kw.get('creationflags',0)|subprocess.CREATE_NO_WINDOW;return await original(*a,**kw)
@@ -33,13 +37,16 @@ async def main():
                 await page.route('**/coordination.js',delay);await page.goto(c.url+'/?project=alpha&panel=discovery',wait_until='networkidle');await page.wait_for_selector('[name=co-search]');await page.unroute('**/coordination.js',delay)
                 check('尚无需求或发现' in await page.locator('#workspace-body').inner_text(),'empty discovery and delayed-module boot render safely')
                 actor=c.hub.store('alpha').authenticate(c.a['token']);ticket=c.hub.store('alpha').create_ticket(actor,allow_agent=True);worker=await browser.new_context(viewport={'width':1280,'height':960});wp=await worker.new_page();wp.on('pageerror',lambda e:report['errors'].append(str(e)))
-                await wp.goto(c.url+'/?project=alpha&panel=tasks#access='+ticket,wait_until='networkidle');await wp.locator('[data-view=all]').click();await wp.get_by_role('button',name='one atom',exact=True).click();await wp.wait_for_selector('#task-continuation')
+                await wp.goto(c.url+'/?project=alpha&panel=tasks#access='+ticket,wait_until='networkidle');await wp.locator('[data-view=all]').click();await wp.get_by_role('button',name='one atom',exact=True).click();await expand_continuation(wp);await wp.wait_for_selector('#task-continuation')
                 check(await wp.get_by_role('button',name='选择实施评审要求',exact=True).count()==0,'worker cannot choose SE plan policy')
                 async def fill(pg,**values):
-                    for k,v in values.items():await pg.locator('#detail [name='+k+']').fill(str(v))
+                    for k,v in values.items():
+                        field=pg.locator('#detail [name='+k+']')
+                        if k=='spec':await field.locator('xpath=ancestor::details[1]').locator('summary').click()
+                        await field.fill(str(v))
                 async def save(pg,task=False):
                     await pg.locator('#detail button[type=submit]').last.click()
-                    if task:await pg.wait_for_selector('#task-continuation');await pg.wait_for_function('() => !document.querySelector("#detail .resource-dialog form")')
+                    if task:await expand_continuation(pg);await pg.wait_for_selector('#task-continuation');await pg.wait_for_function('() => !document.querySelector("#detail .resource-dialog form")')
                     else:await pg.wait_for_function('() => !document.querySelector("#detail").open')
                 await wp.get_by_role('button',name='登记需求 / 发现',exact=True).click();await fill(wp,id='observed',title='Boundary <img src=x onerror=alert(1)>',body='Actual separate defect, keep original scope bounded')
                 captured=[]
@@ -55,11 +62,11 @@ async def main():
                 check(c.co()[1]['intakes']['observed']['status']=='approved','SE triage is stored without starting work')
                 await page.locator('[data-intake=observed]').get_by_role('button',name='从需求建立任务',exact=True).click();spec=dict(c.hub.store('alpha').get('new/one')['spec']);spec.update(id='new/discovered',title='Discovered repair',allowed_paths=['repair/']);await fill(page,spec=json.dumps(spec),reason='Bounded repair with explicit source');await save(page)
                 check(c.hub.store('alpha').get('new/discovered')['status']=='planned','GUI conversion creates task atomically with provenance')
-                await wp.locator('[data-panel=tasks]').click();await wp.locator('[data-view=all]').click();await wp.get_by_role('button',name='one atom',exact=True).first.click();await wp.wait_for_selector('#task-continuation')
+                await wp.locator('[data-panel=tasks]').click();await wp.locator('[data-view=all]').click();await wp.get_by_role('button',name='one atom',exact=True).first.click();await expand_continuation(wp);await wp.wait_for_selector('#task-continuation')
                 await wp.get_by_role('button',name='保存执行检查点',exact=True).click();await fill(wp,id='ui-checkpoint',input_anchor='git:'+c.feature,completed='Implemented fixed source',remaining='Await independent review',tests='Actual fixture behavior checked',obstacles='Review pending',next_step='Read review and exact input',recheck='Scope, contracts and runtime ownership',session='ui-worker');await save(wp,True)
                 check('ui-checkpoint' in await wp.locator('#task-continuation').inner_text(),'durable worker checkpoint renders continuation')
                 await wp.get_by_role('button',name='读取检查点之后的变化',exact=True).click();await wp.wait_for_function('() => [...document.querySelectorAll("#task-continuation pre")].some(e=>e.textContent.includes("has_more"))');await wp.locator('#task-continuation details').last.locator('summary').click();check(True,'checkpoint incremental feed can be read')
-                await page.locator('[data-panel=tasks]').click();await page.locator('[data-view=all]').click();await page.get_by_role('button',name='one atom',exact=True).first.click();await page.wait_for_selector('#task-continuation')
+                await page.locator('[data-panel=tasks]').click();await page.locator('[data-view=all]').click();await page.get_by_role('button',name='one atom',exact=True).first.click();await expand_continuation(page);await page.wait_for_selector('#task-continuation')
                 await page.get_by_role('button',name='选择实施评审要求',exact=True).click();await fill(page,reason='SE selects current task plan review');await save(page,True)
                 await wp.get_by_role('button',name='提交实施计划',exact=True).click();await fill(wp,id='ui-plan',steps='Review exact feature input\nVerify boundary behavior',validation='Current input positive and negative cases',risks='Boundary interpretation',stop_conditions='Stop on shared interface change');await save(wp,True)
                 await page.wait_for_selector('[data-execution-plan=ui-plan]');await page.get_by_role('button',name='评审实施计划',exact=True).click();await fill(page,reason='Reviewed bounded implementation and tests');await save(page,True);check('已批准' in await page.locator('[data-execution-plan=ui-plan]').inner_text(),'distinct SE approves current implementation plan')
@@ -78,7 +85,7 @@ async def main():
                 for width in (1280,375):
                     for theme in ('light','dark'):
                         await page.set_viewport_size({'width':width,'height':960 if width==1280 else 812});await page.emulate_media(color_scheme=theme);await page.screenshot(path=str(E/f'discovery-{width}-{theme}.png'),full_page=True);check(await page.evaluate('document.documentElement.scrollWidth<=innerWidth'),f'discovery {width}/{theme} fits')
-                await page.set_viewport_size({'width':1280,'height':960});await page.locator('[data-panel=tasks]').click();await page.locator('[data-view=all]').click();await page.get_by_role('button',name='one atom',exact=True).first.click();await page.wait_for_selector('#task-continuation');await page.locator('#task-continuation h3').first.scroll_into_view_if_needed();await page.screenshot(path=str(E/'continuation-desktop.png'),full_page=True);await page.set_viewport_size({'width':375,'height':812});await page.locator('#task-continuation h3').first.scroll_into_view_if_needed();await page.screenshot(path=str(E/'continuation-mobile.png'),full_page=True);check(await page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'continuation dialog mobile fits')
+                await page.set_viewport_size({'width':1280,'height':960});await page.locator('[data-panel=tasks]').click();await page.locator('[data-view=all]').click();await page.get_by_role('button',name='one atom',exact=True).first.click();await expand_continuation(page);await page.wait_for_selector('#task-continuation');await page.locator('#task-continuation h3').first.scroll_into_view_if_needed();await page.screenshot(path=str(E/'continuation-desktop.png'),full_page=True);await page.set_viewport_size({'width':375,'height':812});await page.locator('#task-continuation h3').first.scroll_into_view_if_needed();await page.screenshot(path=str(E/'continuation-mobile.png'),full_page=True);check(await page.evaluate('document.documentElement.scrollWidth<=innerWidth'),'continuation dialog mobile fits')
                 await page.locator('#close-detail').click();await page.locator('#project-select').select_option('beta');await page.wait_for_function('() => app.project==="beta"');await page.locator('[data-panel=discovery]').click();await page.wait_for_selector('[name=co-search]');check('Boundary <img' not in await page.locator('body').inner_text(),'project switch clears discovery and continuation data')
                 check((await worker.request.get(c.url+'/api/projects/beta/coordination/feed')).status==404,'foreign project feed denied')
                 anon=await browser.new_context()

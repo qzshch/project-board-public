@@ -55,3 +55,6 @@ module_review 与 milestone_review 使用 {ref,scope,result,summary,evidence}。
 
 
 第三批操作入口：参见 [规划与操作收敛](/help/convergence)。线上 `/help/convergence` 公开提供角色操作说明；项目数据和写入仍鉴权。框架与规划页集中批量草案及固定模板，治理页复用批准规则，任务详情登记尝试/会话、读取有来源的接手包，SE待办集中下一步。严格限定原方案四组补齐，不引入跨项目调度或Agent托管。
+
+
+module_plan及planning_decision可选research_tracking=results/revision。results固定已验收成果、范围、状态及交付引用；说明性note不误伤。旧对象缺省revision保持旧摘要；采用results须显式新版本。治理快照条件节点condition_nodes及condition边用于当前阶段条件展示，不替代原门禁。

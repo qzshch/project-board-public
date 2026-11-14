@@ -2,9 +2,9 @@
 // Uses only recorded edges. Containment is layout context, never a prerequisite.
 function projectGraph(nodes,edges,{family='',query='',mode='all'}={}) {
   const byId=new Map(nodes.map(n=>[n.id,n]));
-  let links=edges.filter(e=>byId.has(e.from)&&byId.has(e.to)&&['hard','containment'].includes(e.type));
+  let links=edges.filter(e=>byId.has(e.from)&&byId.has(e.to)&&['hard','containment','condition'].includes(e.type));
   let selected=new Set(byId.keys());
-  if(family){selected=new Set([family]);let changed=true;while(changed){changed=false;for(const e of links)if(e.type==='containment'&&selected.has(e.from)&&!selected.has(e.to)){selected.add(e.to);changed=true;}}}
+  if(family){selected=new Set([family]);let changed=true;while(changed){changed=false;for(const e of links)if(e.type==='containment'&&selected.has(e.from)&&!selected.has(e.to)){selected.add(e.to);changed=true;}}for(const e of links)if(e.type==='condition'&&selected.has(e.to))selected.add(e.from);}
   if(query){const matches=new Set(nodes.filter(n=>selected.has(n.id)&&(n.id+' '+n.title).toLowerCase().includes(query.toLowerCase())).map(n=>n.id));const context=new Set(matches);for(const e of links)if(matches.has(e.from)||matches.has(e.to)){context.add(e.from);context.add(e.to);}selected=new Set([...context].filter(id=>selected.has(id)));}
   links=links.filter(e=>selected.has(e.from)&&selected.has(e.to)&&(mode==='all'||e.type===mode));
   return {nodes:nodes.filter(n=>selected.has(n.id)),edges:links};

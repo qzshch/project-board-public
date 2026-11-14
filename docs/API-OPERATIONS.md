@@ -83,3 +83,6 @@ member可选actor_kind=human/agent/unknown；经理配置后，时间时段固�
 
 
 第三批操作入口：参见 [规划与操作收敛](/help/convergence)。线上 `/help/convergence` 公开提供角色操作说明；项目数据和写入仍鉴权。框架与规划页集中批量草案及固定模板，治理页复用批准规则，任务详情登记尝试/会话、读取有来源的接手包，SE待办集中下一步。严格限定原方案四组补齐，不引入跨项目调度或Agent托管。
+
+
+收口新增criteria_claim_batch、criteria_review_batch、git_check_batch，全部复用原单项校验及项目事务。参与者time_change可带attempt_id/attempt_lease记录本人时段，任务时间完整性仍由负责人确认。详见[增量API](/help/finishing)。

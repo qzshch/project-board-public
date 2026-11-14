@@ -114,3 +114,6 @@ python client.py --profile <本项目身份> request --endpoint /api/operations 
 ## 需求、接续与持续改进
 
 第二批提供需求/发现池与SE分诊、来源关系、任务实施计划、执行检查点与增量消息消费、差异行内评审批次、根因改进与WIP/流动统计、固定输入外部条件及本地资源实际核验。入口为“需求与改进”、任务详情及原时间/质量/资产页。轻量任务无额外审批，旧任务显式采用后才增加实施门禁；换会话不自动释放资源。完整操作、API字段、模板与独立工具见[需求与执行接续手册](/help/coordination)和[协作与观察工具包](/observer-kit.zip)。
+
+
+当前可显式选择多个验收项，使用criteria_claim_batch/criteria_review_batch共用输入和证据、分别保留结论；git_check_batch可对同一精确输入选择阶段登记。任一项无效则整批回滚，单项动作保持。参与者只在有效本人尝试内登记及确认自己的阻塞。见[最短路径与字段](/help/finishing)。

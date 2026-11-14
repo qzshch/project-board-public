@@ -22,5 +22,6 @@
   "acceptance": "Behavior and counterexamples",
   "stage": "design",
   "evidence": [],
-  "knowledge_refs": []
+  "knowledge_refs": [],
+  "research_tracking": "results"
 }

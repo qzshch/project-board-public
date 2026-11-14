@@ -12,6 +12,7 @@ KEYS=('threads','reads','plans','plan_heads','claims','verdicts','findings','che
 ACTIONS={'thread_open','thread_reply','thread_decide','thread_ack','thread_resolve','thread_read',
          'criteria_defaults','criteria_plan','criteria_claim','criteria_review','review_open','review_disposition','review_resolve','git_check',
          'rollback_plan','rollback_confirm','rollback_approve','rollback_cancel','rollback_claim','rollback_heartbeat','rollback_finish','rollback_recover','rollback_apply','rollback_executor'}
+ACTIONS |= {'criteria_claim_batch','criteria_review_batch','git_check_batch'}
 
 def commutes(action,p,actor,old,new):
     """Compare the actual read set, not unrelated runner heartbeats.
@@ -135,7 +136,9 @@ def git_check(store,db,p,t,v,actor,now):
 
 def mutate(v,db,actor,r,action,p,now,g,tasks,store):
     prepare(v)
-    strings={'id','thread','kind','title','body','affected_step','decision','summary','reference','plan','criterion','claim','result','finding','status','input_anchor','reason','defaults','repo','baseline','implementation','target','phase','manifest_hash','object','target_ref','data_plan','tests','commit','lease','actor','scope','task','previous','disposition'}
+    from .finishing import BATCH_ACTIONS,batch,participant,public_record
+    if action in BATCH_ACTIONS:return batch(v,db,actor,r,action,p,now,g,tasks,store)
+    strings={'attempt_id','attempt_lease','id','thread','kind','title','body','affected_step','decision','summary','reference','plan','criterion','claim','result','finding','status','input_anchor','reason','defaults','repo','baseline','implementation','target','phase','manifest_hash','object','target_ref','data_plan','tests','commit','lease','actor','scope','task','previous','disposition'}
     for key in strings & set(p):
         if type(p[key]) is not str or len(p[key])>8000:raise BoardError(key+'需有界字符串')
     for key in {'pause','git_required','blocking','enabled'} & set(p):
@@ -170,7 +173,11 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
             thread['decision']={**deepcopy(p),'scope':t['scope_hash'],'scope_version':t['scope_version'],'actor':actor['id'],'at':now}
             thread['status']='awaiting_worker';thread['messages'].append({'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['summary'],'at':now,'kind':'decision'})
         elif action=='thread_ack':
-            fields(p,{'thread','summary'},{'thread','summary'});own(t,actor,r);text(p['summary'],'确认',4000);decision=thread.get('decision')
+            fields(p,{'thread','summary','attempt_id','attempt_lease'},{'thread','summary'})
+            if t['owner']!=actor['id']:
+                if thread['author']!=actor['id'] or p.get('attempt_id')!=thread.get('attempt_id'):raise BoardError('仅此尝试作者或任务负责人确认',403)
+                participant(v,t,p,actor)
+            text(p['summary'],'确认',4000);decision=thread.get('decision')
             if not decision or not current(decision,t) or decision['decision']=='stop':raise BoardError('需SE对当前范围作出可继续的决定',409)
             thread.update(status='resolved',resolved_by=actor['id'],resolved_at=now)
             thread['messages'].append({'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['summary'],'at':now,'kind':'ack'})
@@ -187,18 +194,18 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
         return {'thread':thread['id']}
     t=task(db,p);tid=t['spec']['id']
     if action=='thread_open':
-        keys={'task','scope','scope_version','id','kind','title','body','to','pause','affected_step'};fields(p,keys,keys);uid(p['id'])
+        keys={'task','scope','scope_version','id','kind','title','body','to','pause','affected_step'};fields(p,keys|{'attempt_id','attempt_lease'},keys);uid(p['id'])
         if p['id'] in v['wf_threads']:raise BoardError('线程ID不可覆盖',409)
         if p['kind'] not in ('discussion','blocker','deviation') or type(p['pause']) is not bool:raise BoardError('评论类型或暂停标记无效')
-        if p['kind']!='discussion':own(t,actor,r)
-        if p['pause'] and (p['kind']=='discussion' or t['owner']!=actor['id']):raise BoardError('仅执行者可暂停阻塞工作',403)
+        if p['kind']!='discussion':participant(v,t,p,actor)
+        if p['pause'] and p['kind']=='discussion':raise BoardError('普通讨论不暂停任务',403)
         for key in ('title','body','affected_step'):text(p[key],key,8000)
         identifiers(p['to'],'接收人')
         if any(id not in g['members'] and id not in ('root','SE') for id in p['to']):raise BoardError('接收人需本项目成员或SE',404)
-        v['wf_threads'][p['id']]={**deepcopy(p),'author':actor['id'],'status':'open','created':now,'updated':now,'messages':[{'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['body'],'kind':'opening','at':now}]}
+        v['wf_threads'][p['id']]={**public_record(p),'author':actor['id'],'status':'open','created':now,'updated':now,'messages':[{'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['body'],'kind':'opening','at':now}]}
         if p['pause']:
             from .timing import mutate as timing
-            timing(v,db,actor,r,'time_change',{'task':tid,'scope':t['scope_hash'],'mode':'wait','phase':'implementation','reason':'评论阻塞 '+p['id']+'：'+p['affected_step'],'rework':False},now,g,tasks)
+            timing(v,db,actor,r,'time_change',{'task':tid,'scope':t['scope_hash'],'mode':'wait','phase':'implementation','reason':'评论阻塞 '+p['id']+'：'+p['affected_step'],'rework':False,**{k:p[k] for k in ('attempt_id','attempt_lease') if k in p}},now,g,tasks)
         return {'thread':p['id']}
     if action=='criteria_plan':
         manager(r);keys={'task','scope','scope_version','id','items','defaults','git_required','repo','reason'};fields(p,keys,keys);uid(p['id']);criteria(p['items'],t);text(p['reason'],'计划依据',4000)

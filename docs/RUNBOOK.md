@@ -64,3 +64,6 @@ GitHub只读服务按项目使用 `project-board-git-<project>.service`，运行
 
 
 第三批convergence_schema=1复用原operations追加链，没有新常驻服务。部署先跑隔离HTTP/Git/浏览器回归，再停止应用、quality与git同步器做一致性备份；使用不可变提交源，保留四链前缀、身份、资源原件。旧版本忽略新增键仍需验证恢复，不倒退数据。上线核对/help/convergence、convergence.js、observer-kit.zip、任务接手包与重启读回。第三批实际结果与截图在evidence/convergence-20261114及server对应交付归档，具体提交和当前目录以state/connection.json为准。
+
+
+原范围收口沿用三个已有server服务，无新常驻进程。部署仍固定私有提交、server隔离回归、一致性备份、源码回滚及重启读回；原链/身份不重写。实际结果与归档索引位于evidence/finishing-20261114，当前版本仍以server state/connection.json为准。

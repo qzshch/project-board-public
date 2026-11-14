@@ -35,6 +35,7 @@ STATIC = {
     "/workflow.js": "workflow.js",
     "/coordination.js": "coordination.js",
     "/convergence.js": "convergence.js",
+    "/finishing.js": "finishing.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",

@@ -70,3 +70,6 @@ python tools/coordination_client.py --profile <本项目身份位置> --task <ta
 | 规则 | rule_register / rule_review / rule_retire / rule_bind / rule_unbind | SE批准/撤回/升级；任务执行者可绑定已批准边界，固定context_hash及scope |
 | 接续 | workspace_register / attempt_policy / attempt_open / attempt_heartbeat / session_attach / attempt_finish / attempt_recover / attempt_select | SE授权/恢复/选择；执行者只操作自己的有效租约，固定scope与精确输入 |
 | 模板 | template_register / template_review / template_retire / template_import / template_instantiate | SE核定；执行者可实例化批准版本为草案，固定definition_hash/消费SHA |
+
+
+具体选择与最短步骤先见[操作减负](/help/finishing)。字段编辑默认可用，JSON为高级入口；多参与者检查点按本人尝试区分，批量声明/审核复用原逐项校验。

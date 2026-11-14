@@ -50,3 +50,5 @@
 .git-blame-line pre { margin-top:var(--space-8); max-width:100%; overflow:auto; }
 #help { color:var(--action); font-size:var(--type-14); font-weight:600; padding:var(--space-8); text-underline-offset:var(--space-4); }
 #help:focus-visible { outline:2px solid var(--focus); outline-offset:var(--space-4); }
+
+.graph-edge.condition { stroke-dasharray:2 6; }

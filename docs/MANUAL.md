@@ -1,5 +1,7 @@
 # 项目公告板操作手册
 
+先按[最短操作路径](/help/finishing)选择轻量、同类复用、多会话或高风险流程；后续各机制按需要查阅，不要求每张卡全部采用。
+
 产品4的分级治理、时间、用例/运行与资产提炼使用独立追加操作链，接口与流程见[操作API](/help/operations)和[自动化执行器](/help/runner)。旧项目不会自动得到伪造的工时或测试；负责人显式采用分级策略。新项目可选择治理档位，轻量任务免重型模块和额外报告，高风险要求不能被裁剪。
 
 对外协作入口：[管理阅读版](http://example-server.example-tailnet.ts.net:18785/help/admin)、[负责人/SE](http://example-server.example-tailnet.ts.net:18785/help/owner)、[执行Agent](http://example-server.example-tailnet.ts.net:18785/help/agent)、[模板](http://example-server.example-tailnet.ts.net:18785/help/templates)。这份完整手册含实例管理员私有操作，网页版本 `/help/operator` 需要管理员会话；/help/admin提供无须登录的协作阅读版。
@@ -131,6 +133,3 @@ owner先签发项目专属SE身份并member登记职责；handoff_propose记录�
 ## 需求、接续与持续改进
 
 第二批提供需求/发现池与SE分诊、来源关系、任务实施计划、执行检查点与增量消息消费、差异行内评审批次、根因改进与WIP/流动统计、固定输入外部条件及本地资源实际核验。入口为“需求与改进”、任务详情及原时间/质量/资产页。轻量任务无额外审批，旧任务显式采用后才增加实施门禁；换会话不自动释放资源。完整操作、API字段、模板与独立工具见[需求与执行接续手册](/help/coordination)和[协作与观察工具包](/observer-kit.zip)。
-
-
-第三批操作入口：参见 [规划与操作收敛](/help/convergence)。线上 `/help/convergence` 公开提供角色操作说明；项目数据和写入仍鉴权。框架与规划页集中批量草案及固定模板，治理页复用批准规则，任务详情登记尝试/会话、读取有来源的接手包，SE待办集中下一步。严格限定原方案四组补齐，不引入跨项目调度或Agent托管。

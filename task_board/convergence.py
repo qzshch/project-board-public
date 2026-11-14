@@ -549,9 +549,10 @@ def sanitize(v,g,actor,r):
 
 def workbench(store,db,v,g,ts,actor,r,now):
     from .workflow import snapshot as workflow_snapshot
+    from .finishing import TERMINAL
     # Existing workflow rules remain authoritative; only the authorized current
     # action set is added, not another task/delivery queue.
-    base=workflow_snapshot(store,actor)['inbox'];items=[{**e,'reason':'按当前任务协作与交付门禁处理'} for e in base if e['kind']!='rollback']
+    base=workflow_snapshot(store,actor)['inbox'];items=[{**e,'reason':'按当前任务协作与交付门禁处理'} for e in base if e['kind']!='rollback' and (not e.get('task') or ts[e['task']]['status'] not in TERMINAL or e['kind'] in ('thread','finding'))]
     def add(kind,id,title,taskid='',status='待处理',reason='',action='',seed=None):items.append({'kind':kind,'id':id,'title':title,'task':taskid,'status':status,'reason':reason,'action':action,'seed':seed or {}})
     manager_role=r in MANAGERS
     if manager_role:
@@ -563,6 +564,7 @@ def workbench(store,db,v,g,ts,actor,r,now):
         for ref,tpl in v['cv_templates'].items():
             if not tpl['retired'] and (tpl['review'] or {}).get('result')!='approve':add('template',ref,tpl['title'],status='模板待核定',action='template_review',seed={'ref':ref,'definition_hash':digest(template_definition(tpl))})
         for p in v.get('co_plans',{}).values():
+            if ts[p['task']]['status'] in TERMINAL:continue
             if v.get('co_plan_heads',{}).get(p['task'])!=p['id']:continue
             from .coordination import plan_context
             if p['context']!=plan_context(v,ts[p['task']],g):add('implementation',p['id'],'实施计划引用已变化',p['task'],reason='当前范围/验收计划/接口改变，核对新版本')
@@ -570,6 +572,7 @@ def workbench(store,db,v,g,ts,actor,r,now):
         for e in v.get('co_intakes',{}).values():
             if e['status']=='triage':add('intake',e['id'],e['title'],status='待分诊',action='intake_decide',seed={**deepcopy(e),'expected_version':e['version']})
         for e in v.get('co_gates',{}).values():
+            if ts[e['task']]['status'] in TERMINAL:continue
             if e.get('retired'):continue
             from .coordination import gate_ok
             if not current(e,ts[e['task']]) or not gate_ok(v,e,e['input_anchor'],now):add('condition',e['id'],'条件未满足 / 需重新核验',e['task'],reason='已停用历史不进入当前待办')
@@ -586,7 +589,8 @@ def workbench(store,db,v,g,ts,actor,r,now):
     from .governance import blockers,ACTIVE
     active=[];available=[]
     for tid,t in ts.items():
-        if t['owner']==actor['id'] and t['status'] in ACTIVE:active.append({'id':tid,'title':t['spec']['title'],'status':t['status'],'scope_version':t['scope_version']})
+        own_attempts=[e['id'] for e in v['cv_attempts'].values() if e['task']==tid and e['actor']==actor['id'] and current(e,t) and e['status'] in RESERVED|{'candidate','selected'}]
+        if (t['owner']==actor['id'] or own_attempts) and t['status'] in ACTIVE:active.append({'id':tid,'title':t['spec']['title'],'status':t['status'],'scope_version':t['scope_version'],'participation':'owner' if t['owner']==actor['id'] else 'participant','attempts':own_attempts})
         if t['status']=='planned' and t['spec'].get('work') and (manager_role or t['spec']['work']['role']==r or t['spec']['work']['role']=='agent'):
             available.append({'id':tid,'title':t['spec']['title'],'blockers':blockers(db,t,actor,getattr(store,'registry',None),context=(ts,g,v))})
     # Stable identity and deterministic priority, independent of model prose.
@@ -620,14 +624,22 @@ def context_pack(store,actor,tid,since=''):
     from .brief import build_brief
     # Do not recursively call this function from brief: brief embeds just a URL
     # and small attempt references, while this endpoint performs task slicing.
-    project=store.registry.project;brief=build_brief(store,tid,project,'',actor);co=brief['continuation'];module=brief['module_plan'];locations=set((module or {}).get('knowledge_refs',[]));materials=brief['read_materials']
+    project=store.registry.project;brief=build_brief(store,tid,project,'',actor);co=brief['continuation'];module=brief['module_plan'];locations=set((module or {}).get('knowledge_refs',[]));materials=[{**m,'source_kind':'material'} for m in brief['read_materials']]+[{**m,'source_kind':'entry'} for m in brief['project_entries']]
     if module is not None and 'knowledge_refs' in module:materials=[m for m in materials if m['location'] in locations]
+    unique={}
+    for m in materials:
+        if m['location'] in unique:
+            first=unique[m['location']];first.setdefault('source_kinds',[first['source_kind']]).append(m['source_kind'])
+            registrations=first.setdefault('registrations',[{k:first.get(k,'') for k in ('source_kind','version','sha256')}]);registrations.append({k:m.get(k,'') for k in ('source_kind','version','sha256')})
+            first['source_conflict']=len({(x['version'],x['sha256']) for x in registrations})>1
+        else:unique[m['location']]=m
+    materials=list(unique.values())
     conv=snapshot(store,actor,tid);sources=[]
     def source(kind,id,value):
         sources.append({'kind':kind,'id':id,'sha256':digest(value),'summary':value,'readback':{'task':tid,'kind':kind,'id':id}})
     source('task',tid,{k:brief[k] for k in ('task_id','scope_version','scope_hash','role','baseline','allowed_paths','inputs','outputs','exclusive_resources','constraints','acceptance')})
     if module:source('module',module['id']+'@'+module['version'],{k:module[k] for k in ('goal','scope','non_goals','path','acceptance','unknowns')})
-    for m in materials[:32]:source('material',m['location'],m)
+    for m in materials[:32]:source(m['source_kind'],m['location'],m)
     for ref,c in brief['contracts'].items():source('contract',ref,c)
     for ref,a in brief['assets'].items():source('asset',ref,a)
     for ref,d in brief['planning_decisions'].items():source('decision',ref,d)
@@ -637,6 +649,7 @@ def context_pack(store,actor,tid,since=''):
         if f['status'] not in ('fixed','dismissed'):source('finding',ref,f)
     cursor=since or co['resume']['since']
     from .coordination import feed
-    changes=feed(store,actor,{'cursor':[cursor],'limit':['100']})
+    changes=feed(store,actor,{'cursor':[cursor],'limit':['100'],'task':[tid]})
     packet={'schema':1,'task':tid,'scope':brief['scope_hash'],'scope_version':brief['scope_version'],'sources':sources,'resume':co['resume'],'plans':co['plans'],'criteria':brief['collaboration']['current_plan'],'tests':brief['test_plan'],'rule':conv['bindings'].get(tid),'attempts':conv['attempts'],'sessions':conv['sessions'],'selection':conv['selections'].get(tid),'resources':brief['resource_directory'],'changes':changes,'materials_truncated':len(materials)>32,'instructions':['核对当前范围、批准规则/计划、未决发现和资源访问条件','摘要是有来源的读视图，不替代实际原件或正式变更','变化通知可能含项目公共边界更新；按readback重新读取，has_more时继续分页','原始聊天和日志留本地/NAS；会话引用不证明进程已经停止']}
+    packet['material_readback']={'endpoint':'/api/projects/'+project+'/brief?task='+tid,'remaining_locations':[m['location'] for m in materials[32:]],'reason':'最多32条摘要，剩余入口按同一范围brief读取' if len(materials)>32 else ''}
     packet['project_id']=project;packet['sha256']=digest(packet);return packet

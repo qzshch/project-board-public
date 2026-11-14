@@ -1,0 +1,60 @@
+{
+  "instruction": "Choose one payload, replace placeholders, freeze original operations request. Same-input batch still keeps explicit per-item decisions.",
+  "payloads": {
+    "criteria_claim_batch": {
+      "task": "<task-id>",
+      "scope": "<current-scope>",
+      "scope_version": 1,
+      "plan": "<current-plan>",
+      "input_anchor": "git:<40hex>",
+      "runs": [],
+      "evidence": [],
+      "items": [
+        {
+          "criterion": "<criterion-id>",
+          "summary": "<actual-result>"
+        }
+      ]
+    },
+    "criteria_review_batch": {
+      "task": "<task-id>",
+      "scope": "<current-scope>",
+      "scope_version": 1,
+      "plan": "<current-plan>",
+      "evidence": [],
+      "items": [
+        {
+          "criterion": "<criterion-id>",
+          "claim": "<current-claim-id>",
+          "result": "passed",
+          "summary": "<actual-SE-review>"
+        }
+      ]
+    },
+    "git_check_batch": {
+      "task": "<task-id>",
+      "scope": "<current-scope>",
+      "scope_version": 1,
+      "repo": "<repo>",
+      "baseline": "<40hex>",
+      "implementation": "<40hex>",
+      "target": "<40hex>",
+      "phases": [
+        "submit"
+      ],
+      "reason": "<current-stage-observation>"
+    },
+    "participant_checkpoint_additional_fields": {
+      "attempt_id": "<own-attempt>",
+      "attempt_lease": "<current-own-lease>"
+    },
+    "participant_thread_additional_fields": {
+      "attempt_id": "<own-attempt>",
+      "attempt_lease": "<current-own-lease>"
+    },
+    "participant_time_change_additional_fields": {
+      "attempt_id": "<own-attempt>",
+      "attempt_lease": "<current-own-lease>"
+    }
+  }
+}

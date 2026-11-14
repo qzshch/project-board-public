@@ -38,6 +38,7 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'finishing-actions.json',
     'convergence-draft.json','convergence-rule.json','convergence-attempt.json','convergence-template.json',
     'coordination-intake.json','coordination-triage.json','coordination-convert.json','coordination-link.json','coordination-checkpoint.json','coordination-plan-policy.json','coordination-plan.json','coordination-plan-review.json','coordination-review-batch.json','coordination-root-cause.json','coordination-improvement.json','coordination-wip.json','coordination-gate.json','coordination-gate-retire.json','coordination-gate-confirm.json','coordination-observer.json','project-observer-config.json',
     'workflow-thread.json','workflow-decision.json','workflow-thread-ack.json','workflow-criteria-plan.json','workflow-criteria-claim.json','workflow-criteria-review.json','workflow-review-finding.json','workflow-review-disposition.json','workflow-review-resolve.json','workflow-git-check.json','workflow-rollback-plan.json','workflow-rollback-confirm.json','workflow-rollback-approve.json','workflow-rollback-apply.json','rollback-runner-config.json',
@@ -53,6 +54,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/finishing':('选择最短路径：接续与操作减负','docs/FINISHING-GUIDE.md',False),
     '/help/convergence':('规划、治理复用、尝试与操作收敛','docs/CONVERGENCE-GUIDE.md',False),
     '/help/coordination':('需求、执行接续、增量评审与实际观察','docs/COORDINATION-GUIDE.md',False),
     '/help/workflow':('评论、验收、SE待办与受控回退','docs/WORKFLOW-GUIDE.md',False),
@@ -75,6 +77,8 @@ RAW_DOCS={
     '/manual.md':('docs/MANUAL.md',True),
 }
 INDEX='''# 使用手册
+
+先读[最短操作路径](/help/finishing)：一次性轻量任务、同类规则复用、多会话尝试、高风险完整流程分别处理，不要求每张任务叠加所有机制。
 
 正式入口：http://example-server.example-tailnet.ts.net:18785 。旧 PC 入口已停用；资料、身份和材料仍按项目授权。
 

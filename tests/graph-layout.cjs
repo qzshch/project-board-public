@@ -14,6 +14,9 @@ assert.equal(layoutProjectGraph(large,[]).positions.size,330,'do not silently ca
 const tree=[{from:'root',to:'left',type:'containment'},{from:'left',to:'end',type:'containment'}];
 assert.deepEqual(new Set(projectGraph(nodes,tree,{family:'root'}).nodes.map(n=>n.id)),new Set(['root','left','end']));
 assert.equal(projectGraph(nodes,tree,{mode:'hard'}).edges.length,0,'containment is never relabeled as hard prerequisite');
+const gated=[...nodes,{id:'gate:ci',title:'CI condition',kind:'condition'}],conditions=[...tree,{from:'gate:ci',to:'left',type:'condition'}];
+assert(projectGraph(gated,conditions,{family:'root'}).nodes.some(n=>n.id==='gate:ci'),'family keeps its task conditions');
+assert.equal(projectGraph(gated,conditions,{mode:'condition'}).edges.length,1,'condition remains distinct from hard prerequisites');
 assert.equal(projectGraph(nodes,[...edges,{from:'foreign',to:'root',type:'hard'}]).edges.length,4);
 assert(layoutProjectGraph(nodes,[...edges,{from:'end',to:'root',type:'hard'}]).unresolved.length>0,'cycles remain explicit rather than hanging');
 console.log('Graph behavior checks passed: layered prerequisites, parallel siblings, legacy nodes, 330 nodes, relation types, scopes and cycles');

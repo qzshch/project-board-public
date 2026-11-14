@@ -105,6 +105,7 @@ function editOperations(fixed,seed={}){
     if('results'in p)p.results=p.results.split('\n').filter(Boolean).map(s=>{const [ref,status,seconds,...summary]=s.split('|').map(x=>x.trim());return{case:ref,status,seconds:Number(seconds),summary:summary.join(' | '),exit_code:null};});
     if('artifacts'in p)p.artifacts=p.artifacts.split('\n').filter(Boolean).map(s=>{const [path,sha256,location]=s.split('|').map(x=>x.trim());return{path,sha256,location};});
     if('evidence'in p)p.evidence=p.evidence.split('\n').filter(Boolean).map(s=>{const i=s.lastIndexOf('|');return{path:s.slice(0,i).trim(),sha256:s.slice(i+1).trim()};});
+    if(action==='time_change'&&p.task)Object.assign(p,fAttemptSeed(p.task));
     const request={request_id:frozenRequest?.request_id||requestId(),expected_revision:revision,action,payload:p};
     if(frozenRequest&&JSON.stringify(frozenRequest)!==JSON.stringify(request))throw new Error('原请求已冻结；请关闭并重读后准备不同内容');
     frozenRequest=request;await api('/api/operations',request);await refreshWorkspace(app.generation);$('detail').close();

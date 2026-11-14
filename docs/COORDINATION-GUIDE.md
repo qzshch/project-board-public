@@ -87,3 +87,6 @@ python tools/project_observer.py --profile <本项目runner身份> --config <本
 客户端prepare-operations冻结请求后发送，按原回执重试。仅消费确认、追加需求、固定检查点和带版本的观察允许无关操作并行；同对象改变仍冲突。新增内容共享原operations事务与审计链，任务创建在同事务追加原events，不重写历史。上线/回滚沿用部署手册的一致性备份与单实例写入规则。
 
 GitHub协议依据：[Checks API](https://docs.github.com/en/rest/checks/runs)、[Pull requests API](https://docs.github.com/en/rest/pulls/pulls)。观察器使用固定REST版本2026-03-10，仓库只读权限：Checks read / Pull requests read；不创建检查或合并PR。
+
+
+当前最短路径见[操作减负](/help/finishing)。获批尝试的参与者以本人有效租约保存检查点、阻塞和时段，不取得最终交付权；resume提供attempt_checkpoints。feed支持task筛选及项目公共边界标识；继续分页保留task，同一consumer不混用筛选与全量流。

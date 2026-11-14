@@ -42,7 +42,8 @@ function renderPlanning(box,d){
     // Task lists can be filtered/paginated; graph nodes come from the complete
     // authorized snapshot, so a research predecessor never silently disappears.
     for(const n of d.nodes)if(!nodes.some(x=>x.id===n.id)&&edges.some(e=>e.from===n.id||e.to===n.id))nodes.push(n);
-    graph.append(el('p','实线表示规划所需前置；虚线表示模块包含/任务展开，不代表执行阻塞。','muted'));
+    for(const node of d.condition_nodes||[])if(nodes.some(n=>n.id===node.task)){nodes.push(node);edges.push({from:node.id,to:node.task,type:'condition'});}
+    graph.append(el('p','实线表示规划所需前置；虚线表示模块包含/任务展开；点线表示指定阶段的外部条件。','muted'));
     drawGraph(graph,{nodes,graph:edges},true);box.append(graph);
   }
   relationDetails(box,'全部模块版本',Object.entries(d.modules),([ref,m])=>`${ref} · ${m.goal} · ${m.reviews.length} 次评审`);

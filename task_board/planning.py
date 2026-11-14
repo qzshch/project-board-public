@@ -43,6 +43,10 @@ def task_refs(p, all_tasks, key):
 def task_state(all_tasks, refs):
     return {r: {'revision': all_tasks[r]['revision'], 'scope': all_tasks[r]['scope_hash'], 'status': all_tasks[r]['status']} for r in refs if r in all_tasks}
 
+def research_state(all_tasks,refs,tracking='revision'):
+    if tracking=='revision':return task_state(all_tasks,refs)
+    return {r:{'scope':t['scope_hash'],'scope_version':t['scope_version'],'status':t['status'],'submission':(t.get('latest_submission') or {}).get('id'),'accepted':t['accepted'],'implementation':(t.get('latest_submission') or {}).get('implementation_commit'),'artifact':(t.get('latest_submission') or {}).get('artifact')} for r in refs if (t:=all_tasks.get(r))}
+
 
 def module_check(v, all_tasks, ref, visiting=None):
     m = v['modules'].get(ref)
@@ -63,7 +67,7 @@ def module_check(v, all_tasks, ref, visiting=None):
         if tid not in covered:out.append('规划前置尚无已确认结论：' + tid)
     for r, d in decisions.items():
         if not d:out.append('规划决策不存在：' + r)
-        elif d['research_scope'] != task_state(all_tasks, d['research_tasks']):out.append('研究结论来源已变化：' + r)
+        elif d['research_scope'] != research_state(all_tasks,d['research_tasks'],d.get('research_tracking','revision')):out.append('研究结论来源已变化：' + r)
     contracts = {r: v['contracts'].get(r) for r in m['interfaces']}
     for r, c in contracts.items():
         if not c or c['status'] != 'frozen':out.append('模块接口未冻结：' + r)
@@ -89,7 +93,7 @@ def module_check(v, all_tasks, ref, visiting=None):
             if ref not in sources:out.append('模块引用材料不存在：'+ref)
         knowledge={**{key:knowledge.get(key) for key in ('background','goals','non_goals','constraints')},'sources':{ref:sources.get(ref) for ref in m['knowledge_refs']}}
     components={'plan': {k: val for k, val in m.items() if k != 'reviews'}, 'knowledge': knowledge,
-                    'research': task_state(all_tasks, m['planning_tasks']), 'decisions': decisions, 'contracts': contracts,
+                    'research': research_state(all_tasks,m['planning_tasks'],m.get('research_tracking','revision')), 'decisions': decisions, 'contracts': contracts,
                     'boundaries': boundaries, 'dependencies': {r: {'scope': c['scope'], 'ready': c['ready']} for r, c in deps.items()}}
     scope = digest(components)
     component_hashes={k:digest(val) for k,val in components.items()}
@@ -145,16 +149,18 @@ def mutate(v, all_tasks, actor, action, p):
         fields(p, {'reason'}, {'reason'});text(p['reason'], '启用依据')
         v['planning_policy'] = {'mode': 'enforced', **p}
     elif action == 'planning_decision':
-        fields(p, {'id','question','conclusion','research_tasks','evidence'}, {'id','question','conclusion','research_tasks','evidence'})
+        fields(p, {'id','question','conclusion','research_tasks','evidence','research_tracking'}, {'id','question','conclusion','research_tasks','evidence'})
+        if p.get('research_tracking','revision') not in ('revision','results'):raise BoardError('研究跟踪需revision/results')
         for k in ('id','question','conclusion'):text(p[k], k, 8000)
         task_refs(p, all_tasks, 'research_tasks');evidence(p['evidence'])
         if not p['research_tasks']:raise BoardError('研究决策需引用实际研究任务')
         if p['id'] in v['planning_decisions']:raise BoardError('决策不可覆盖，新增决策ID', 409)
         if any(all_tasks[t]['status'] not in DONE or all_tasks[t]['spec'].get('work',{}).get('category') not in PLANNING for t in p['research_tasks']):raise BoardError('研究决策来源需已验收的研究/采集/文档任务',409)
-        v['planning_decisions'][p['id']] = {**deepcopy(p), 'research_scope': task_state(all_tasks,p['research_tasks']), 'actor': actor['id']}
+        v['planning_decisions'][p['id']] = {**deepcopy(p), 'research_scope': research_state(all_tasks,p['research_tasks'],p.get('research_tracking','revision')), 'actor': actor['id']}
     elif action == 'module_plan':
         keys = {'id','version','title','parent','goal','scope','non_goals','owner','path','inputs','outputs','interfaces','no_interface_reason','risks','unknowns','planning_tasks','decisions','depends_on','acceptance','stage','evidence'}
-        fields(p, keys|{'knowledge_refs'}, keys);ref = ref_of(p)
+        fields(p, keys|{'knowledge_refs','research_tracking'}, keys);ref = ref_of(p)
+        if p.get('research_tracking','revision') not in ('revision','results'):raise BoardError('研究跟踪需revision/results')
         if 'knowledge_refs' in p:identifiers(p['knowledge_refs'],'固定引用材料')
         if ref in v['modules']:raise BoardError('模块版本不可覆盖',409)
         for k in ('title','goal','scope','non_goals','owner','path','risks','acceptance'):text(p[k], k, 8000)

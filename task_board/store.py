@@ -591,6 +591,7 @@ class BoardStore:
                 if state and action in ('progress','submit','accept','merge','native'):
                     from .convergence import enforce as convergence_enforce
                     convergence_enforce(self,db,state,action,payload,actor)
+                    payload.pop('attempt_lease',None)
                 if state and action in ('submit','accept','merge','native'):
                     from .workflow import enforce
                     enforce(db,state,action,payload)
@@ -710,7 +711,10 @@ class BoardStore:
             return {"summary": text(payload["summary"], "说明")}
         if action in ("progress", "submit"):
             if state["owner"] != actor["id"]:
-                raise BoardError("只有当前负责人可以上报进展/提交", 403)
+                if action!='progress':raise BoardError("只有当前负责人可以提交",403)
+                from .operations import load as load_operations
+                from .finishing import participant
+                participant(load_operations(db),state,payload,actor)
             if actor["role"] != "reviewer" and not state["spec"]["registered"]:
                 raise BoardError("此任务尚未登记实际输入范围，先由root固定范围", 403)
             if state["status"] in (
