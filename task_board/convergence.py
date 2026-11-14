@@ -404,7 +404,8 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
         if t['status'] not in {'planned','active','changes_requested'}:raise BoardError('交付后不能改用治理规则；先由SE重新打开范围',409)
         if t['owner'] not in (None,actor['id']) and r not in MANAGERS:raise BoardError('只能为本人任务采用规则',403)
         w=t['spec'].get('work',{})
-        if r not in MANAGERS and g.get('members',{}).get(actor['id'],{}).get('role',r)!=w.get('role'):raise BoardError('执行角色不匹配',403)
+        from .governance import can_work
+        if not can_work(g.get('members',{}).get(actor['id'],{}).get('role',r),w.get('role')):raise BoardError('执行角色不匹配',403)
         rule=exact(v['cv_rules'],p['ref']);trial=deepcopy(v);trial['cv_bindings'][p['task']]={**row(p,actor,now)};state=binding_state(trial,t,g,ts,now)
         if not state['valid']:raise BoardError('不能复用：'+'；'.join(state['reasons']),409)
         from .assurance import FLAGS,STRICT,effective,NONCODE
@@ -442,7 +443,8 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
         if not p['actors'] or not p['workspaces'] or p['max_parallel']>8 or p['lease_seconds']>3600:raise BoardError('需有限执行者/工作区，最多8路，租约30至3600秒')
         for aid in p['actors']:
             role=g['members'].get(aid,{}).get('role','')
-            if role not in MANAGERS and role!=t['spec']['work']['role']:raise BoardError('执行者角色未获此任务授权',409)
+            from .governance import can_work
+            if not can_work(role,t['spec']['work']['role']):raise BoardError('执行者角色未获此任务授权',409)
         for wid in p['workspaces']:
             if exact(v['cv_workspaces'],wid)['task']!=p['task']:raise BoardError('工作区不属于此任务',409)
         if any(e['task']==p['task'] and e['status'] in RESERVED for e in v['cv_attempts'].values()):raise BoardError('先核对并结束已有活跃尝试，再更改策略',409)
@@ -586,12 +588,12 @@ def workbench(store,db,v,g,ts,actor,r,now):
         status=attempt_state(v,e,ts[e['task']],now)
         if status=='needs_recovery':add('recovery',e['id'],'尝试与工作区待核对',e['task'],status='待恢复',reason='未确认旧执行者停止前保留资源',action='attempt_recover' if manager_role else '',seed={'attempt':e['id']})
         elif status=='candidate' and manager_role:add('candidate',e['id'],'待选择候选成果',e['task'],action='attempt_select',seed={'attempt':e['id']})
-    from .governance import blockers,ACTIVE
+    from .governance import blockers,ACTIVE,can_work
     active=[];available=[]
     for tid,t in ts.items():
         own_attempts=[e['id'] for e in v['cv_attempts'].values() if e['task']==tid and e['actor']==actor['id'] and current(e,t) and e['status'] in RESERVED|{'candidate','selected'}]
         if (t['owner']==actor['id'] or own_attempts) and t['status'] in ACTIVE:active.append({'id':tid,'title':t['spec']['title'],'status':t['status'],'scope_version':t['scope_version'],'participation':'owner' if t['owner']==actor['id'] else 'participant','attempts':own_attempts})
-        if t['status']=='planned' and t['spec'].get('work') and (manager_role or t['spec']['work']['role']==r or t['spec']['work']['role']=='agent'):
+        if t['status']=='planned' and t['spec'].get('work') and can_work(r,t['spec']['work']['role']):
             available.append({'id':tid,'title':t['spec']['title'],'blockers':blockers(db,t,actor,getattr(store,'registry',None),context=(ts,g,v))})
     # Stable identity and deterministic priority, independent of model prose.
     unique={e['kind']+':'+e['id']:e for e in items};rank={'recovery':0,'thread':1,'submission':2,'criterion':3,'draft':4,'implementation':5,'rule':6}

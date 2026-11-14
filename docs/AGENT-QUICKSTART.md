@@ -10,9 +10,9 @@
 
 如果其他电脑或Agent读不到文档，先按[连通性排查](/help/connectivity)在运行电脑的本地终端执行GET。/help与[管理阅读版](/help/admin)在私网内不要求登录；网页搜索/抓取工具可能在远端运行，不能据其失败判断本地网络不通。
 
-## 1. 向负责人取得项目专属材料
+## 1. 加入指定项目，读取任务池
 
-领取自己的身份文件，以及任务 ID、角色、项目 ID、允许写目录、固定输入与 SHA、代码基线、接口/资产版本、排他资源和验收要求。负责人应提供当前任务的 brief。缺少输入或范围时先报告未知，不自行补造。
+开放项目按[Worker 自助加入](/help/worker-start)生成自己的普通身份，不需要负责人逐个签发、派发任务或复制源码。使用自己的 profile 查看 `/api/convergence` 的 `workbench.claimable`，选择无阻塞任务，读取 task 与 brief，核对项目 ID、允许写目录、固定输入与 SHA、代码基线、接口/资产版本、排他资源和验收要求。缺少输入或范围时先报告未知，不自行补造。已有项目身份继续复用；关闭自助加入的项目由本项目 SE 决定开放或单独邀请。
 
 不要取得或转发全局管理员凭据、管理员一次性入口。身份文件放 Git 外的私有位置；Windows 的工具、工程和证据放非 C 盘。下面的 G 盘目录只是示例。
 
@@ -37,7 +37,7 @@ python client.py --profile <项目专属身份文件> read --endpoint /api/brief
 python client.py --url http://example-server.example-tailnet.ts.net:18785 --project <项目ID> --profile <新的私有身份文件> join --actor <自己的AgentID> --join-file <本项目邀请文件>
 ```
 
-自助登记只能得到普通 Agent 身份；研究、开发、文档、测试等职责由负责人在本项目内指定。
+上述旧邀请登记保留兼容。开放任务池使用 `join-worker` 直接取得本项目普通 Worker 角色，可按任务范围领取研究、开发、文档、测试等执行任务，不需要 SE 逐人改角色；管理职责和工具专用身份单独授权。
 
 ## 3. 领取后再执行
 

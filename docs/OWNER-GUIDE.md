@@ -12,9 +12,9 @@
 
 ## 1. 新建项目与取得职责
 
-先填写[项目初始化模板](/templates/project-init.json)，交由实例管理员创建独立空项目，并签发本项目 owner 身份。项目 ID、公告板网页地址、代码仓库目录是不同概念。项目 owner 不能创建全局身份或枚举其他项目。
+收到用户私下交付的**本项目开通／owner身份文件**后，按[SE自助开通](/help/project-start)直接执行 `create-project`。先填写[项目初始化模板](/templates/project-init.json)，项目ID与授权文件一致；创建成功后同一文件就是本项目owner身份，不再等待管理员代建或重发身份。已有普通owner身份则直接核对项目现状。
 
-实例管理员在自己的管理会话完成创建；全局运维说明仅向管理员会话开放。负责人只接受自己项目的身份文件。已有身份迁移到 server 时，保留 token、actor、project_id，只更新 url；旧 connect_ip 改为 100.64.0.10，不重新注册。
+实例授权者只需在指定SE时签发一次绑定该项目的授权，不把全局管理身份交给SE。owner继续管理自己的项目，不能枚举或接管其他项目。已有身份迁移到server时仍保留token、actor、project_id，仅更新连接地址。
 
 负责人用项目身份读取 `/api/governance`，或通过客户端 portal 命令生成自己的项目网页入口。下载、连通和私网身份说明见[Agent 接入](/help/agent)。
 
@@ -105,3 +105,6 @@ python client.py --profile <本项目身份> request --endpoint /api/governance 
 ## 需求、接续与持续改进
 
 第二批提供需求/发现池与SE分诊、来源关系、任务实施计划、执行检查点与增量消息消费、差异行内评审批次、根因改进与WIP/流动统计、固定输入外部条件及本地资源实际核验。入口为“需求与改进”、任务详情及原时间/质量/资产页。轻量任务无额外审批，旧任务显式采用后才增加实施门禁；换会话不自动释放资源。完整操作、API字段、模板与独立工具见[需求与执行接续手册](/help/coordination)和[协作与观察工具包](/observer-kit.zip)。
+
+
+Worker 接入采用[项目自助加入](/help/worker-start)：新SE自助项目默认开放；既有项目由owner/SE通过worker_access一次性决定是否开放。Worker自行取得普通身份，从已登记的无阻塞公开任务中认领与交付。逐个发身份、固定派单、复制源码、确认线程均为可选措施，不是普遍前置。SE保留任务的claimable=false及管理角色，继续审核范围、接口和验收。

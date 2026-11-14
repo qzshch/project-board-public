@@ -350,6 +350,8 @@ class BoardStore:
             setup_operations(db)
             from .git_tracking import setup as setup_git
             setup_git(db)
+            from .worker_access import setup as setup_workers
+            setup_workers(db)
 
     @contextmanager
     def connection(self):
@@ -363,13 +365,15 @@ class BoardStore:
         finally:
             db.close()
 
-    def register_actor(self, actor: str, role: str = "agent") -> dict:
+    def register_actor(self, actor: str, role: str = "agent", *, _token=None) -> dict:
         if not re.fullmatch("[a-z][a-z0-9_-]{1,47}", actor) or role not in (
             "agent",
             "reviewer",
         ):
             raise BoardError("身份格式或角色不正确")
-        token = secrets.token_urlsafe(32)
+        # Only internal bound-project bootstrap supplies a caller-held seed.
+        if _token is not None and (type(_token) is not str or not re.fullmatch("[A-Za-z0-9_-]{32,256}",_token)):raise BoardError("Invalid internal credential seed")
+        token = _token if _token is not None else secrets.token_urlsafe(32)
         with self.connection() as db:
             try:
                 db.execute("BEGIN IMMEDIATE")

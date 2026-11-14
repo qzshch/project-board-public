@@ -54,6 +54,8 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/worker-start':('Worker自助加入与认领','docs/WORKER-START.md',False),
+    '/help/project-start':('项目SE自助开通与owner身份','docs/PROJECT-START.md',False),
     '/help/finishing':('选择最短路径：接续与操作减负','docs/FINISHING-GUIDE.md',False),
     '/help/convergence':('规划、治理复用、尝试与操作收敛','docs/CONVERGENCE-GUIDE.md',False),
     '/help/coordination':('需求、执行接续、增量评审与实际观察','docs/COORDINATION-GUIDE.md',False),
@@ -77,6 +79,10 @@ RAW_DOCS={
     '/manual.md':('docs/MANUAL.md',True),
 }
 INDEX='''# 使用手册
+
+作为 Worker，先读[自助加入与认领](/help/worker-start)：只需指定项目入口，自行生成普通身份，从任务池领取并交付；不向负责人索要owner身份。
+
+首次担任新项目SE，先读[项目SE自助开通](/help/project-start)：用户私下签发本项目开通／owner文件后，可直接创建指定项目；成功后复用同一文件，不再等待别人代建项目。
 
 先读[最短操作路径](/help/finishing)：一次性轻量任务、同类规则复用、多会话尝试、高风险完整流程分别处理，不要求每张任务叠加所有机制。
 

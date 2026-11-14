@@ -263,7 +263,8 @@ async function handleAccess() {
     } catch(error) {notice(error.message);} finally {app.project=null;}
   }
   try {await loadProjects(preferred);app.connection=await api('/api/connection',undefined,true);}
-  catch(error) {clearProject();app.projects=[];$('project-select').replaceChildren(el('option','请先授权'));$('project-select').disabled=true;$('new-project').hidden=true;$('logout').hidden=true;$('identity').textContent='未授权';$('project-description').textContent='请打开项目专属私有入口；网络连接本身不授予项目权限。';notice(error.message);}
+  catch(error) {clearProject();app.projects=[];$('project-select').replaceChildren(el('option','请先加入项目'));$('project-select').disabled=true;$('new-project').hidden=true;$('logout').hidden=true;$('identity').textContent='未加入项目';$('project-description').textContent='通过 Agent 接入自助加入开放项目；已有身份可打开自己的私有入口。';
+    try {const entry=await api('/api/projects/'+encodeURIComponent(preferred)+'/worker-entry',undefined,true);$('project-description').textContent=entry.name+' · 已开放 Worker 自助加入。点击“Agent 接入”生成自己的项目身份，再选择任务领取。';notice('Worker 只需项目入口，无需索要 owner 或 SE 文件。');}catch(_){notice(error.message);}}
 }
 function createProject() {
   const body=$('detail-body');body.replaceChildren();$('detail-kind').textContent='项目管理';$('detail-title').textContent='建立独立项目';$('stale').hidden=true;
@@ -295,8 +296,8 @@ $('more').addEventListener('click',()=>{app.limit+=40;render();});
 $('close-detail').addEventListener('click',()=>$('detail').close());
 $('refresh-detail').addEventListener('click',()=>{if(app.selected) showDetail(app.selected.spec.id);});
 $('create').addEventListener('click',createTask);
-$('access').addEventListener('click',()=>{ const origin=app.connection?.url||location.origin;const endpoint=new URL(origin);const ip=app.connection?.connect_ip;const resolve=ip?` --resolve ${endpoint.hostname}:${endpoint.port}:${ip}`:'';const connect=ip?` --connect-ip ${ip}`:'';
-  $('access-command').textContent=`curl --noproxy "*"${resolve} ${origin}/client.py -o task_board_client.py\n\n# 向负责人领取 project_id=${app.project||'<项目ID>'} 的专属私有身份文件\npython task_board_client.py --project ${app.project||'<项目ID>'} --profile <本机私有身份文件> projects\n\npython task_board_client.py --profile <本机私有身份文件> task <任务ID>\n\npython task_board_client.py --profile <本机私有身份文件> portal --out <Git外私有入口.html>\n\n# 按文档 prepare → post；回执和outbox均属于本项目`; $('access-dialog').showModal(); });
+$('access').addEventListener('click',()=>{ const origin=app.connection?.url||location.origin;const endpoint=new URL(origin);const ip=app.connection?.connect_ip;const resolve=ip?` --resolve ${endpoint.hostname}:${endpoint.port}:${ip}`:'';const connect=ip?` --connect-ip ${ip}`:'';const requested=app.project||new URLSearchParams(location.search).get('project')||'sampleapp';const project=/^[a-z][a-z0-9-]{1,47}$/.test(requested)?requested:'<PROJECT_ID>';
+  $('access-command').textContent=`curl --noproxy "*"${resolve} ${origin}/client.py -o task_board_client.py\n\n# Worker 自行加入当前项目；命令输出自己的 profile 路径\npython task_board_client.py --url ${origin} --project ${project}${connect} join-worker --private-dir <Git外私有目录>\n\npython task_board_client.py --profile <自己的Worker身份> read --endpoint /api/convergence\n\npython task_board_client.py --profile <自己的Worker身份> task <无阻塞任务ID>\n\npython task_board_client.py --profile <自己的Worker身份> portal --out <Git外私有入口.html>\n\n# 读取 brief，prepare → post 领取成功后执行和交付；已有身份直接复用`; $('access-dialog').showModal(); });
 $('close-access').addEventListener('click',()=>$('access-dialog').close());
 // Deferred modules must all exist before cookie-based initialization can
 // complete its first fast API round trip (NAS responses can arrive early).

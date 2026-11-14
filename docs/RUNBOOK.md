@@ -67,3 +67,11 @@ GitHub只读服务按项目使用 `project-board-git-<project>.service`，运行
 
 
 原范围收口沿用三个已有server服务，无新常驻进程。部署仍固定私有提交、server隔离回归、一致性备份、源码回滚及重启读回；原链/身份不重写。实际结果与归档索引位于evidence/finishing-20261114，当前版本仍以server state/connection.json为准。
+
+
+SE自助开通新增project_grants授权状态及_private/project-grants私有文件，必须随既有一致性状态备份保护，不进入源码/公开证据。源码回滚到旧版会暂时停用未消费的bootstrap接口；旧代码不读取或删除新增授权表，已有项目与身份继续按原映射工作。恢复新版后按原冻结请求继续，禁止借回滚接管已存在项目。
+
+
+## Worker 自助加入的升级与回滚
+
+worker_joins与actors、治理事件在同一个项目SQLite内一致提交，完整纳入停服备份。旧项目worker_access缺省关闭；owner决定开放，不批量修改旧任务或身份。SE自助开通的新项目默认开放。Worker项目路由令牌仍以项目actor哈希认证；旧源码不理解新Worker路由时，新Worker暂不能操作，恢复新源码可读回；不要为源码回滚删除成员、改旧token或恢复旧数据库覆盖线上新写入。

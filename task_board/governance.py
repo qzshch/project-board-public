@@ -13,10 +13,14 @@ import time
 from .store import BoardError, canonical, digest, fields, text, integer, identifiers, evidence
 
 CATEGORIES = {'research','collection','generation','infrastructure','frontend','backend','library','documentation','test','integration','release'}
-ROLES = {'owner','se','researcher','collector','generator','developer','documenter','tester','agent','viewer','runner','tracker','restorer'}
+ROLES = {'owner','se','worker','researcher','collector','generator','developer','documenter','tester','agent','viewer','runner','tracker','restorer'}
 MANAGERS = {'owner','se','reviewer'}
 DONE = {'accepted','merged','native_accepted','baseline_merged'}
 ACTIVE = {'active','submitted','changes_requested','partial_accepted','partial_merged','partial_native'}
+
+def can_work(actual,required):
+    """A recruited worker covers execution specialties, never management/tools."""
+    return actual in MANAGERS or actual==required or required=='agent' or (actual=='worker' and required in {'researcher','collector','generator','developer','documenter','tester','worker'})
 
 def work_spec(value):
     fields(value, {'category','role','inputs_known','inputs','outputs','contracts','assets','asset_locks','resources','couplings','baseline','acceptance','planning'},
@@ -180,7 +184,7 @@ def blockers(db, task, actor=None, registry=None, context=None):
     out.extend(planning_reasons)
     if not work['inputs_known']:out.append('输入未知')
     if not spec['allowed_paths']:out.append('写范围未知')
-    if actor and role(db,actor) not in MANAGERS and role(db,actor)!=work['role'] and work['role']!='agent':
+    if actor and not can_work(role(db,actor),work['role']):
         out.append('执行角色不匹配')
     for dep in spec['depends_on']:
         if dep not in all_tasks or all_tasks[dep]['status'] not in DONE:out.append('硬前置未验收：'+dep)
@@ -284,6 +288,16 @@ class Governance:
         elif action in ('planning_enable','planning_decision','module_plan','module_review','milestone_plan','milestone_review'):
             from .planning import mutate
             mutate(v,tasks(db),actor,action,p)
+        elif action=='worker_access':
+            fields(p,{'enabled','reason'},{'enabled','reason'})
+            if type(p['enabled']) is not bool:raise BoardError('enabled需布尔值')
+            text(p['reason'],'招募决定依据',2000)
+            v['worker_access']={**deepcopy(p),'actor':actor['id'],'at':time.time()}
+        elif action=='worker_join':
+            fields(p,{'actor','policy_head'},{'actor','policy_head'})
+            if not v.get('worker_access',{}).get('enabled') or p['actor']!=actor['id'] or not re.fullmatch(r'worker-[a-z0-9-]{2,40}',p['actor']):raise BoardError('未授权的Worker登记',403)
+            if p['actor'] in v['members']:raise BoardError('不能覆盖已有职责',409)
+            v['members'][p['actor']]={'role':'worker','scope':'本项目公开执行任务池；按任务范围、依赖、冲突与验收门禁执行','actor_kind':'agent'}
         elif action=='knowledge':
             v['knowledge']=knowledge_spec(p)
         elif action=='member':

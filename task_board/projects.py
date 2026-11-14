@@ -40,6 +40,7 @@ class ProjectHub:
         self.admin_store = BoardStore(self.state / "_private/admin.sqlite")
         self._stores = {}
         self._lock = threading.Lock()
+        self._bootstrap_lock = threading.Lock()
         with self.connection() as db:
             db.executescript(
                 """
@@ -57,6 +58,8 @@ class ProjectHub:
                 BEGIN SELECT RAISE(ABORT,'audit is append only'); END;
             """
             )
+            from .project_start import prepare
+            prepare(db)
 
     @contextmanager
     def connection(self):
@@ -187,6 +190,12 @@ class ProjectHub:
                 return {"global_admin": True, "actor": actor, "project_id": None}
             except BoardError:
                 pass
+            if token.startswith('worker.'):
+                parts=token.split('.')
+                if len(parts)!=3:raise BoardError('需要有效Worker身份',401)
+                project=project_id(parts[1])
+                actor=self.store(project).authenticate(token)
+                return {'global_admin':False,'actor':actor,'project_id':project}
             with self.connection() as db:
                 row = db.execute(
                     "SELECT project FROM credentials WHERE token_hash=?", (digest,)
@@ -234,8 +243,8 @@ class ProjectHub:
                 )
             ]
 
-    def create(self, identity: dict, value: dict, *, legacy_import=False) -> dict:
-        if not identity["global_admin"]:
+    def create(self, identity: dict, value: dict, *, legacy_import=False, _owner_seed=None) -> dict:
+        if not identity["global_admin"] and _owner_seed is None:
             raise BoardError("需要全局管理员", 403)
         fields(value, {"id", "name", "description", "knowledge", "governance_profile"}, {"id", "name", "description"})
         if value.get('governance_profile','standard') not in ('light','standard','strict'):raise BoardError('治理档位无效')
@@ -249,6 +258,11 @@ class ProjectHub:
         storage = f"projects/{project}/board.sqlite"
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
+            owner_grant = None
+            if _owner_seed is not None:
+                from .project_start import validate_seed
+                owner_grant = validate_seed(self,db,_owner_seed,project)
+                if owner_grant["actor"] != identity["actor"]["id"]:raise BoardError("Grant actor mismatch",403)
             if db.execute("SELECT 1 FROM projects WHERE id=? UNION SELECT 1 FROM removed_projects WHERE id=?", (project,project)).fetchone():
                 raise BoardError("项目ID已存在", 409)
             path = self.state / storage
@@ -268,12 +282,19 @@ class ProjectHub:
                 governance.apply({'id':'root','role':'reviewer'},{'request_id':'initial-planning','expected_revision':governance.snapshot()['revision'],'action':'planning_enable','payload':{'reason':'新项目默认启用项目规划与接口覆盖门禁'}})
                 from .operations import Operations
                 Operations(store).apply({'id':'root','role':'reviewer'},{'request_id':'initial-operations','expected_revision':0,'action':'policy','payload':{'profile':value.get('governance_profile','standard'),'reason':'新项目采用可按任务风险裁剪的治理策略'}})
+            if owner_grant is not None:
+                store.register_actor(owner_grant["actor"],"agent",_token=_owner_seed["token"])
+                governance.apply({"id":"root","role":"reviewer"},{"request_id":"initial-owner","expected_revision":governance.snapshot()["revision"],"action":"member","payload":{"actor":owner_grant["actor"],"role":"owner","scope":"Bound project SE/owner; no instance administrator authority","actor_kind":"agent"}})
+                governance.apply({'id':'root','role':'reviewer'},{'request_id':'initial-workers','expected_revision':governance.snapshot()['revision'],'action':'worker_access','payload':{'enabled':True,'reason':'SE自助开通的项目默认允许Worker自行加入任务池；owner可关闭后续加入'}})
             enrollment = self.state / f"_private/enrollment/{project}.json"
             self.write_private(enrollment, {"project_id": project, "join_key": secret})
             db.execute(
                 "INSERT INTO projects VALUES(?,?,?,?,?,?)",
                 (project, name, description, storage, token_hash(secret), time.time()),
             )
+            if owner_grant is not None:
+                db.execute("INSERT INTO credentials VALUES(?,?,?)",(owner_grant["token_hash"],project,owner_grant["actor"]))
+                db.execute("UPDATE project_grants SET completed=? WHERE project=?",(time.time(),project))
             self.audit(
                 db,
                 "create",

@@ -98,3 +98,19 @@ API权限隔离不能限制同一操作系统账号直接读取磁盘、Git仓�
 
 
 第三批操作入口：参见 [规划与操作收敛](/help/convergence)。线上 `/help/convergence` 公开提供角色操作说明；项目数据和写入仍鉴权。框架与规划页集中批量草案及固定模板，治理页复用批准规则，任务详情登记尝试/会话、读取有来源的接手包，SE待办集中下一步。严格限定原方案四组补齐，不引入跨项目调度或Agent托管。
+
+
+## 绑定项目的SE开通授权
+
+用户为指定项目SE签发 `create-bound-project` 私有文件。首次仅允许 `POST /api/projects/{p}/bootstrap`，正文 `{request_id,project:{id,name,description,knowledge?,governance_profile?}}`；路径、定义ID、签发项目/Actor均由服务端绑定。创建后原令牌成为本项目owner身份。响应仅含项目元数据、created/replayed、project_role及same_profile，不返回新令牌。
+
+客户端 `create-project --definition ... --receipt ...` 先落盘请求，丢回执原样重发；不同定义不能覆写已绑定请求。创建前普通项目读取和全局管理拒绝；创建后只能访问本项目。正式交接／撤销不会因旧创建请求重放而恢复权限。开通有效期仅限制首次创建，不缩短已建立的owner身份。
+
+仅实例授权者可调用 `POST /api/project-grants`，字段request_id/project_id/actor/ttl_seconds/reason；返回私有授权，必须落私有文件，不打印内容。`POST /api/project-grants/revoke` 使用project_id/grant_id/reason撤销开通能力，不撤销已建立的owner身份，后者按原交接／撤销流程处理。普通项目owner不能签发此授权。
+
+详见[SE自助开通](/help/project-start)。原全局管理员 `POST /api/projects` 保持原权限。授权新增保存在项目目录库，审计仍追加原catalog链；没有重写既有项目身份或四条项目链。
+
+
+## Worker 自助接入（worker_access_schema=1）
+
+GET /api/projects/{project_id}/worker-entry：开放项目提供本项目名称与加入方式，关闭/未知返回404，不列举项目。POST 同路径下worker-join：Authorization为客户端生成的本项目私有Worker种子，载荷仅request_id、actor。一次事务登记普通actor、worker成员、审计与幂等回执，不在响应输出token。每个身份绑定一个项目；完整token哈希仍须在本项目认证。相同身份和请求可原样重试，撤销不复活。治理动作worker_access载荷enabled(bool)、reason，仅owner/SE操作；关闭只阻止新加入。worker覆盖研究/采集/生成/开发/文档/测试等执行类型，不取得owner/SE/runner/tracker/restorer职责，不绕过claimable、依赖、冲突、接口或验收。客户端join-worker先私有落盘，输出profile路径，后续按原events和operations交付。

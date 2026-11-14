@@ -12,6 +12,7 @@ import json
 import os
 import re
 import html
+import secrets
 from pathlib import Path
 import sys
 import time
@@ -51,6 +52,33 @@ def save(path: Path, value: dict):
 
 def read(path):
     return json.loads(Path(path).read_text("utf8"))
+
+def join_worker(client,profile_path=None,private_dir=None):
+    if not client.project:raise ClientError('join-worker需要明确--project，不能默认为其他项目')
+    if client.profile:
+        profile=client.profile
+        if profile.get('project_role')!='worker' or not profile.get('worker_join_request'):raise ClientError('请复用Worker身份；不能覆盖SE或旧登记身份')
+    else:
+        if not profile_path:
+            if not private_dir:raise ClientError('首次加入需要--private-dir指定Git外私有目录')
+            profile_path=Path(private_dir)/client.project/('worker-'+uuid.uuid4().hex+'.json')
+        profile_path=Path(profile_path).resolve()
+        profile={'url':client.url,'project_id':client.project,'actor':'worker-'+uuid.uuid4().hex,'role':'agent','project_role':'worker','token':'worker.'+client.project+'.'+secrets.token_urlsafe(32),'worker_join_request':uuid.uuid4().hex,**({'connect_ip':client.connect_ip} if client.connect_ip else {})}
+        profile_path.parent.mkdir(parents=True,exist_ok=True)
+        # Exclusive creation prevents simultaneous sessions replacing each
+        # other's key. Persist the same seed and request before any network I/O.
+        fd=os.open(profile_path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+        with os.fdopen(fd,'w',encoding='utf8',newline='\n') as h:
+            h.write(json.dumps(profile,ensure_ascii=False,indent=2)+'\n');h.flush();os.fsync(h.fileno())
+        client.profile=profile
+    profile_path=Path(profile_path).resolve()
+    for attempt in range(3):
+        try:
+            result=client.call('/api/worker-join',{'request_id':profile['worker_join_request'],'actor':profile['actor']});break
+        except ClientError as exc:
+            if exc.status or attempt==2:raise ClientError(str(exc)+'；原身份已保留，使用 --profile '+str(profile_path)+' join-worker 原样恢复',exc.status) from None
+    save(profile_path.with_suffix('.join-receipt.json'),result)
+    return {**result,'profile':str(profile_path),'token_printed':False}
 
 
 class Client:
@@ -158,6 +186,24 @@ class Client:
                 return None
             raise
 
+    def create_project(self, definition: dict, profile_path: Path, receipt: Path):
+        """Reuse the bound private grant; never print or replace its token."""
+        if not self.profile or not self.project or self.profile.get('capability')!='create-bound-project':
+            raise ClientError('需要私下签发的本项目开通/owner授权文件')
+        if type(definition) is not dict or definition.get('id')!=self.project:
+            raise ClientError('project-init.json 的 id 必须与本项目授权一致')
+        pending=Path(profile_path).parent/'outbox'/self.project/'project-create.json'
+        if pending.exists():
+            request=read(pending)
+            if request.get('project')!=definition:raise ClientError('原创建请求已冻结；先核对原回执，不能静默替换定义',409)
+        else:
+            request={'request_id':str(uuid.uuid4()),'project':definition};save(pending,request)
+        for attempt in range(3):
+            try:
+                result=self.call('/api/bootstrap',request);save(receipt,result);return result
+            except ClientError as error:
+                if error.status or attempt==2:raise
+
     def post(self, event: dict, profile_path: Path, receipt: Path | None = None):
         if not self.profile:
             raise ClientError("写入需Agent身份文件")
@@ -203,6 +249,11 @@ def main():
     sub = parser.add_subparsers(dest="command", required=True)
     inspect = sub.add_parser('read', help='Read an authorized project endpoint')
     inspect.add_argument('--endpoint', required=True)
+    create_project = sub.add_parser('create-project',help='Create only the project bound to a private SE grant; same file remains owner identity')
+    create_project.add_argument('--definition',type=Path,required=True)
+    create_project.add_argument('--receipt',type=Path,required=True)
+    worker=sub.add_parser('join-worker',help='Self-create an ordinary identity for one open project; no owner file required')
+    worker.add_argument('--private-dir',type=Path,help='Private directory outside Git; each new session gets a unique file')
     governance = sub.add_parser('prepare-governance',help='Freeze governance revision and request ID')
     governance.add_argument('--action',required=True)
     governance.add_argument('--payload',type=Path,required=True)
@@ -257,6 +308,11 @@ def main():
         parser.error("--url or an existing --profile is required")
     try:
         client = Client(url, profile, args.connect_ip, args.project)
+        if args.command=='join-worker':
+            print(json.dumps(join_worker(client,args.profile,args.private_dir),ensure_ascii=False));return 0
+        if args.command=='create-project':
+            result=client.create_project(read(args.definition),args.profile,args.receipt)
+            print(json.dumps({'project_id':client.project,'created':result['created'],'replayed':result['replayed'],'owner_profile':str(args.profile.resolve()),'receipt':str(args.receipt.resolve()),'token_printed':False},ensure_ascii=False));return 0
         if args.command in ('prepare-governance','prepare-shared','prepare-operations','prepare-git'):
             if args.out.exists():raise ClientError('请求目标已存在，不能覆盖')
             value={'request_id':str(uuid.uuid4()),'action':args.action,'payload':read(args.payload)}

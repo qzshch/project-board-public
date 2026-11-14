@@ -220,6 +220,11 @@ class Handler(BaseHTTPRequestHandler):
             )
         if path.startswith("/api/") and path not in (
             "/api/projects",
+            "/api/project-grants",
+            "/api/project-grants/revoke",
+            "/api/bootstrap",
+            "/api/worker-entry",
+            "/api/worker-join",
             "/api/me",
             "/api/session",
             "/api/logout",
@@ -396,6 +401,8 @@ class Handler(BaseHTTPRequestHandler):
                         "operations_schema": 1,
                         "git_schema": 1,
                         "resource_directory_schema": 1,
+                        "project_start_schema": 1,
+                        "worker_access_schema": 1,
                         "workflow_schema": 1,
                         "coordination_schema": 1,
                         "convergence_schema": 1,
@@ -405,6 +412,9 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/gitignore.txt':
                 from .storage_boundary import ignore_template
                 return self.send(200,ignore_template().encode('utf8'),content_type='text/plain; charset=utf-8')
+            if self.server.hub and self.project and path=='/api/worker-entry':
+                from .worker_access import entry
+                return self.send(200,entry(self.server.hub,self.project))
             self.read_access()
             query = parse_qs(parsed.query)
             if path in ('/api/convergence','/api/convergence/context','/api/convergence/template'):
@@ -626,7 +636,23 @@ class Handler(BaseHTTPRequestHandler):
                         "Set-Cookie": "dhy_board=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
                     },
                 )
+            if self.server.hub and path=='/api/worker-join':
+                if not self.project:raise BoardError('请使用指定项目入口',404)
+                auth=self.headers.get_all('Authorization',[])
+                if len(auth)!=1 or not auth[0].startswith('Bearer '):raise BoardError('需要客户端生成的项目Worker身份',401)
+                from .worker_access import join
+                return self.send(201,join(self.server.hub,self.project,auth[0][7:],value))
+            if self.server.hub and path=='/api/bootstrap':
+                if not self.project:raise BoardError('Use the bound project path',404)
+                auth=self.headers.get_all('Authorization',[])
+                if len(auth)!=1 or not auth[0].startswith('Bearer ') or not auth[0][7:]:raise BoardError('Need a private bound-project grant',401)
+                from .project_start import bootstrap
+                return self.send(201,bootstrap(self.server.hub,self.project,auth[0][7:],value))
             actor = self.actor()
+            if self.server.hub and path in ('/api/project-grants','/api/project-grants/revoke'):
+                from .project_start import issue,revoke
+                result=issue(self.server.hub,self.identity(),value,self.server.settings.get('public_url','')) if path=='/api/project-grants' else revoke(self.server.hub,self.identity(),value)
+                return self.send(201,result)
             if path=='/api/git':
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .git_tracking import Tracking

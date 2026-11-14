@@ -133,3 +133,10 @@ owner先签发项目专属SE身份并member登记职责；handoff_propose记录�
 ## 需求、接续与持续改进
 
 第二批提供需求/发现池与SE分诊、来源关系、任务实施计划、执行检查点与增量消息消费、差异行内评审批次、根因改进与WIP/流动统计、固定输入外部条件及本地资源实际核验。入口为“需求与改进”、任务详情及原时间/质量/资产页。轻量任务无额外审批，旧任务显式采用后才增加实施门禁；换会话不自动释放资源。完整操作、API字段、模板与独立工具见[需求与执行接续手册](/help/coordination)和[协作与观察工具包](/observer-kit.zip)。
+
+
+## 为指定项目SE签发首次开通文件
+
+全局管理员通过POST /api/project-grants提交request_id、project_id、非root的actor、ttl_seconds（60至604800）和reason。将返回结果直接保存为本项目私有owner文件，不在终端打印token。服务端私有原件在state/_private/project-grants/<project_id>.json；不得复制到普通证据或Git。相同签发请求可读回原文件；不同请求不能静默覆盖已有授权。
+
+把该项目的文件路径和/help/project-start发给SE即可；SE可自行填写project-init.json并create-project，成功后复用原文件。首次有效期结束或撤销不销毁原件；签发身份过期需授权者核对后处理，不覆盖已有项目或轮换已建立的owner。出现未发布目录时保留原件、核对catalog与私有授权，不能为重试删除状态。原全局建项目和正式交接流程保留。
