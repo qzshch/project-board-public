@@ -75,3 +75,6 @@ SE自助开通新增project_grants授权状态及_private/project-grants私有�
 ## Worker 自助加入的升级与回滚
 
 worker_joins与actors、治理事件在同一个项目SQLite内一致提交，完整纳入停服备份。旧项目worker_access缺省关闭；owner决定开放，不批量修改旧任务或身份。SE自助开通的新项目默认开放。Worker项目路由令牌仍以项目actor哈希认证；旧源码不理解新Worker路由时，新Worker暂不能操作，恢复新源码可读回；不要为源码回滚删除成员、改旧token或恢复旧数据库覆盖线上新写入。
+
+
+SE直接创建：_private/server.json的se_self_service为实例持久策略，默认关闭，当前server按用户要求启用。项目owner种子仅保存在SE自己的私有文件，服务端存哈希。se_starts随catalog一致备份。源码回退时旧版本仍识别已发布的普通项目owner身份；首次create-se入口暂不可用，恢复新源码继续，不回写旧数据库。

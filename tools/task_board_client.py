@@ -81,6 +81,40 @@ def join_worker(client,profile_path=None,private_dir=None):
     return {**result,'profile':str(profile_path),'token_printed':False}
 
 
+def create_se(client,definition,profile_path,private_dir,receipt,actor=None):
+    pid=definition.get('id') if type(definition) is dict else None
+    if type(pid) is not str or not re.fullmatch(r'[a-z][a-z0-9-]{1,47}',pid):raise ClientError('定义需有效项目ID')
+    if client.project and client.project!=pid:raise ClientError('项目定义与指定项目不符')
+    if not profile_path:
+        if not private_dir:raise ClientError('首次创建需要--private-dir指定Git外私有目录，无需先取得owner文件')
+        profile_path=Path(private_dir)/pid/'owner.json'
+    profile_path=Path(profile_path).resolve()
+    if profile_path.exists():profile=read(profile_path)
+    else:
+        if client.profile:raise ClientError('已有身份不能复制为新SE身份')
+        profile={'url':client.url,'project_id':pid,'actor':actor or 'se-'+uuid.uuid4().hex,'role':'agent','project_role':'owner','capability':'self-create-project','token':secrets.token_urlsafe(32),**({'connect_ip':client.connect_ip} if client.connect_ip else {})}
+        if not re.fullmatch(r'[a-z][a-z0-9_-]{1,47}',profile['actor']) or profile['actor']=='root':raise ClientError('SE actor需非root的有效名称')
+        profile_path.parent.mkdir(parents=True,exist_ok=True)
+        try:fd=os.open(profile_path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+        except FileExistsError:raise ClientError('另一会话正在创建本项目身份；原命令重试，不覆盖文件') from None
+        with os.fdopen(fd,'w',encoding='utf8',newline='\n') as h:
+            h.write(json.dumps(profile,ensure_ascii=False,indent=2)+'\n');h.flush();os.fsync(h.fileno())
+    if profile.get('capability')!='self-create-project' or profile.get('project_id')!=pid or (actor and profile.get('actor')!=actor):raise ClientError('已有私有文件与本次自助创建不符，未覆盖')
+    scoped=Client(client.url,profile,client.connect_ip,pid)
+    pending=profile_path.parent/'outbox'/pid/'self-create.json'
+    if pending.exists():
+        request=read(pending)
+        if request.get('project')!=definition or request.get('actor')!=profile['actor']:raise ClientError('原创建请求已冻结；先读回执，后续修改走knowledge，不能替换原定义',409)
+    else:
+        request={'request_id':uuid.uuid4().hex,'actor':profile['actor'],'project':definition};save(pending,request)
+    for attempt in range(3):
+        try:result=scoped.call('/api/se-start',request);break
+        except ClientError as exc:
+            if exc.status or attempt==2:raise ClientError(str(exc)+'；原身份及请求保留在 '+str(profile_path)+'，可用原命令恢复',exc.status) from None
+    save(receipt,result)
+    return {'project_id':pid,'created':result['created'],'replayed':result['replayed'],'owner_profile':str(profile_path),'receipt':str(Path(receipt).resolve()),'token_printed':False}
+
+
 class Client:
     def __init__(
         self,
@@ -236,6 +270,7 @@ class Client:
 
 
 def main():
+    if hasattr(sys.stdout,'reconfigure'):sys.stdout.reconfigure(encoding='utf8')
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--project", help="project ID; must match the private profile")
     parser.add_argument("--url", help="remote tailnet or local board URL")
@@ -252,6 +287,11 @@ def main():
     create_project = sub.add_parser('create-project',help='Create only the project bound to a private SE grant; same file remains owner identity')
     create_project.add_argument('--definition',type=Path,required=True)
     create_project.add_argument('--receipt',type=Path,required=True)
+    self_se=sub.add_parser('create-se',help='Generate your own project identity and create a new project; no pre-issued owner file')
+    self_se.add_argument('--definition',type=Path,required=True)
+    self_se.add_argument('--private-dir',type=Path)
+    self_se.add_argument('--actor',help='Optional local project SE name; does not select privileges')
+    self_se.add_argument('--receipt',type=Path,required=True)
     worker=sub.add_parser('join-worker',help='Self-create an ordinary identity for one open project; no owner file required')
     worker.add_argument('--private-dir',type=Path,help='Private directory outside Git; each new session gets a unique file')
     governance = sub.add_parser('prepare-governance',help='Freeze governance revision and request ID')
@@ -308,6 +348,8 @@ def main():
         parser.error("--url or an existing --profile is required")
     try:
         client = Client(url, profile, args.connect_ip, args.project)
+        if args.command=='create-se':
+            print(json.dumps(create_se(client,read(args.definition),args.profile,args.private_dir,args.receipt,args.actor),ensure_ascii=False));return 0
         if args.command=='join-worker':
             print(json.dumps(join_worker(client,args.profile,args.private_dir),ensure_ascii=False));return 0
         if args.command=='create-project':

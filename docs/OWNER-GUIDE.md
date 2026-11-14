@@ -12,9 +12,9 @@
 
 ## 1. 新建项目与取得职责
 
-收到用户私下交付的**本项目开通／owner身份文件**后，按[SE自助开通](/help/project-start)直接执行 `create-project`。先填写[项目初始化模板](/templates/project-init.json)，项目ID与授权文件一致；创建成功后同一文件就是本项目owner身份，不再等待管理员代建或重发身份。已有普通owner身份则直接核对项目现状。
+首次作为新项目SE，按[SE直接创建](/help/project-start)执行 `create-se`，客户端自行生成本项目身份并建立项目，**不需要先索要owner文件或提交签发请求**。填写[项目初始化模板](/templates/project-init.json)，由本项目SE确定ID；成功后命令输出的同一文件用于项目治理。已有owner身份直接核对现状；接手别人的已有项目仍需正式授权与交接。
 
-实例授权者只需在指定SE时签发一次绑定该项目的授权，不把全局管理身份交给SE。owner继续管理自己的项目，不能枚举或接管其他项目。已有身份迁移到server时仍保留token、actor、project_id，仅更新连接地址。
+当前server已启用私网SE首次注册策略，不再逐项目签发。自助创建只取得自己新项目的owner职责，不取得全局管理或其他项目权限；旧的显式授权兼容入口保留。已有身份迁移到server仍保留token、actor、project_id，仅更新连接地址。
 
 负责人用项目身份读取 `/api/governance`，或通过客户端 portal 命令生成自己的项目网页入口。下载、连通和私网身份说明见[Agent 接入](/help/agent)。
 

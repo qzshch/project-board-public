@@ -243,8 +243,8 @@ class ProjectHub:
                 )
             ]
 
-    def create(self, identity: dict, value: dict, *, legacy_import=False, _owner_seed=None) -> dict:
-        if not identity["global_admin"] and _owner_seed is None:
+    def create(self, identity: dict, value: dict, *, legacy_import=False, _owner_seed=None, _self_owner_seed=None) -> dict:
+        if not identity["global_admin"] and _owner_seed is None and _self_owner_seed is None:
             raise BoardError("需要全局管理员", 403)
         fields(value, {"id", "name", "description", "knowledge", "governance_profile"}, {"id", "name", "description"})
         if value.get('governance_profile','standard') not in ('light','standard','strict'):raise BoardError('治理档位无效')
@@ -259,6 +259,10 @@ class ProjectHub:
         with self.connection() as db:
             db.execute("BEGIN IMMEDIATE")
             owner_grant = None
+            if _self_owner_seed is not None:
+                from .project_start import self_seed
+                owner_grant=self_seed(db,_self_owner_seed,project)
+                if owner_grant['actor']!=identity['actor']['id']:raise BoardError('SE actor mismatch',403)
             if _owner_seed is not None:
                 from .project_start import validate_seed
                 owner_grant = validate_seed(self,db,_owner_seed,project)
@@ -283,7 +287,7 @@ class ProjectHub:
                 from .operations import Operations
                 Operations(store).apply({'id':'root','role':'reviewer'},{'request_id':'initial-operations','expected_revision':0,'action':'policy','payload':{'profile':value.get('governance_profile','standard'),'reason':'新项目采用可按任务风险裁剪的治理策略'}})
             if owner_grant is not None:
-                store.register_actor(owner_grant["actor"],"agent",_token=_owner_seed["token"])
+                store.register_actor(owner_grant["actor"],"agent",_token=(_owner_seed or _self_owner_seed)["token"])
                 governance.apply({"id":"root","role":"reviewer"},{"request_id":"initial-owner","expected_revision":governance.snapshot()["revision"],"action":"member","payload":{"actor":owner_grant["actor"],"role":"owner","scope":"Bound project SE/owner; no instance administrator authority","actor_kind":"agent"}})
                 governance.apply({'id':'root','role':'reviewer'},{'request_id':'initial-workers','expected_revision':governance.snapshot()['revision'],'action':'worker_access','payload':{'enabled':True,'reason':'SE自助开通的项目默认允许Worker自行加入任务池；owner可关闭后续加入'}})
             enrollment = self.state / f"_private/enrollment/{project}.json"
@@ -294,7 +298,9 @@ class ProjectHub:
             )
             if owner_grant is not None:
                 db.execute("INSERT INTO credentials VALUES(?,?,?)",(owner_grant["token_hash"],project,owner_grant["actor"]))
-                db.execute("UPDATE project_grants SET completed=? WHERE project=?",(time.time(),project))
+                if _self_owner_seed is not None:
+                    db.execute('INSERT INTO se_starts VALUES(?,?,?,?,?,?)',(project,owner_grant['token_hash'],owner_grant['actor'],_self_owner_seed['request_id'],_self_owner_seed['request_hash'],time.time()))
+                else:db.execute("UPDATE project_grants SET completed=? WHERE project=?",(time.time(),project))
             self.audit(
                 db,
                 "create",

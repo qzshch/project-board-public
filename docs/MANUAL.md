@@ -140,3 +140,8 @@ owner先签发项目专属SE身份并member登记职责；handoff_propose记录�
 全局管理员通过POST /api/project-grants提交request_id、project_id、非root的actor、ttl_seconds（60至604800）和reason。将返回结果直接保存为本项目私有owner文件，不在终端打印token。服务端私有原件在state/_private/project-grants/<project_id>.json；不得复制到普通证据或Git。相同签发请求可读回原文件；不同请求不能静默覆盖已有授权。
 
 把该项目的文件路径和/help/project-start发给SE即可；SE可自行填写project-init.json并create-project，成功后复用原文件。首次有效期结束或撤销不销毁原件；签发身份过期需授权者核对后处理，不覆盖已有项目或轮换已建立的owner。出现未发布目录时保留原件、核对catalog与私有授权，不能为重试删除状态。原全局建项目和正式交接流程保留。
+
+
+## SE直接创建（当前server已启用）
+
+实例配置se_self_service=true允许私网内SE通过create-se自行生成项目身份并创建自己的新项目，不需每项目签发。此策略只由实例维护者启用/关闭一次，不授予已有项目或全局管理权限。旧project_grants为可选预约兼容模式，未使用且撤销的预约可释放ID供自助；已开通owner不变。se_starts与项目目录、credentials在同一catalog事务发布，纳入一致备份。

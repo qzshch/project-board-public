@@ -10,6 +10,9 @@ from .store import BoardError,fields,text,integer,digest
 from .projects import project_id,token_hash
 
 def prepare(db):
+    db.execute('''CREATE TABLE IF NOT EXISTS se_starts(project TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,actor TEXT NOT NULL,request_id TEXT NOT NULL,
+        request_hash TEXT NOT NULL,created REAL NOT NULL)''')
     db.execute('''CREATE TABLE IF NOT EXISTS project_grants(
         project TEXT PRIMARY KEY,token_hash TEXT NOT NULL UNIQUE,actor TEXT NOT NULL,
         grant_id TEXT NOT NULL UNIQUE,created REAL NOT NULL,expires REAL NOT NULL,
@@ -100,3 +103,45 @@ def bootstrap(hub,pid,token,value):
         seed={'token':token,'request_id':rid,'request_hash':hashed}
         metadata=hub.create({'global_admin':False,'actor':{'id':actor}},definition,_owner_seed=seed)
         return {'project':metadata,'actor':actor,'project_role':'owner','created':True,'replayed':False,'same_profile':True}
+
+
+def self_seed(db,seed,pid):
+    """Internal factory validation, under the same publication catalog lock."""
+    fields(seed,{'token','actor','request_id','request_hash'},{'token','actor','request_id','request_hash'})
+    if type(seed['token']) is not str or not re.fullmatch('[A-Za-z0-9_-]{43,86}',seed['token']):raise BoardError('需要本机生成的SE私有身份',401)
+    if type(seed['actor']) is not str or not re.fullmatch('[a-z][a-z0-9_-]{1,47}',seed['actor']) or seed['actor']=='root':raise BoardError('需非root的本项目SE身份')
+    hashed=token_hash(seed['token'])
+    if db.execute('SELECT 1 FROM credentials WHERE token_hash=? UNION SELECT 1 FROM se_starts WHERE token_hash=? UNION SELECT 1 FROM project_grants WHERE token_hash=?',(hashed,hashed,hashed)).fetchone():raise BoardError('身份已绑定其他登记，请为新项目生成独立身份',409)
+    reservation=db.execute('SELECT revoked FROM project_grants WHERE project=?',(pid,)).fetchone()
+    if reservation and not reservation['revoked']:raise BoardError('项目ID已有未撤销开通预约，不能接管；请核对项目ID',409)
+    return {'actor':seed['actor'],'token_hash':token_hash(seed['token'])}
+
+
+def self_start(hub,pid,token,value,enabled):
+    """Opt-in private-instance registration grants only a new project's owner.
+
+    Textual role claims do not grant existing-project privileges. Publication
+    binds the caller-held seed, exact definition and request in one catalog
+    commit; normal authorization remains required on every other endpoint.
+    """
+    pid=project_id(pid);fields(value,{'request_id','actor','project'},{'request_id','actor','project'})
+    rid=text(value['request_id'],'创建请求ID',100)
+    if type(value['project']) is not dict or value['project'].get('id')!=pid:raise BoardError('定义与项目路径不符')
+    hashed=digest(value);seed={'token':token,'actor':value['actor'],'request_id':rid,'request_hash':hashed}
+    with hub._bootstrap_lock:
+        with hub.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            old=db.execute('SELECT * FROM se_starts WHERE project=?',(pid,)).fetchone()
+            if old:
+                if old['token_hash']!=token_hash(token):raise BoardError('项目已开通，不能自行取得其SE身份',409)
+                identity=hub.resolve(token)
+                if hub.effective_actor(identity,pid).get('project_role')!='owner':raise BoardError('原创建身份已移交，不能恢复owner权限',403)
+                if old['actor']!=value['actor'] or old['request_id']!=rid or old['request_hash']!=hashed:raise BoardError('创建请求已冻结，使用原文件恢复',409)
+                return {'project':hub.metadata(pid),'actor':old['actor'],'project_role':'owner','created':False,'replayed':True,'same_profile':True}
+            if enabled is not True:raise BoardError('此实例尚未启用SE自助创建',403)
+            try:hub.admin_store.authenticate(token)
+            except BoardError:pass
+            else:raise BoardError('请使用独立SE身份，不使用管理员身份',403)
+            binding=self_seed(db,seed,pid)
+        metadata=hub.create({'global_admin':False,'actor':{'id':binding['actor']}},value['project'],_self_owner_seed=seed)
+        return {'project':metadata,'actor':binding['actor'],'project_role':'owner','created':True,'replayed':False,'same_profile':True}

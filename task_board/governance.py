@@ -87,13 +87,16 @@ def knowledge_spec(p):
     for key in ('background','goals','non_goals','constraints'):text(p[key],key,12000)
     for key in ('history_notes','resource_notes'):
         if key in p and (not isinstance(p[key],str) or len(p[key])>12000):raise BoardError(key+'需有界字符串')
+    result=deepcopy(p)
     for key in ('materials','entries'):
         if type(p[key]) is not list or len(p[key])>128:raise BoardError('材料/入口需有界列表')
-        for item in p[key]:
-            fields(item,{'title','location','version','sha256'}, {'title','location','version','sha256'})
+        for item in result[key]:
+            fields(item,{'title','location','version','sha256'}, {'title','location','version','sha256'} if key=='materials' else {'title','location'})
+            if key=='entries':
+                item.setdefault('version','unversioned');item.setdefault('sha256','')
             for key2 in ('title','location','version'):text(item[key2],key2,1000)
-            if not re.fullmatch('[0-9a-f]{64}',str(item['sha256'])):raise BoardError('材料需完整SHA256')
-    return deepcopy(p)
+            if not (key=='entries' and item['sha256']=='') and not re.fullmatch('[0-9a-f]{64}',str(item['sha256'])):raise BoardError('固定材料需完整SHA256；动态入口可不填摘要')
+    return result
 
 def setup(db):
     db.executescript('''

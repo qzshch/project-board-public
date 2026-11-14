@@ -1,6 +1,8 @@
 """Loopback HTTP board, optionally behind an owned Tailscale Serve proxy.
 
-No CORS, arbitrary file serving, unauthenticated writes or client-supplied roles.
+No CORS, arbitrary file serving or client-supplied privileged roles. Ordinary
+project access authenticates; opted-in SE/Worker registration has only the
+bounded creation authority granted by instance/project policy.
 Tailscale identity is accepted only at the configured proxy Host. Local machine
 processes share a trust boundary; reviewer actions still require separate keys.
 """
@@ -223,6 +225,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/project-grants",
             "/api/project-grants/revoke",
             "/api/bootstrap",
+            "/api/se-start",
+            "/api/se-entry",
             "/api/worker-entry",
             "/api/worker-join",
             "/api/me",
@@ -401,7 +405,8 @@ class Handler(BaseHTTPRequestHandler):
                         "operations_schema": 1,
                         "git_schema": 1,
                         "resource_directory_schema": 1,
-                        "project_start_schema": 1,
+                        "project_start_schema": 2,
+                        "se_self_service": self.server.settings.get('se_self_service') is True,
                         "worker_access_schema": 1,
                         "workflow_schema": 1,
                         "coordination_schema": 1,
@@ -415,6 +420,8 @@ class Handler(BaseHTTPRequestHandler):
             if self.server.hub and self.project and path=='/api/worker-entry':
                 from .worker_access import entry
                 return self.send(200,entry(self.server.hub,self.project))
+            if self.server.hub and path=='/api/se-entry':
+                return self.send(200,{'se_self_service':self.server.settings.get('se_self_service') is True,'guide':'/help/project-start','command':'create-se','existing_project_access':'requires_current_project_identity'})
             self.read_access()
             query = parse_qs(parsed.query)
             if path in ('/api/convergence','/api/convergence/context','/api/convergence/template'):
@@ -636,6 +643,12 @@ class Handler(BaseHTTPRequestHandler):
                         "Set-Cookie": "dhy_board=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
                     },
                 )
+            if self.server.hub and path=='/api/se-start':
+                if not self.project:raise BoardError('请使用明确的新项目路径',404)
+                auth=self.headers.get_all('Authorization',[])
+                if len(auth)!=1 or not auth[0].startswith('Bearer '):raise BoardError('需要客户端生成的本项目SE身份',401)
+                from .project_start import self_start
+                return self.send(201,self_start(self.server.hub,self.project,auth[0][7:],value,self.server.settings.get('se_self_service')))
             if self.server.hub and path=='/api/worker-join':
                 if not self.project:raise BoardError('请使用指定项目入口',404)
                 auth=self.headers.get_all('Authorization',[])

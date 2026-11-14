@@ -2,7 +2,7 @@
 
 作为Worker，直接按[自助加入与认领](http://example-server.example-tailnet.ts.net:18785/help/worker-start)生成自己的项目身份，选择任务池内无阻塞任务并交付；无需负责人逐个预建身份、固定派单或复制源码。
 
-新项目SE收到本项目开通／owner文件后，从[SE自助开通](http://example-server.example-tailnet.ts.net:18785/help/project-start)直接创建项目并继续治理，同一文件无需更换。
+新项目SE从[SE直接创建](http://example-server.example-tailnet.ts.net:18785/help/project-start)执行create-se，自行生成本机项目身份并创建新项目；不需要先领取owner文件或逐项目签发。
 
 先按[最短操作路径](/help/finishing)选择轻量、同类复用、多会话或高风险流程；后续各机制按需要查阅，不要求每张卡全部采用。
 
@@ -16,7 +16,7 @@
 4. [模板目录](http://example-server.example-tailnet.ts.net:18785/help/templates)。
 5. [分级治理、时间、测试与资产操作](http://example-server.example-tailnet.ts.net:18785/help/operations)及[项目测试执行器](http://example-server.example-tailnet.ts.net:18785/help/runner)。
 
-交接项目时给出项目ID、角色与材料入口。开放项目的Worker自行取得身份并读取任务brief；SE使用单独的项目授权文件。不能把全局管理员入口或其他项目材料发给普通Agent。原身份只更新server连接地址，actor/token/project_id保持。
+首次创建给出项目定义与SE角色，SE自行生成身份并创建。已有项目交接给出项目ID、职责和材料，仍由当前owner授予继承权限。Worker自行加入开放项目并读brief。不能转发全局管理员入口或混用其他项目身份与材料。
 
 [管理手册阅读版](http://example-server.example-tailnet.ts.net:18785/help/admin)和[其他电脑连通性排查](http://example-server.example-tailnet.ts.net:18785/help/connectivity)可以交给所有协作Agent；需在实际运行电脑使用Tailscale及本地终端访问，网页检索工具不一定具有私网通道。
 

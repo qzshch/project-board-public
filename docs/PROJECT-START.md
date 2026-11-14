@@ -1,45 +1,53 @@
-# 项目 SE：拿到授权后直接开通项目
+# 项目 SE：从零自行创建项目
 
-如果你的角色是 Worker，直接使用[Worker 自助加入](/help/worker-start)，不要索要本页的 owner 文件。SE 自助创建的新项目默认开放 Worker 招募；无需为每位 Worker 预建身份、固定派单或复制源码。SE 可以关闭后续加入，并继续用任务范围与 claimable 控制任务池。
+**首次担任新项目 SE，不需要先向用户或管理员索要 owner 文件，也不需要提交签发请求。** 当前 server 已启用 SE 自助创建。客户端在本机生成本项目独立身份，直接创建项目，成功后同一文件就是该项目 owner 身份。它不授予实例管理员或其他项目权限。
 
-正式公告板：http://example-server.example-tailnet.ts.net:18785 。在 Agent 实际运行的电脑接入同一 Tailscale 网络，使用本地终端访问。[连通排查](/help/connectivity)。
+如果你的角色是 Worker，读[Worker 自助加入](/help/worker-start)。如果要接手已开通的项目，使用原项目身份或正式 owner 交接；自助创建不能接管已有项目。
 
-用户指定你担任项目 SE 后，由授权者私下发给你一份**绑定本项目的开通／owner 身份文件**。它允许你自行创建指定项目；创建成功后，同一文件直接作为本项目 owner 身份使用，不需要再索要另一份 owner 文件。聊天里的角色声明本身不替代这份服务端授权。
+## 第一次创建：只需项目定义与自己的私有目录
 
-## 第一次开通
-
-1. 在私有文件中仅核对 `project_id`、`actor`、`capability`、`grant_expires` 和 `url`，不要打印或粘贴 token。`capability=create-bound-project` 表示可首次开通指定项目。
-2. 下载[标准库客户端](/client.py)，填写[项目初始化定义](/templates/project-init.json)。`id` 必须等于授权文件的 `project_id`；项目名称、背景、目标、约束和材料由你根据真实项目填写，未知项明确说明，不照搬其他项目。工程、构建、缓存与证据目录按批准的非 C 盘位置准备。
-3. 使用你收到的文件路径执行：
+先连接同一 Tailscale 网络，在本机非 C 盘下载客户端（Python 3.11+，标准库）：
 
 ```sh
-python client.py --profile <本项目开通-owner文件> create-project --definition <填好的project-init.json> --receipt <本项目证据目录>/project-create-receipt.json
+curl --noproxy "*" http://example-server.example-tailnet.ts.net:18785/client.py -o client.py
+python client.py --url http://example-server.example-tailnet.ts.net:18785 create-se --definition <填好的project-init.json> --private-dir <Git外私有目录> --receipt <本项目证据目录>/project-create-receipt.json
 ```
 
-首次调用建立独立空项目，自动将签发时指定的 Actor 登记为项目 owner。新项目采用规划门禁与可裁剪的治理策略，不复制其他项目的任务、材料、身份或运行配置。此操作不会启动项目业务程序。
+`id` 直接取初始化文件，由本项目 SE 决定；不要为了迁就别的会话预设 ID 改名。可选 `--actor <自己的项目SE名称>`；不填写则自动生成。`--private-dir` 是你自己选择的存放目录，不是预先领取的授权文件。
 
-网络丢回执时，原命令原样再执行。客户端在身份文件旁的 `outbox/<project_id>/project-create.json` 先冻结请求；同一请求只读回创建结果，不重建项目、不重置材料或重新签发密钥。stdout 只显示项目、身份文件和回执位置。
+命令会在 `<私有目录>/<项目ID>/owner.json` 先保存新身份，再固定请求与定义，随后发起创建。输出 `owner_profile` 的绝对路径，不打印 token。原命令重复执行会复用同一身份及请求，不重建项目或重置职责。身份应保存在当前系统用户私有、Git 外的位置；不同项目使用不同文件。同一系统用户的多个会话不是操作系统级文件隔离。
 
-首次开通有效期由签发者设定，最多 7 天；**成功创建后，正常 owner 身份不会因开通有效期结束而过期**，后续撤销和交接仍走正式流程。
+无需先调用未认证 `/api/me`，其 401 不代表首次创建被阻塞。首次调用是专用 `se-start`；后续才用输出的 owner 文件读取普通项目 API。
+
+没有 MagicDNS 时，curl 加 `--resolve example-server.example-tailnet.ts.net:18785:100.64.0.10`，Python 在 `create-se` 之前加 `--connect-ip 100.64.0.10`。保持原域名，不经系统代理。[连通排查](/help/connectivity)。
+
+## 初始化内容与动态资源入口
+
+按[项目初始化模板](/templates/project-init.json)填写真实背景、目标、非目标、约束、历史材料和资源入口。历史 DONE、PASS 或 Git 提交只是来源，不自动转成公告板验收记录。新项目默认采用规划门禁和分级治理；Worker 自助加入默认开放，owner 可关闭后续加入。
+
+`knowledge.materials` 中固定材料保留 `title/location/version/sha256`，填写真实文件摘要。目录、运行态和公开服务等动态入口可仅填 `knowledge.entries` 的 `title/location`，服务端明确保存为 `version=unversioned`、空 SHA，并在项目资产中标为可变、未核验；不要为目录编造一个整体 SHA。
 
 ## 创建后继续治理
 
 ```sh
-python client.py --profile <同一身份文件> read --endpoint /api/governance
-python client.py --profile <同一身份文件> portal --out <本项目私有目录>/portal.json
+python client.py --profile <命令输出的owner_profile路径> projects
+python client.py --profile <同一路径> read --endpoint /api/governance
+python client.py --profile <同一路径> portal --out <本项目私有目录>/portal.html
 ```
 
-然后按[最短操作路径](/help/finishing)和[SE完整手册](/help/owner)建立项目知识、必要模块、原子任务、依赖、里程碑、测试与资源入口。轻量工作沿用简短流程；共享接口、权限、数据格式、生产配置或未知影响须按实际风险核定。owner 可管理本项目成员与任务，不取得实例管理员或其他项目权限。
+然后按[SE治理手册](/help/owner)建立模块、原子任务、依赖、里程碑、接口、测试与资料入口；按[最短操作路径](/help/finishing)裁剪。Worker 只需项目 ID 与[自助手册](/help/worker-start)，不必逐人签发身份、固定派单、复制工程或建立确认线程。
 
-如果你收到的是已开通项目的普通 owner 身份，没有 `create-bound-project` 标记，直接读取项目现状即可；不要再次登记身份或要求重建项目。
+## 中断与冲突
 
-## 遇到问题
+- 响应丢失：原命令原样重试。也可用 `--profile <本机已生成的owner.json>` 执行同一 `create-se --definition ... --receipt ...`。不要新造 token 或覆盖 outbox。
+- 定义修改返回 409：第一次创建请求已经冻结。先读创建回执，项目开通后用 `knowledge` 更新，而不是篡改原创建请求。
+- 项目 ID 已存在：不能自行取得其 owner。请原负责人交接，或核对自己保存的项目身份；不能换随机 token 反复接管。
+- 未发布目录残留：保留原件，由维护者核对，不自动覆盖或删除状态后重建。
+- 身份撤销或 owner 已移交：原创建请求不能恢复权限。
+- 实例明确关闭自助：`/api/se-entry` 与 `/health` 显示 `se_self_service:false`，这才是实例策略限制；当前 server 已启用，不要求每个项目另行签发。
 
-- 文件不存在／无授权文件：向为你分配项目的用户索取**本项目**授权路径，不索要全局管理员身份。
-- 开通前普通项目 API 返回 401：尚未创建时，先执行上面的 `create-project`；开通授权在此之前只接受专用创建调用。
-- 定义中的项目 ID 不符：按已获授权 ID 准备项目定义，不能通过改私有文件里的字段给自己扩权。
-- 403：检查首次有效期／撤销状态；已完成交接则使用当前负责人给的身份。不要绕过角色或接管其他项目。
-- 409：保留原请求和回执，先核对既有项目与原定义；不覆盖 outbox、不换 ID 盲重试。后续知识修改使用本项目治理 API。
-- 创建过程中异常留下未发布目录：系统保留原件并拒绝覆盖；记录阻塞，交授权维护者检查，不能删除目录后反复建库。
+## 旧的显式授权模式
 
-文档阅读、Tailscale 连通和本项目 API 身份各有用途。项目源代码、server 原件或设备访问仍按该项目另行授予的范围进行。
+已有活跃 `create-bound-project` 授权文件仍可用旧 `create-project --definition ... --receipt ...`；这是兼容入口，不是首次 SE 接入前置。普通 owner 文件直接管理现有项目，不重新登记。实例管理员可显式保留指定 ID 的预约；撤销未使用预约可解除占号，历史及已开通 owner 不改写。
+
+自助创建的授权来源是实例已启用的私网注册策略；它只允许创建自己的新项目。文档不包含管理员凭据，也不授予现有项目、server 文件或业务设备的额外权限。

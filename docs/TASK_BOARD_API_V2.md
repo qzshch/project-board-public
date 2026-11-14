@@ -114,3 +114,8 @@ API权限隔离不能限制同一操作系统账号直接读取磁盘、Git仓�
 ## Worker 自助接入（worker_access_schema=1）
 
 GET /api/projects/{project_id}/worker-entry：开放项目提供本项目名称与加入方式，关闭/未知返回404，不列举项目。POST 同路径下worker-join：Authorization为客户端生成的本项目私有Worker种子，载荷仅request_id、actor。一次事务登记普通actor、worker成员、审计与幂等回执，不在响应输出token。每个身份绑定一个项目；完整token哈希仍须在本项目认证。相同身份和请求可原样重试，撤销不复活。治理动作worker_access载荷enabled(bool)、reason，仅owner/SE操作；关闭只阻止新加入。worker覆盖研究/采集/生成/开发/文档/测试等执行类型，不取得owner/SE/runner/tracker/restorer职责，不绕过claimable、依赖、冲突、接口或验收。客户端join-worker先私有落盘，输出profile路径，后续按原events和operations交付。
+
+
+## SE直接创建（project_start_schema=2）
+
+GET /api/se-entry匿名返回实例se_self_service布尔值及create-se入口，不枚举项目。POST /api/projects/{project_id}/se-start在实例启用时接受本机生成的独立Bearer种子和{request_id,actor,project}，仅首次新建；catalog原子保存项目、普通actor对应owner成员、credentials和se_starts幂等绑定，不返回token。不接受角色选择，不接管既有或已退役ID，不覆盖未发布目录；当前owner可读回精确原请求，撤销/移交不能恢复。活跃显式预约需维护者先处理，撤销的未用预约不占号；旧grant本身不能冒充新种子。knowledge.entries可仅title/location，规范化version=unversioned和空SHA；materials仍要求固定版本和SHA。

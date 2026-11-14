@@ -48,5 +48,5 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
             'planning_decisions':{ref:g['planning_decisions'][ref] for ref in g['modules'].get(w.get('planning',{}).get('module'),{}).get('decisions',[])},
             'assets':assets,'asset_locks':w.get('asset_locks',{}),
             'exclusive_resources':w['resources'],'couplings':w['couplings'],'acceptance':w['acceptance'],
-            'instruction':'向本项目负责人领取项目身份文件；禁止取得全局管理密钥。读取任务最新revision后prepare claim并post。只在允许目录实现，公共修改先scope_proposal，由SE走接口影响提案。提交冻结Git40位提交、来源SHA、证据SHA、测试及剩余范围；保存服务回执。返修必须引用open finding ID，重提不会自动关闭，审核通过后关闭。合并/运行验收/归档由SE分别记录。凭据不进Git。API权限不替代OS文件隔离。',
+            'instruction':'Worker按/help/worker-start自行加入开放的本项目；已有身份复用；禁止取得全局管理密钥。读取任务最新revision后prepare claim并post。只在允许目录实现，公共修改先scope_proposal，由SE走接口影响提案。提交冻结Git40位提交、来源SHA、证据SHA、测试及剩余范围；保存服务回执。返修必须引用open finding ID，重提不会自动关闭，审核通过后关闭。合并/运行验收/归档由SE分别记录。凭据不进Git。API权限不替代OS文件隔离。',
             'receipt_path':'<本项目证据目录>/<task_id>/receipt.json','findings':task['findings']}
