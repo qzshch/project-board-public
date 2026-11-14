@@ -51,7 +51,7 @@ async function renderTaskContinuation(box,task){
  const host=section('实施计划、接续与增量评审');host.id='task-continuation';box.append(host);
  try{const d=await coData(host,task.spec.id);if(!d)return;const tid=task.spec.id,buttons=el('div',undefined,'graph-controls');host.append(buttons);
   if(wfWriter()){coButton(buttons,'intake_open',null,{sources:[{kind:'task',id:tid}]});coButton(buttons,'source_link',tid);}
-  if(fParticipant(task)){coButton(buttons,'checkpoint',tid,{input_anchor:'git:'+(task.latest_submission?.implementation_commit||task.spec.work?.baseline||'')});if(task.owner===app.actor)coButton(buttons,'execution_plan',tid,{paths:task.spec.allowed_paths});}
+  if(fParticipant(task)){coButton(buttons,'checkpoint',tid,{input_anchor:'git:'+(task.latest_submission?.implementation_commit||task.spec.work?.baseline||'')});if(task.owner===app.actor&&!wfManager())coButton(buttons,'execution_plan',tid,{paths:task.spec.allowed_paths});}
   if(wfManager()){coButton(buttons,'execution_policy',tid);coButton(buttons,'execution_plan',tid,{paths:task.spec.allowed_paths});coButton(buttons,'condition_gate',tid,{input_anchor:'git:'+(task.latest_submission?.implementation_commit||task.spec.work?.baseline||'')});const b=el('button','查看差异并批量评审');b.onclick=()=>openDiffReview(task);buttons.append(b);coButton(buttons,'root_cause',tid);}
   const resume=d.resume,point=resume.checkpoint;host.append(el('p',resume.plan_required?'本任务要求当前实施计划批准。':'本任务未增加实施计划审批门；原交付门禁继续生效。','secondary'));
   if(point){host.append(el('h4','最近执行检查点'),el('p',`${point.id} · ${resume.checkpoint_current?'当前范围':'旧范围，需重新核定'} · 执行者声明`,'secondary'),el('p',`完成：${point.completed}\n剩余：${point.remaining}\n下一步：${point.next_step}\n重新核对：${point.recheck}`,'detail-text'));wfJson(host,point);

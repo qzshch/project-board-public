@@ -93,6 +93,7 @@ async def main():
                             await page.set_viewport_size({'width':width,'height':960 if width==1280 else 812});await page.emulate_media(color_scheme=theme);await page.screenshot(path=str(E/f'{panel}-{width}-{theme}.png'),full_page=True);check(await page.evaluate('document.documentElement.scrollWidth<=innerWidth'),f'{panel} {width}/{theme} fits')
                     if panel=='task':await page.locator('#close-detail').click()
                 check((await worker.request.get(c.url+'/api/projects/beta/convergence')).status==404,'participant cannot cross project')
+                c.member('same-agent','se');await ap.reload(wait_until='networkidle');await task(ap);await ap.wait_for_selector('#task-continuation');check(await ap.get_by_role('button',name='提交实施计划',exact=True).count()==1,'SE task owner sees exactly one implementation-plan action')
                 check(not report['errors'],'no JavaScript errors');report['passed']=True;capture()
                 for ctx in contexts:await ctx.close()
             finally:await browser.close()
