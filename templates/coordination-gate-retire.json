@@ -1,0 +1,5 @@
+{
+  "id": "<gate-id>",
+  "gate_hash": "<current-gate-hash>",
+  "reason": "<supersession-and-impact-review>"
+}

@@ -1,0 +1,15 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "id": "<checkpoint-id>",
+  "input_anchor": "git:<actual-40hex>",
+  "completed": "<completed>",
+  "remaining": "<remaining>",
+  "tests": "<actual-tests>",
+  "obstacles": "<unresolved-or-none>",
+  "resources": [],
+  "next_step": "<next>",
+  "recheck": "<required-recheck>",
+  "session": "<session-id>"
+}

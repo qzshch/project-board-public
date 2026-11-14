@@ -1,0 +1,8 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "plan": "<current-plan-id>",
+  "result": "approve",
+  "reason": "<actual-SE-review>"
+}

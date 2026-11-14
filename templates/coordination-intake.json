@@ -1,0 +1,12 @@
+{
+  "id": "<intake-id>",
+  "kind": "bug",
+  "title": "<observed-problem>",
+  "body": "<evidence-and-impact>",
+  "sources": [
+    {
+      "kind": "task",
+      "id": "<source-task>"
+    }
+  ]
+}

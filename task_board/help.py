@@ -10,6 +10,17 @@ from urllib.parse import urlsplit
 
 ROOT=Path(__file__).resolve().parents[1]
 
+def observer_kit():
+    files={name:(ROOT/name).read_bytes() for name in ('tools/task_board_client.py','tools/coordination_client.py','tools/project_observer.py')}
+    files['tools/__init__.py']=b''
+    files['README.md']=b'Python 3.11+ project-scoped collaboration and observation kit. Read /help/coordination. Profiles and operator-approved configurations must be supplied separately and kept outside Git. No agent launch or arbitrary command execution.\n'
+    files['MANIFEST.json']=json.dumps({k:hashlib.sha256(v).hexdigest() for k,v in files.items()},sort_keys=True,indent=2).encode()
+    output=io.BytesIO()
+    with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:
+        for name,data in files.items():
+            entry=zipfile.ZipInfo(name,(2026,1,1,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.create_system=3;entry.external_attr=0o100644<<16;z.writestr(entry,data)
+    return output.getvalue()
+
 
 def runner_kit(rollback=False):
     """Only executable client sources, never state/config/identities."""
@@ -27,6 +38,7 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'coordination-intake.json','coordination-triage.json','coordination-convert.json','coordination-link.json','coordination-checkpoint.json','coordination-plan-policy.json','coordination-plan.json','coordination-plan-review.json','coordination-review-batch.json','coordination-root-cause.json','coordination-improvement.json','coordination-wip.json','coordination-gate.json','coordination-gate-retire.json','coordination-gate-confirm.json','coordination-observer.json','project-observer-config.json',
     'workflow-thread.json','workflow-decision.json','workflow-thread-ack.json','workflow-criteria-plan.json','workflow-criteria-claim.json','workflow-criteria-review.json','workflow-review-finding.json','workflow-review-disposition.json','workflow-review-resolve.json','workflow-git-check.json','workflow-rollback-plan.json','workflow-rollback-confirm.json','workflow-rollback-approve.json','workflow-rollback-apply.json','rollback-runner-config.json',
     'resource-entry.json','resource-retire.json',
     'git-binding.json','git-storage-policy.json','git-task-link.json','git-sync.json',
@@ -40,6 +52,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/coordination':('需求、执行接续、增量评审与实际观察','docs/COORDINATION-GUIDE.md',False),
     '/help/workflow':('评论、验收、SE待办与受控回退','docs/WORKFLOW-GUIDE.md',False),
     '/help/resources':('本地与NAS资源目录及Agent接手','docs/RESOURCE-GUIDE.md',False),
     '/help/github':('GitHub提交与本地存储边界','docs/GITHUB-GUIDE.md',False),
@@ -74,6 +87,7 @@ INDEX='''# 使用手册
 - [GitHub代码提交追踪](/help/github)：提交图、差异、文件历史、逐行溯源与本地/NAS存储边界。
 - [本地与NAS资源目录](/help/resources)：在项目资产页查找缓存、调研、美术、归档、测试记录、日志、运行态与接手入口。
 - [协作、逐项验收与受控回退](/help/workflow)：阻塞求助、偏离决策、精确Git核验、SE待办和回退执行器。
+- [需求、接续与改进](/help/coordination)：需求分诊、执行检查点、增量评审、流动效率、外部条件和本地资源核验；[独立协作与观察工具包](/observer-kit.zip)。
 - [任务与身份 API](/help/api)、[治理 API](/help/governance)；[下载标准库客户端](/client.py)。
 
 把对应角色的指南链接和本项目说明发给其他会话。项目身份通过私有渠道单独交付，不放在文档链接里。

@@ -1,0 +1,21 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "id": "<batch-id>",
+  "repo": "<bound-repo-id>",
+  "base": "<base-40hex>",
+  "target": "<target-40hex>",
+  "previous": "",
+  "summary": "<reproduction-and-repair-acceptance>",
+  "comments": [
+    {
+      "path": "<actual-diff-path>",
+      "line": 1,
+      "side": "right",
+      "body": "<specific-finding>",
+      "blocking": true,
+      "criterion": ""
+    }
+  ]
+}

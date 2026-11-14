@@ -1,0 +1,20 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "id": "<gate-id>",
+  "kind": "github_checks",
+  "input_anchor": "git:<actual-40hex>",
+  "stages": [
+    "submit"
+  ],
+  "repo": "<bound-repo-id>",
+  "checks": [
+    "<required-check-name>"
+  ],
+  "pr": 0,
+  "not_before": 0,
+  "ttl": 3600,
+  "reason": "<fixed-input-prerequisite>",
+  "app_id": 1
+}

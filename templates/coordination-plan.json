@@ -1,0 +1,15 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "id": "<immutable-plan-id>",
+  "steps": [
+    "<implementation-step>"
+  ],
+  "paths": [
+    "<allowed-path>"
+  ],
+  "validation": "<actual-verification-plan>",
+  "risks": "<known-and-unknown>",
+  "stop_conditions": "<stop-and-comment-conditions>"
+}

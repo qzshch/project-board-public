@@ -1,0 +1,5 @@
+{
+  "id": "<human-gate>",
+  "gate_hash": "<current-gate-hash>",
+  "reason": "<authorized-observation>"
+}

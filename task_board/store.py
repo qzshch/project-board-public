@@ -591,6 +591,8 @@ class BoardStore:
                 if state and action in ('submit','accept','merge','native'):
                     from .workflow import enforce
                     enforce(db,state,action,payload)
+                    from .coordination import enforce as coordination_enforce
+                    coordination_enforce(db,state,action,payload)
                 result = self._append(db, actor, task_id, action, payload)
                 db.execute(
                     "INSERT INTO requests VALUES(?,?,?,?,?)",

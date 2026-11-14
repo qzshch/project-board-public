@@ -14,6 +14,8 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
     resources=Directory(store).listing(actor,operator,brief_task=task_id)
     from .workflow import snapshot as workflow_snapshot
     workflow=workflow_snapshot(store,actor or {'id':'','role':'agent'},task_id)
+    from .coordination import snapshot as coordination_snapshot
+    coordination=coordination_snapshot(store,actor or {'id':'','role':'agent'},task_id)
     assets={}
     for ref in w['assets']:
         lock=w.get('asset_locks',{}).get(ref)
@@ -23,6 +25,7 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
     return {'project_id':project,'api_base':url+'/api/projects/'+project,'task_id':task_id,
             'role':w['role'],'scope_version':task['scope_version'],'scope_hash':task['scope_hash'],
             'collaboration':{k:workflow[k] for k in ('threads','current_plan','findings','blockers','rollbacks')},
+            'continuation':{k:coordination[k] for k in ('resume','plans','batches','gates','intakes','cursor')},
             'baseline':w['baseline'],'read_materials':g['knowledge'].get('materials',[]),
             'git':{'repositories':[{k:r.get(k) for k in ('id','repository','title','synced_at')} for r in git['repos'].values() if r['enabled']],
                    'local_storage_policy':git['policy'],'instruction':'仅审核纳入的源码/说明/测试代码进Git；资料和运行产物留本地/NAS；此接入不执行add/commit/push'},

@@ -1,0 +1,6 @@
+{
+  "module": "<module-id>",
+  "limit": 2,
+  "mode": "warn",
+  "reason": "<capacity-evidence>"
+}

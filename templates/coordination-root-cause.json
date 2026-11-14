@@ -1,0 +1,8 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "finding": "<finding-id>",
+  "category": "test_gap",
+  "reason": "<verified-root-cause>"
+}

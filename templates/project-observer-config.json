@@ -1,0 +1,19 @@
+{
+  "project_id": "<project-id>",
+  "resources": {
+    "<resource-id>": {
+      "entry_hash": "<exact-current-entry-hash>",
+      "mode": "file",
+      "path": "G:/<project>/<approved-original>",
+      "ttl": 3600
+    }
+  },
+  "conditions": {
+    "<gate-id>": {
+      "gate_hash": "<exact-gate-hash>",
+      "repository": "<owner>/<repository>",
+      "app_id": 0,
+      "token_file": "G:/<private-project-config>/<readonly-token-file>"
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "id": "<link-id>",
+  "from": {
+    "kind": "task",
+    "id": "<new-task>"
+  },
+  "to": {
+    "kind": "intake",
+    "id": "<source-intake>"
+  },
+  "relation": "derived_from",
+  "reason": "<actual-source>"
+}

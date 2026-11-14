@@ -1,0 +1,7 @@
+{
+  "task": "<task-id>",
+  "scope": "<current-scope-hash>",
+  "scope_version": 1,
+  "required": true,
+  "reason": "<risk-based-choice>"
+}

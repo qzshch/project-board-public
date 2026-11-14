@@ -11,3 +11,8 @@
 - 正式报告与原始证据按RUNBOOK归档server，包含跨项目信息的管理员包不得给普通Agent；身份与私有恢复包单独保管。
 
 原2026-11-13实际验收记录已完整保存在本地 `archives/source-history-20261113/ACCEPTANCE-ORIGINAL.md`，server对应目录为 `<公告板server根>/local-archives/source-history-20261113`。Git忽略规则不清除已有历史；本轮不改写Git历史。
+
+
+## 第二批验收
+
+运行tests.task_board.test_coordination与tools/coordination_ui_check.py：需求分诊/原子转换/来源不冒充依赖、换会话游标与旧范围、消息重放与个人游标、实施计划风险裁剪、真实Git增量评审及旧锚点、根因改进/WIP、GitHub协议最新检查和过期/撤权、本机文件清单真实核验与权限过滤；桌面手机浅深色。完整suite后server独立同输入运行，真实交付仅登记本项目数据，演练独立fixture。归档源/手册/工具/失败和成功证据到server；实际结果不写入Git。

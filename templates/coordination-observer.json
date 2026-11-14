@@ -1,0 +1,11 @@
+{
+  "actor": "<project-runner-actor>",
+  "kinds": [
+    "resource"
+  ],
+  "targets": [
+    "<resource-id>"
+  ],
+  "enabled": true,
+  "reason": "<project-scope-authorization>"
+}

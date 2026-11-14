@@ -33,6 +33,7 @@ STATIC = {
     "/git.js": "git.js",
     "/resources.js": "resources.js",
     "/workflow.js": "workflow.js",
+    "/coordination.js": "coordination.js",
     "/graph-layout.js": "graph-layout.js",
     "/help.css": "help.css",
     "/app.css": "app.css",
@@ -344,6 +345,9 @@ class Handler(BaseHTTPRequestHandler):
             if path in ('/runner-kit.zip','/rollback-kit.zip'):
                 from .help import runner_kit
                 return self.send(200,runner_kit(path=='/rollback-kit.zip'),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-runner.zip"'})
+            if path=='/observer-kit.zip':
+                from .help import observer_kit
+                return self.send(200,observer_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-observer.zip"'})
             if path in DOCS or path in RAW_DOCS:
                 title,relative,private=DOCS[path] if path in DOCS else ('操作文档',*RAW_DOCS[path])
                 if private and (not self.server.hub or not self.identity()['global_admin']):
@@ -391,6 +395,7 @@ class Handler(BaseHTTPRequestHandler):
                         "git_schema": 1,
                         "resource_directory_schema": 1,
                         "workflow_schema": 1,
+                        "coordination_schema": 1,
                         "uptime_seconds": int(time.time() - self.server.started),
                     },
                 )
@@ -399,6 +404,10 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,ignore_template().encode('utf8'),content_type='text/plain; charset=utf-8')
             self.read_access()
             query = parse_qs(parsed.query)
+            if path in ('/api/coordination','/api/coordination/feed'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .coordination import snapshot,feed
+                return self.send(200,feed(self.store,self.actor(),query) if path.endswith('/feed') else snapshot(self.store,self.actor(),query.get('task',[None])[0]))
             if path in ('/api/workflow','/api/workflow/task','/api/workflow/inbox'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .workflow import snapshot

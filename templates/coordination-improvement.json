@@ -1,0 +1,14 @@
+{
+  "id": "<improvement-id>",
+  "finding": "<finding-id>",
+  "targets": [
+    {
+      "kind": "case",
+      "id": "<case@version>"
+    }
+  ],
+  "hypothesis": "<expected-change>",
+  "result": "Not yet verified",
+  "runs": [],
+  "evidence": []
+}

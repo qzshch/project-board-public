@@ -207,6 +207,8 @@ def blockers(db, task, actor=None, registry=None, context=None):
         if any(overlaps(a,b) for a in spec['allowed_paths'] for b in other['spec']['allowed_paths']):out.append('写路径冲突：'+other['spec']['id'])
         if set(work['resources']) & set(ow.get('resources',[])):out.append('排他资源冲突：'+other['spec']['id'])
         if set(work['couplings']) & set(ow.get('couplings',[])):out.append('共享修改需串行：'+other['spec']['id'])
+    from .coordination import admission
+    out.extend(admission(ops,task,gov,all_tasks))
     return sorted(set(out))
 
 class Governance:

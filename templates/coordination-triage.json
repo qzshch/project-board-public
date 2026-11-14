@@ -1,0 +1,9 @@
+{
+  "id": "<intake-id>",
+  "expected_version": 1,
+  "status": "approved",
+  "reason": "<SE-triage-reason>",
+  "duplicate": "",
+  "tasks": [],
+  "modules": []
+}
