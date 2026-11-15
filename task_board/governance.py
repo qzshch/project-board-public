@@ -115,6 +115,7 @@ def load(db):
             if row else {'revision':0,'head':'0'*64,**empty()})
 
 def role(db, actor):
+    if actor.get('global_human') is True:return 'owner'
     # A handoff explicitly overrides old management privileges, even for a
     # credential whose original low-level authentication role was reviewer.
     return load(db)['members'].get(actor['id'], {}).get('role', actor['role'])

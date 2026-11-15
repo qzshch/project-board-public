@@ -2,7 +2,7 @@
 const ws={panel:new URLSearchParams(location.search).get('panel')||'overview',data:null,shared:null,ops:null,git:null,signature:null,graphFamily:'',graphQuery:'',graphMode:'all',zoom:1};
 const categoryNames={research:'研究 / 调研',collection:'素材采集',generation:'资源生成',infrastructure:'框架 / 基建',frontend:'前端开发',backend:'后端开发',library:'公共库',documentation:'记录 / 约束 / 交接文档',test:'测试',integration:'集成',release:'发布'};
 const roleNames={owner:'总负责人',se:'继承 SE',worker:'Worker · 自助执行',researcher:'研究员',collector:'素材采集',generator:'资源生成',developer:'开发',documenter:'文档',tester:'测试',agent:'Agent',viewer:'只读',runner:'测试执行器',tracker:'Git只读同步器',restorer:'回退执行器'};
-const panelNames={discovery:'需求与改进',inbox:'SE待办与协作',overview:'项目概览',planning:'框架与规划',policy:'治理策略',time:'时间与效率',quality:'测试与自动化',git:'代码与提交',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
+const panelNames={agents:'Agent编排与委派',discovery:'需求与改进',inbox:'SE待办与协作',overview:'项目概览',planning:'框架与规划',policy:'治理策略',time:'时间与效率',quality:'测试与自动化',git:'代码与提交',tasks:'任务与验收',relations:'依赖与并行',contracts:'接口冻结',assets:'项目资产',handoff:'角色与交接'};
 function clearWorkspace(){ws.data=null;ws.shared=null;ws.ops=null;ws.git=null;resetGit();resetResources();ws.signature=null;ws.graphFamily='';ws.graphQuery='';ws.zoom=1;$('workspace-body').replaceChildren();$('workspace').hidden=true;$('task-metrics').hidden=true;$('task-board').hidden=true;}
 async function refreshWorkspace(generation){
   const [data,shared,ops,git]=await Promise.all([api('/api/governance'),api('/api/shared'),api('/api/operations'),api('/api/git')]);
@@ -13,7 +13,8 @@ function listLines(box,title,rows,format){const sectionBox=section(title);if(!ro
 function relationDetails(box,title,rows,format){const details=el('details',undefined,'relation-details');details.append(el('summary',`${title} · ${rows.length} 项`));listLines(details,title,rows,format);box.append(details);}
 function cards(box,items){const grid=el('div',undefined,'workspace-grid');for(const [label,value] of items)grid.append(field(label,value||'待负责人登记'));box.append(grid);}
 function renderWorkspace(){
-  const d=ws.data;if(!d)return;if(!panelNames[ws.panel])ws.panel='overview';$('task-metrics').hidden=ws.panel!=='tasks';$('task-board').hidden=ws.panel!=='tasks';document.querySelectorAll('[data-panel]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.panel===ws.panel)));const box=$('workspace-body');box.replaceChildren();$('workspace-title').textContent=panelNames[ws.panel];$('workspace-subtitle').textContent=`本项目专属资料 · 治理记录 ${d.revision} · 操作记录 ${ws.ops?.revision||0}`;$('workspace-edit').hidden=app.role!=='reviewer'||['tasks','inbox','discovery'].includes(ws.panel);$('workspace-body').hidden=ws.panel==='tasks';$('workspace-title').closest('.section-head').hidden=ws.panel==='tasks';
+  const d=ws.data;if(!d)return;if(!panelNames[ws.panel])ws.panel='overview';$('task-metrics').hidden=ws.panel!=='tasks';$('task-board').hidden=ws.panel!=='tasks';document.querySelectorAll('[data-panel]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.panel===ws.panel)));const box=$('workspace-body');box.replaceChildren();$('workspace-title').textContent=panelNames[ws.panel];$('workspace-subtitle').textContent=`本项目专属资料 · 治理记录 ${d.revision} · 操作记录 ${ws.ops?.revision||0}`;$('workspace-edit').hidden=app.role!=='reviewer'||['tasks','inbox','discovery','agents'].includes(ws.panel);$('workspace-body').hidden=ws.panel==='tasks';$('workspace-title').closest('.section-head').hidden=ws.panel==='tasks';
+  if(ws.panel==='agents')renderAgentConsole(box);
   if(ws.panel==='inbox')renderWorkflowInbox(box);
   if(ws.panel==='discovery')renderDiscovery(box);
   if(ws.panel==='time'||ws.panel==='quality')renderCoordinationSummary(box,ws.panel);

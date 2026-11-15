@@ -1,0 +1,15 @@
+<!doctype html>
+<!-- Primary: one account form and one submit. Secondary: access scope and errors.
+Tertiary: Agent/help links. Native HTML, existing canvas/surface/ink/action tokens,
+8/16/24/32/48 spacing, 14/16/24/30 type, existing radius; light/dark inherited. -->
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>人类所有者登录 · 项目公告板</title><link rel="stylesheet" href="/tokens.css"><link rel="stylesheet" href="/theme.css"><link rel="stylesheet" href="/app.css"><link rel="stylesheet" href="/login.css"><script src="/login.js" defer></script></head>
+<body><main class="login-shell"><header><p class="eyebrow">PROJECT WORKSPACE</p><h1 id="login-title">人类所有者登录</h1><p id="login-intro" class="secondary">登录后查看所有项目、管理机器接入和项目权限。</p></header>
+<section class="login-card"><p id="setup-notice" class="notice" hidden></p>
+<form id="human-form" class="review-form">
+<label id="username-group">账号<input name="username" autocomplete="username" required minlength="2" maxlength="64" value="owner"></label>
+<label id="current-group" hidden>当前密码<input name="current_password" type="password" autocomplete="current-password" maxlength="256"></label>
+<label><span id="password-label">密码</span><input name="password" type="password" autocomplete="current-password" required maxlength="256"></label>
+<label id="confirm-group" hidden>确认新密码<input name="confirmation" type="password" autocomplete="new-password" maxlength="256"></label>
+<p id="login-error" class="form-message" role="alert" aria-live="polite"></p><button id="human-submit" class="primary" type="submit">登录</button>
+</form></section>
+<footer class="login-footer"><p class="secondary">Agent 使用自己的项目身份接入。</p><nav><a href="/help/worker-start">Agent 接入手册</a><a href="/help">操作手册</a><a href="/">返回面板</a></nav></footer></main></body></html>

@@ -80,3 +80,9 @@ worker_joins与actors、治理事件在同一个项目SQLite内一致提交，�
 SE直接创建：_private/server.json的se_self_service为实例持久策略，默认关闭，当前server按用户要求启用。项目owner种子仅保存在SE自己的私有文件，服务端存哈希。se_starts随catalog一致备份。源码回退时旧版本仍识别已发布的普通项目owner身份；首次create-se入口暂不可用，恢复新源码继续，不回写旧数据库。
 
 异步协作兼容：health.async_flow_schema=1。旧事件和ID保持；新的thread_wait、candidate标记、dependency_requirements及领取事件消费锚点需当前版本处理。退回不认识这些规则的源码只用于maintenance_read_only下的受控读回，不能开放旧写语义；恢复兼容版本后再解除维护。源码回退不回写旧数据库。规则与公开手册见/help/async-flow。
+
+## 人类账号与编排持久状态
+
+人类账号/摘要、会话、限速和节点/绑定/工作单/游标/幂等回执在既有projects.sqlite内增量建表；project角色与四条原链保持。私有首次入口及节点Worker身份保存在state/_private下，一并纳入受控一致性备份，不用正在写入的SQLite单文件副本。原始模型记录/供应商凭据留节点本机。
+
+发布前完整隔离fixture回归及已安装协议探测；回退旧源码以维护只读方式读回既有链，保留新表，不能让旧源码另开并写状态。正式服务仍只有server；本机接入端是模型运行客户端，不是公告板生产副本。人类尚未设置生产密码时交付私有setup.html位置，由用户初始化。

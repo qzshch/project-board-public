@@ -94,3 +94,7 @@ member可选actor_kind=human/agent/unknown；经理配置后，时间时段固�
 新增thread_wait：thread、pause(bool)、summary；可选本人attempt_id/attempt_lease，不传task/scope/selection_id。仅线程作者且当前合法参与者可改当前范围等待。pause:false不需要SE回复，也不能覆盖SE正式stop或改变其他任务计时。thread_open的discussion也可pause:true。
 
 workflow/task及brief.collaboration.delivery_readiness区分收件与准备度，包含candidate_received、ready_for_acceptance、blockers、verification_origin及dependency_lock_state；返回准备度不授予验收权。health.async_flow_schema=1。未决留言、门禁与失败验证可先submit；accept继续核验，原submit条件门推迟到accept。详见/help/async-flow。
+
+## 有界委派
+
+新增 `delegation_grant` 与 `delegation_revoke`，具体字段见 [授权模板](/templates/delegation-grant.json)。`GET /api/projects/{project}/delegations` 返回本身份可见授权。受托者仅在允许的单任务原API请求顶层加delegation，其余门禁不变。允许逐项复核、问题复核、运行请求、手工实测；轻量/标准任务可明确授权验收/基线处置。严格最终处置、自签、过期、撤销、范围/成果/验证计划改变均拒绝。授权和使用随原审计链保存，回执重放不会重复执行。详见 [编排手册](/help/orchestration)。

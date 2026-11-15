@@ -198,19 +198,21 @@ class Client:
             endpoint = urlsplit(self.url)
             headers["Host"] = endpoint.netloc
             target = "http://" + self.connect_ip + ":" + str(endpoint.port or 80) + path
-        try:
-            with self.opener.open(
-                Request(target, data=body, headers=headers), timeout=12
-            ) as response:
-                return json.load(response)
-        except HTTPError as exc:
+        # Only these server journals bind request_id to the exact body. Account
+        # setup, tickets and session creation are deliberately not replayed.
+        endpoint=path.split('?',1)[0].rsplit('/',1)[-1]
+        replayable=payload is None or type(payload) is dict and bool(payload.get('request_id')) and endpoint in {'events','governance','operations','se-start','worker-join','bootstrap','orchestration'}
+        for attempt in range(3 if replayable else 1):
             try:
-                message = json.loads(exc.read(65536)).get("error", "请求失败")
-            except (ValueError, UnicodeError):
-                message = "请求失败"
-            raise ClientError(message, exc.code) from None
-        except (URLError, TimeoutError, OSError):
-            raise ClientError("公告板暂不可达；未确认已提交") from None
+                with self.opener.open(Request(target,data=body,headers=headers),timeout=12) as response:return json.load(response)
+            except HTTPError as exc:
+                try:message=json.loads(exc.read(65536)).get('error','请求失败')
+                except (ValueError,UnicodeError):message='请求失败'
+                error=ClientError(message,exc.code)
+                if exc.code not in (502,503,504):raise error from None
+            except (URLError,TimeoutError,OSError):error=ClientError('公告板暂不可达；未确认已提交')
+            if not replayable or attempt==2:raise error from None
+            time.sleep(.3*(attempt+1))
 
     def task(self, task_id: str):
         try:

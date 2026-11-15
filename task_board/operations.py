@@ -44,7 +44,7 @@ class Operations:
 
     def apply(self,actor,request):
         from .governance import role,load as governance_load,tasks
-        fields(request,{'request_id','expected_revision','action','payload'},{'request_id','expected_revision','action','payload'})
+        fields(request,{'request_id','expected_revision','action','payload','delegation'},{'request_id','expected_revision','action','payload'})
         rid=text(request['request_id'],'请求ID',100);integer(request['expected_revision'],'操作版本')
         action=text(request['action'],'动作',80);p=request['payload']
         if not isinstance(p,dict):raise BoardError('payload需对象')
@@ -71,12 +71,21 @@ class Operations:
             if r=='runner' and action not in ('run_claim','run_heartbeat','run_finish','condition_observe','resource_observe','consumer_ack'):raise BoardError('执行器只能处理授权运行及观察',403)
             if r=='restorer' and action not in ('rollback_claim','rollback_heartbeat','rollback_finish'):raise BoardError('回退执行器只能领取、续租和回传批准执行单',403)
             now=time.time();g=governance_load(db);all_tasks=tasks(db)
+            delegation=None
+            if 'delegation' in request:
+                from .delegation import authorize
+                ids=p.get('tasks',[p.get('task')]);delegation=authorize(db,actor,request['delegation'],action,ids)
+                if action in ('manual_run','run_request') and p.get('input_anchor')!=delegation['input_anchor']:raise BoardError('委派运行输入需精确匹配授权',409)
+                r='reviewer'
             g['_cv_tasks']=all_tasks
             if getattr(self.store,'registry',None):g['consumption']=self.store.registry.consumption()
             from .workflow import ACTIONS
             from .coordination import ACTIONS as CO_ACTIONS
             from .convergence import ACTIONS as CV_ACTIONS
-            if action in CV_ACTIONS:
+            from .delegation import ACTIONS as DG_ACTIONS
+            if action in DG_ACTIONS:
+                from .delegation import mutate
+            elif action in CV_ACTIONS:
                 from .convergence import mutate as cv_mutate
                 def mutate(*args):return cv_mutate(*args,self.store)
             elif action in CO_ACTIONS:
@@ -100,6 +109,7 @@ class Operations:
             result=mutate(v,db,actor,r,action,p,now,g,all_tasks) or {}
             if commuted:result={**result,'independent_changes_since':request['expected_revision']}
             event={'action':action,'payload':deepcopy(p),'state':v,'result':result,'at':now}
+            if delegation:event['delegation']=delegation['id']
             hashed=digest({'seq':seq+1,'actor':actor['id'],'request_id':rid,'event':event,'previous':previous})
             db.execute('INSERT INTO operations_events VALUES(?,?,?,?,?,?,?)',(seq+1,actor['id'],rid,digest(request),canonical(event),previous,hashed));db.commit()
             return {'revision':seq+1,'hash':hashed,**result}

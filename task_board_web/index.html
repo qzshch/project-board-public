@@ -24,17 +24,18 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
   <script src="/coordination.js" defer></script>
   <script src="/convergence.js" defer></script>
   <script src="/finishing.js" defer></script>
+  <script src="/agent-console.js" defer></script>
 </head>
 <body>
   <main class="shell">
     <header class="page-head">
       <div><p class="eyebrow">PROJECT WORKSPACE</p><h1>项目公告板</h1><p class="secondary intro">交付有记录，返修有去向，范围有依据。</p></div>
-      <div class="head-actions"><span id="connection" class="connection" role="status">正在连接</span><a id="help" href="/help" target="_blank" rel="noopener">使用手册</a><button id="access">Agent 接入</button><button id="create" hidden>新建范围</button><button id="review-shortcut" class="primary">查看待验收</button></div>
+      <div class="head-actions"><span id="principal-indicator" class="secondary"></span><span id="connection" class="connection" role="status">正在连接</span><a id="human-login" href="/login">人类登录</a><a id="help" href="/help" target="_blank" rel="noopener">使用手册</a><button id="access">Agent 接入</button><button id="create" hidden>新建范围</button><button id="review-shortcut" class="primary">查看待验收</button></div>
     </header>
     <section class="project-bar panel" aria-label="当前项目"><label for="project-select">当前项目<select id="project-select" disabled><option>请先授权</option></select></label><p id="project-description" class="secondary">使用项目专属入口或负责人签发的身份访问。</p><button id="new-project" hidden>新建项目</button><button id="logout" hidden>退出</button></section>
     <div id="notice" class="notice" hidden role="status"></div>
     <section id="workspace" class="panel workspace" hidden aria-label="项目工作区">
-      <nav class="tabs workspace-tabs" aria-label="项目信息"><button data-panel="inbox">SE待办与协作</button><button data-panel="overview" aria-pressed="true">项目概览</button><button data-panel="discovery">需求与改进</button><button data-panel="planning">框架与规划</button><button data-panel="policy">治理策略</button><button data-panel="time">时间与效率</button><button data-panel="quality">测试与自动化</button><button data-panel="git">代码与提交</button><button data-panel="tasks">任务与验收</button><button data-panel="relations">依赖与并行</button><button data-panel="contracts">接口冻结</button><button data-panel="assets">项目资产</button><button data-panel="handoff">角色与交接</button></nav>
+      <nav class="tabs workspace-tabs" aria-label="项目信息"><button data-panel="inbox">SE待办与协作</button><button data-panel="overview" aria-pressed="true">项目概览</button><button data-panel="discovery">需求与改进</button><button data-panel="planning">框架与规划</button><button data-panel="policy">治理策略</button><button data-panel="time">时间与效率</button><button data-panel="quality">测试与自动化</button><button data-panel="git">代码与提交</button><button data-panel="tasks">任务与验收</button><button data-panel="relations">依赖与并行</button><button data-panel="contracts">接口冻结</button><button data-panel="assets">项目资产</button><button data-panel="agents">Agent编排与委派</button><button data-panel="handoff">角色与交接</button></nav>
       <div class="section-head"><div><h2 id="workspace-title">项目概览</h2><p class="muted" id="workspace-subtitle"></p></div><button id="workspace-edit" hidden>管理资料</button></div>
       <div id="workspace-body"></div>
     </section>

@@ -548,6 +548,7 @@ class BoardStore:
                 "expected_revision",
                 "scope_version",
                 "payload",
+                "delegation",
             },
             {"request_id", "task_id", "action", "expected_revision", "payload"},
         )
@@ -566,8 +567,6 @@ class BoardStore:
                 if actor['project_role'] == 'viewer':
                     raise BoardError('此身份已移交管理职责或仅有读取权限',403)
                 if actor['project_role'] in ('runner','tracker','restorer'):raise BoardError('项目执行器和Git同步器不能修改开发任务',403)
-                if action in REVIEW_ACTIONS and actor['role'] != 'reviewer':
-                    raise BoardError('此操作需要本项目审核权限',403)
                 prior = db.execute(
                     "SELECT digest,event_id,receipt FROM requests WHERE actor=? AND request_id=?",
                     (actor["id"], request_id),
@@ -579,6 +578,11 @@ class BoardStore:
                     result["replayed"] = True
                     db.rollback()
                     return result
+                if 'delegation' in request:
+                    from .delegation import authorize
+                    authorize(db,actor,request['delegation'],action,[task_id])
+                    actor={**actor,'role':'reviewer','delegation':request['delegation']}
+                if action in REVIEW_ACTIONS and actor['role'] != 'reviewer':raise BoardError('此操作需要本项目审核权限',403)
                 old = db.execute(
                     "SELECT state FROM tasks WHERE id=?", (task_id,)
                 ).fetchone()
@@ -606,6 +610,7 @@ class BoardStore:
                     enforce(db,state,action,payload)
                     from .coordination import enforce as coordination_enforce
                     coordination_enforce(db,state,action,payload,getattr(self,'registry',None))
+                if actor.get('delegation'):payload={**payload,'delegation':actor['delegation']}
                 result = self._append(db, actor, task_id, action, payload)
                 db.execute(
                     "INSERT INTO requests VALUES(?,?,?,?,?)",

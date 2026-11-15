@@ -127,3 +127,7 @@ GET /api/se-entry匿名返回实例se_self_service布尔值及create-se入口，
 submit成功生成candidate:true回执与submitted状态，只表示收件。未决留言、审核或质量条件允许入队，accept/merge/native继续按当前精确输入校验。verification可附status（passed/failed/not_run/not_applicable/unknown）；本机声明不是平台通过。引用test_runs仍须属于当前项目、范围代次和输入。
 
 任务spec可选dependency_requirements，键为depends_on中的任务ID，值可含kind(code/knowledge/artifact)、stage(accepted/merged/native_accepted)、repo。代码不能降级为仅accepted，默认merged且实际合入提交可从下游work.baseline到达。claim/assign事件的dependency_locks固定消费锚点，不修改历史任务投影；锚点漂移需SE追加范围后重领。完整规则、旧记录兼容与例子见/help/async-flow。
+
+## 人类与节点控制面（后续明确新增需求）
+
+第三批历史范围不含托管；本轮按用户新需求增加独立人类账号和可扩展节点，非重新扩大原第三批。`GET /api/human/status` 公开；`POST /api/human/setup|login|password` 使用独立会话，Agent不能自称人类。人类Bearer不复用项目token。`GET /api/nodes` 与 `POST /api/nodes/pair|revoke` 仅实例所有者；`POST /api/node/enroll|heartbeat|poll|report|profile` 仅节点身份。项目SE使用 `GET|POST /api/projects/{project}/orchestration`；项目数据仍按项目鉴权。请求字段、回执、原会话恢复、失败边界见 [编排手册](/help/orchestration)。诊断 `GET /api/projects/{project}/readiness` 只读。

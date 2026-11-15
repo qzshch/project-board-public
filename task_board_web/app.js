@@ -242,13 +242,13 @@ async function selectProject(id) {
   clearProject();const project=app.projects.find(item=>item.id===id);if(!project) return;
   app.project=id;app.role=project.role;$('project-select').value=id;
   $('project-description').textContent=project.description;
-  $('identity').textContent=app.admin?`全局管理员 · ${app.actor}`:`${app.role==='reviewer'?'项目审核者':'Agent'} · ${app.actor}`;
+  $('identity').textContent=app.principal==='human'?`人类平台所有者 · ${app.displayName}`:app.admin?`实例维护身份 · ${app.actor}`:`${app.role==='reviewer'?'项目审核者':'Agent'} · ${app.actor}`;
   $('create').hidden=app.role!=='reviewer';
   const params=new URLSearchParams(location.search);params.set('project',id);history.replaceState(null,'',location.pathname+'?'+params.toString());
   $('search').value='';$('kind').value='';$('priority').value='';notice('');await refresh();
 }
 async function loadProjects(preferred) {
-  const identity=await api('/api/me',undefined,true);app.admin=identity.global_admin;app.actor=identity.actor;
+  const identity=await api('/api/me',undefined,true);app.admin=identity.global_admin;app.actor=identity.actor;app.principal=identity.principal_kind;app.displayName=identity.display_name||identity.actor;$('principal-indicator').textContent=app.principal==='human'?'人类平台所有者 · '+app.displayName:app.admin?'实例维护身份':'项目Agent · '+app.actor;if($('human-login')){$('human-login').textContent=app.principal==='human'?'修改密码':'人类登录';$('human-login').href=app.principal==='human'?'/login?mode=password':'/login';}
   app.projects=(await api('/api/projects',undefined,true)).projects;
   const select=$('project-select');select.replaceChildren();
   for(const project of app.projects) {const option=el('option',project.name);option.value=project.id;select.append(option);}
@@ -265,7 +265,7 @@ async function handleAccess() {
     } catch(error) {notice(error.message);} finally {app.project=null;}
   }
   try {await loadProjects(preferred);app.connection=await api('/api/connection',undefined,true);}
-  catch(error) {clearProject();app.projects=[];$('project-select').replaceChildren(el('option','请先加入项目'));$('project-select').disabled=true;$('new-project').hidden=true;$('logout').hidden=true;$('identity').textContent='未加入项目';$('project-description').textContent='通过 Agent 接入自助加入开放项目；已有身份可打开自己的私有入口。';
+  catch(error) {clearProject();app.projects=[];app.admin=false;app.principal=null;$('principal-indicator').textContent='';$('human-login').textContent='人类登录';$('human-login').href='/login';$('project-select').replaceChildren(el('option','请先加入项目'));$('project-select').disabled=true;$('new-project').hidden=true;$('logout').hidden=true;$('identity').textContent='未加入项目';$('project-description').textContent='通过 Agent 接入自助加入开放项目；已有身份可打开自己的私有入口。';
     try {const entry=await api('/api/projects/'+encodeURIComponent(preferred)+'/worker-entry',undefined,true);$('project-description').textContent=entry.name+' · 已开放 Worker 自助加入。点击“Agent 接入”生成自己的项目身份，再选择任务领取。';notice('Worker 只需项目入口，无需索要 owner 或 SE 文件。');}catch(_){notice(error.message);}}
 }
 function createProject() {

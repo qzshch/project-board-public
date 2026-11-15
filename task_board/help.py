@@ -22,6 +22,16 @@ def observer_kit():
     return output.getvalue()
 
 
+def node_kit():
+    names=('tools/agent_node.py','tools/agent_runtime.py','tools/task_board_client.py','tools/runner_process.py','templates/agent-node-config.json','docs/ORCHESTRATION-GUIDE.md')
+    files={n:(ROOT/n).read_bytes() for n in names};files['tools/__init__.py']=b'';files['requirements.txt']=b'psutil>=6,<8\n'
+    files['MANIFEST.json']=json.dumps({n:hashlib.sha256(v).hexdigest() for n,v in files.items()},sort_keys=True,indent=2).encode()
+    output=io.BytesIO()
+    with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:
+        for name,data in files.items():
+            entry=zipfile.ZipInfo(name,(2026,1,1,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.create_system=3;entry.external_attr=0o100644<<16;z.writestr(entry,data)
+    return output.getvalue()
+
 def runner_kit(rollback=False):
     """Only executable client sources, never state/config/identities."""
     files={name:(ROOT/name).read_bytes() for name in ('tools/quality_runner.py','tools/task_board_client.py','tools/owned_process.py','tools/runner_process.py')}
@@ -38,6 +48,7 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'agent-node-config.json','agent-binding.json','delegation-grant.json',
     'workflow-thread-wait.json','task-dependency-requirements.json',
     'finishing-actions.json',
     'convergence-draft.json','convergence-rule.json','convergence-attempt.json','convergence-template.json',
@@ -55,6 +66,9 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/human':('人类平台所有者登录','docs/HUMAN-LOGIN.md',False),
+    '/help/project-readiness':('已有项目接管与卡点诊断','docs/PROJECT-READINESS.md',False),
+    '/help/orchestration':('跨机器Agent编排与有界委派','docs/ORCHESTRATION-GUIDE.md',False),
     '/help/async-flow':('Worker异步交付与基线依赖','docs/ASYNC-WORKFLOW.md',False),
     '/help/worker-start':('Worker自助加入与认领','docs/WORKER-START.md',False),
     '/help/project-start':('项目SE自助开通与owner身份','docs/PROJECT-START.md',False),
@@ -81,6 +95,8 @@ RAW_DOCS={
     '/manual.md':('docs/MANUAL.md',True),
 }
 INDEX='''# 使用手册
+
+[人类登录](/login) · [已有项目接管诊断](/help/project-readiness) · [跨机器编排与有界委派](/help/orchestration)。人类使用账号密码；Agent沿用项目身份。
 
 当前异步协作规则：[自主等待、候选待评审和依赖解锁](/help/async-flow)。普通任务直接认领、工作、提交候选；SE异步验收并推进基线。
 

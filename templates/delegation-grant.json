@@ -1,0 +1,1 @@
+{"request_id":"generate-once-and-persist","expected_revision":0,"action":"delegation_grant","payload":{"id":"delegation-unique-id","task":"module/atom","scope":"current-task-scope-hash","scope_version":1,"input_anchor":"git:0000000000000000000000000000000000000000","grantee":"independent-worker","actions":["criteria_review"],"expires":0,"reason":"SE核定的具体工作、独立复核及剩余责任边界"}}

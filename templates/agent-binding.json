@@ -1,0 +1,1 @@
+{"request_id":"generate-once-and-persist","action":"bind","payload":{"id":"binding-unique-id","node":"tailscale-pc-name","runtime":"zcode","model":"actual-provider-id/actual-model-id","root":"workspace","role":"worker","task":"module/atom","scope":"current-task-scope-hash"}}

@@ -43,6 +43,10 @@ STATIC = {
     "/app.css": "app.css",
     "/tokens.css": "tokens.css",
     "/theme.css": "theme.css",
+    "/login": "login.html",
+    "/login.js": "login.js",
+    "/login.css": "login.css",
+    "/agent-console.js":"agent-console.js",
 }
 
 
@@ -65,6 +69,9 @@ class BoardServer(ThreadingHTTPServer):
             if settings.get("project_state")
             else None
         )
+        from .human_auth import HumanAuth
+        self.human=HumanAuth(self.hub) if self.hub else None
+        if self.human:self.human.ensure_setup(settings.get('public_url','http://127.0.0.1:'+str(address[1])))
         self.semaphore = threading.BoundedSemaphore(32)
         self.started = time.time()
         super().__init__(address, Handler)
@@ -156,7 +163,7 @@ class Handler(BaseHTTPRequestHandler):
         if compressed:
             self.send_header("Content-Encoding", "gzip")
         for key, val in (headers or {}).items():
-            self.send_header(key, val)
+            for item in val if isinstance(val,list) else [val]:self.send_header(key,item)
         self.end_headers()
         if body:
             self.wfile.write(body)
@@ -220,6 +227,8 @@ class Handler(BaseHTTPRequestHandler):
             return (
                 "/api/" + parts[4] if len(parts) == 5 and parts[4] else "/api/project"
             )
+        if path.startswith('/api/human/'):return path
+        if path.startswith('/api/node/') or path=='/api/nodes' or path.startswith('/api/nodes/'):return path
         if path.startswith("/api/") and path not in (
             "/api/projects",
             "/api/project-grants",
@@ -261,7 +270,7 @@ class Handler(BaseHTTPRequestHandler):
         except cookies.CookieError:
             raise BoardError("会话格式不正确", 401) from None
         self._identity = self.server.hub.resolve(
-            token, jar["dhy_board"].value if "dhy_board" in jar else None
+            token, jar['board_human'].value if 'board_human' in jar else jar["dhy_board"].value if "dhy_board" in jar else None
         )
         return self._identity
 
@@ -348,6 +357,7 @@ class Handler(BaseHTTPRequestHandler):
             self.guard()
             parsed = urlsplit(self.path)
             path = self.route(parsed.path)
+            if path=='/api/human/status' and self.server.human:return self.send(200,{'enabled':True,'configured':self.server.human.configured(),'login':'/login','agent_guide':'/help/worker-start'})
             from .help import DOCS, RAW_DOCS, PUBLIC_TEMPLATES, ROOT, INDEX, document_page, template_index
             if path in ('/help','/help/'):
                 return self.send(200,document_page('使用手册',INDEX),content_type='text/html; charset=utf-8')
@@ -359,6 +369,9 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/observer-kit.zip':
                 from .help import observer_kit
                 return self.send(200,observer_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-observer.zip"'})
+            if path=='/node-kit.zip':
+                from .help import node_kit
+                return self.send(200,node_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-node.zip"'})
             if path in DOCS or path in RAW_DOCS:
                 title,relative,private=DOCS[path] if path in DOCS else ('操作文档',*RAW_DOCS[path])
                 if private and (not self.server.hub or not self.identity()['global_admin']):
@@ -409,6 +422,7 @@ class Handler(BaseHTTPRequestHandler):
                         "se_self_service": self.server.settings.get('se_self_service') is True,
                         "worker_access_schema": 1,
                         "async_flow_schema": 1,
+                        "human_auth_schema": 1,
                         "workflow_schema": 1,
                         "coordination_schema": 1,
                         "convergence_schema": 1,
@@ -425,6 +439,12 @@ class Handler(BaseHTTPRequestHandler):
                 return self.send(200,{'se_self_service':self.server.settings.get('se_self_service') is True,'guide':'/help/project-start','command':'create-se','existing_project_access':'requires_current_project_identity'})
             self.read_access()
             query = parse_qs(parsed.query)
+            if path=='/api/nodes':
+                from .orchestration import Orchestrator
+                return self.send(200,Orchestrator(self.server.hub).nodes(self.identity()))
+            if path=='/api/orchestration':
+                from .orchestration import Orchestrator
+                return self.send(200,Orchestrator(self.server.hub).listing(self.identity(),self.project))
             if path in ('/api/convergence','/api/convergence/context','/api/convergence/template'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .convergence import snapshot,context_pack,template_definition
@@ -460,6 +480,12 @@ class Handler(BaseHTTPRequestHandler):
                 from .git_tracking import Tracking
                 tracking=Tracking(self.store);endpoint=path.removeprefix('/api/git').lstrip('/')
                 return self.send(200,tracking.verify() if endpoint=='verify' else tracking.query(endpoint,query))
+            if path=='/api/readiness':
+                from .readiness import diagnose
+                return self.send(200,diagnose(self.store,self.actor()))
+            if path=='/api/delegations':
+                from .delegation import listing
+                return self.send(200,listing(self.store,self.actor()))
             if path in ('/api/operations','/api/operations/verify'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .operations import Operations
@@ -493,6 +519,7 @@ class Handler(BaseHTTPRequestHandler):
                     200,
                     {
                         "actor": actor["id"] if actor else None,
+                        "project_role":actor.get('project_role') if actor else None,
                         "role": (
                             (
                                 "admin"
@@ -507,6 +534,8 @@ class Handler(BaseHTTPRequestHandler):
                         **(
                             {
                                 "global_admin": self.identity()["global_admin"],
+                                "principal_kind": self.identity().get('principal_kind','operator' if self.identity()['global_admin'] else 'agent'),
+                                "display_name": actor.get('display_name',actor['id']),
                                 "project_id": self.project
                                 or self.identity()["project_id"],
                             }
@@ -583,6 +612,31 @@ class Handler(BaseHTTPRequestHandler):
                 raise BoardError('迁移校验期间暂缓写入，请保留原请求稍后重试',503)
             path = self.route(urlsplit(self.path).path)
             value = self.body()
+            if path.startswith('/api/node/'):
+                from .orchestration import Orchestrator
+                control=Orchestrator(self.server.hub);auth=self.headers.get('Authorization','')
+                if len(self.headers.get_all('Authorization',[]))!=1 or not auth.startswith('Bearer '):raise BoardError('需要单一节点身份',401)
+                token=auth[7:]
+                if path=='/api/node/enroll':return self.send(201,control.enroll(token,value))
+                node=control.node(token)
+                if path=='/api/node/heartbeat':result=control.heartbeat(node,value)
+                elif path=='/api/node/poll':
+                    fields(value,set(),set());result=control.poll(node)
+                elif path=='/api/node/report':result=control.report(node,value)
+                elif path=='/api/node/profile':result=control.profile(node,value)
+                else:raise BoardError('节点接口不存在',404)
+                return self.send(200,result)
+            if path in ('/api/nodes/pair','/api/nodes/revoke'):
+                from .orchestration import Orchestrator
+                control=Orchestrator(self.server.hub)
+                return self.send(201,control.pair(self.identity(),value) if path.endswith('/pair') else control.revoke(self.identity(),value))
+            if path.startswith('/api/human/') and self.server.human:
+                if path=='/api/human/setup':token=self.server.human.setup(value)
+                elif path=='/api/human/login':token=self.server.human.login(value)
+                elif path=='/api/human/password':token=self.server.human.change_password(self.identity(),value)
+                else:raise BoardError('人类账号接口不存在',404)
+                secure='; Secure' if self.headers.get('Host') in self.server.settings.get('proxy_hosts',[]) and self.server.settings.get('proxy_https',True) else ''
+                return self.send(200,{'logged_in':True,'principal_kind':'human'},headers={'Set-Cookie':'board_human='+token+'; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800'+secure})
             if path == "/api/enroll":
                 fields(value, {"actor", "join_key"}, {"actor"})
                 if value["actor"] == "root":
@@ -632,6 +686,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/logout":
                 jar = cookies.SimpleCookie()
                 jar.load(self.headers.get("Cookie", ""))
+                if 'board_human' in jar and self.server.human:self.server.human.logout(jar['board_human'].value)
                 if "dhy_board" in jar:
                     if self.server.hub:
                         self.server.hub.logout(jar["dhy_board"].value)
@@ -641,7 +696,7 @@ class Handler(BaseHTTPRequestHandler):
                     200,
                     {"logged_out": True},
                     headers={
-                        "Set-Cookie": "dhy_board=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"
+                        "Set-Cookie": ["dhy_board=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0","board_human=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0"]
                     },
                 )
             if self.server.hub and path=='/api/se-start':
@@ -663,6 +718,9 @@ class Handler(BaseHTTPRequestHandler):
                 from .project_start import bootstrap
                 return self.send(201,bootstrap(self.server.hub,self.project,auth[0][7:],value))
             actor = self.actor()
+            if path=='/api/orchestration':
+                from .orchestration import Orchestrator
+                return self.send(201,Orchestrator(self.server.hub).apply(self.identity(),self.project,value))
             if self.server.hub and path in ('/api/project-grants','/api/project-grants/revoke'):
                 from .project_start import issue,revoke
                 result=issue(self.server.hub,self.identity(),value,self.server.settings.get('public_url','')) if path=='/api/project-grants' else revoke(self.server.hub,self.identity(),value)

@@ -110,3 +110,7 @@ python client.py --profile <本项目身份> request --endpoint /api/governance 
 
 
 Worker 接入采用[项目自助加入](/help/worker-start)：新SE自助项目默认开放；既有项目由owner/SE通过worker_access一次性决定是否开放。Worker自行取得普通身份，从已登记的无阻塞公开任务中认领与交付。逐个发身份、固定派单、复制源码、确认线程均为可选措施，不是普遍前置。SE保留任务的claimable=false及管理角色，继续审核范围、接口和验收。
+
+## 跨机器编排与下放工作
+
+本轮新增 [接管诊断](/help/project-readiness) 和 [编排与有界委派](/help/orchestration)。SE读取本项目 `/readiness` 区分当前卡点；无需把全部历史任务补成当前验收。人类先开通节点，本机固定项目/根/角色后，SE选择实际探测通过的模型派发受管会话。评论与提交按原事件通知SE，回复回到原Worker；当前手动聊天不会自动被接管。研究、整理和草案直接用普通Worker；独立复核、验收或基线操作按任务/输入/动作明确委派，严格最终处置仍归SE/人类，原测试与Git门禁保留。

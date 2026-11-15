@@ -1,0 +1,17 @@
+{
+  "id": "tailscale-pc-name",
+  "url": "http://example-server.example-tailnet.ts.net:18785",
+  "state": "G:/board-node/private-state",
+  "max_parallel": 2,
+  "projects": {
+    "your-project": {
+      "roles": ["worker"],
+      "roots": {"workspace": "G:/your-project"}
+    }
+  },
+  "runtimes": {
+    "codex": {"command": ["G:/tools/codex/codex.exe", "app-server"], "version": "locally-installed-version", "environment": {}},
+    "zcode": {"command": ["G:/tools/node/node.exe", "G:/tools/zcode/zcode.cjs", "app-server", "--surface", "terminal"], "version": "locally-installed-version", "models": ["actual-provider-id/actual-model-id"], "environment": {}},
+    "deepseek": {"command": ["G:/tools/dsh/dsh", "--profile", "sdk"], "version": "locally-installed-version", "models": ["actual-provider-id/actual-model-id"], "environment": {}}
+  }
+}

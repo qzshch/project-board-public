@@ -60,6 +60,10 @@ class ProjectHub:
             )
             from .project_start import prepare
             prepare(db)
+            from .human_auth import prepare as prepare_human_auth
+            prepare_human_auth(db)
+            from .orchestration import prepare as prepare_orchestration
+            prepare_orchestration(db)
 
     @contextmanager
     def connection(self):
@@ -187,7 +191,7 @@ class ProjectHub:
             digest = token_hash(token)
             try:
                 actor = self.admin_store.authenticate(token)
-                return {"global_admin": True, "actor": actor, "project_id": None}
+                return {"global_admin": True, "actor": actor, "project_id": None,"principal_kind":"operator"}
             except BoardError:
                 pass
             if token.startswith('worker.'):
@@ -206,6 +210,9 @@ class ProjectHub:
             actor = self.store(project).authenticate(token)
             return {"global_admin": False, "actor": actor, "project_id": project}
         if session:
+            if session.startswith('h.'):
+                from .human_auth import HumanAuth
+                return HumanAuth(self).resolve(session)
             if session.startswith("g."):
                 actor = self.admin_store.session_actor(session[2:])
                 return {"global_admin": True, "actor": actor, "project_id": None}
@@ -377,7 +384,10 @@ class ProjectHub:
             raise BoardError("授权入口无效、已使用或过期", 401) from None
 
     def logout(self, session: str) -> None:
-        if session.startswith("g."):
+        if session.startswith('h.'):
+            from .human_auth import HumanAuth
+            HumanAuth(self).logout(session)
+        elif session.startswith("g."):
             self.admin_store.logout(session[2:])
         elif session.startswith("p."):
             parts = session.split(".", 2)
