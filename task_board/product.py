@@ -111,6 +111,7 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
             v['co_intakes'][e['id']]=e
         else:
             manager(r);checked(p,'id expected_version reason');e=exact(v['co_intakes'],p['id']);text(p['reason'],'采用原因',4000)
+            integer(p['expected_version'],'历史记录版本',1)
             if e.get('product_model_version') or e['version']!=p['expected_version']:raise BoardError('已采用或历史版本已变化',409)
             d={'title':e['title'],'body':e['body']};e['legacy_disposition']={k:deepcopy(e.get(k)) for k in ('status','version','history')};e['version']+=1
         e.update(product_model_version=1,product_kind='defect' if e['kind']=='bug' else 'requirement',status='triage' if e['kind']=='bug' else 'idea',definitions={'1':d},definition_version=1,confirmed=False,commitment=None,mappings=[],verifications={},retests=[],engineering_pending=[],dispositions=[])

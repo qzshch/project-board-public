@@ -108,3 +108,9 @@ GitHub接入不会代替执行者提交代码。提交前检查本项目排除�
 阅读项目章程和[测试实例纪律](/help/test-instances)，核对本任务实例、账号、端口、数据和占用。
 同一项目有多SE/Worker也不能共享未隔离的安卓ADB、CDP/profile或测试存档。登记本人测试与清理，
 结束释放；失联实例先由SE核对，不抢占其他会话进程。
+# 原生会话定位记录
+
+领取成功后请在同一会话用session_register登记真实Session ID、运行系统、机器、角色及任务，
+后续SE和人类才能找到原聊天。托管会话会自动显示原生ID；外部会话按[会话目录](/help/product)
+及[模板](/templates/session-reference.json)登记。拿不到真实ID时先标未知并说明本机查找入口，
+取得ID后用新引用指向previous；不要拿绑定ID、任务ID或传输ID代替。不要求普通任务建立尝试。

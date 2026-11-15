@@ -119,3 +119,8 @@ Worker 接入采用[项目自助加入](/help/worker-start)：新SE自助项目�
 项目SE负责维护测试实例清单，多SE遵守同一入口。把[测试实例纪律](/help/test-instances)
 及项目补充写入章程constraints，实例受控入口放项目资产，冲突ID填入任务/用例/套件resources。
 Worker可在授权范围内自行创建、领取、清理和交还实例，失联先核对再接管。
+# SE与Worker会话可追踪
+
+SE开始管理或接手项目时登记自己的原生Session ID，并要求外部Worker领取后登记。
+在Agent协作与任务详情按项目、机器、系统、角色和任务查找/复制；托管会话自动记录。
+未知保持未知，按真实查找入口补齐，不伪造ID或把手工登记当成可控会话。见[会话目录](/help/product)。
