@@ -23,7 +23,7 @@ def observer_kit():
 
 
 def node_kit():
-    names=('tools/agent_node.py','tools/agent_runtime.py','tools/task_board_client.py','tools/runner_process.py','templates/agent-node-config.json','docs/ORCHESTRATION-GUIDE.md')
+    names=('tools/agent_node.py','tools/agent_runtime.py','tools/usage_collector.py','tools/task_board_client.py','tools/runner_process.py','templates/agent-node-config.json','docs/ORCHESTRATION-GUIDE.md','docs/PRODUCT-WORKSPACE.md')
     files={n:(ROOT/n).read_bytes() for n in names};files['tools/__init__.py']=b'';files['requirements.txt']=b'psutil>=6,<8\n'
     files['MANIFEST.json']=json.dumps({n:hashlib.sha256(v).hexdigest() for n,v in files.items()},sort_keys=True,indent=2).encode()
     output=io.BytesIO()
@@ -48,6 +48,8 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'project-test-discipline.md',
+    'product-requirement.json','product-defect.json','token-usage.json','session-reference.json',
     'agent-node-config.json','agent-binding.json','delegation-grant.json',
     'workflow-thread-wait.json','task-dependency-requirements.json',
     'finishing-actions.json',
@@ -66,6 +68,8 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/test-instances':('项目测试实例与并发纪律','docs/TEST-INSTANCE-DISCIPLINE.md',False),
+    '/help/product':('需求、缺陷、用量与会话目录','docs/PRODUCT-WORKSPACE.md',False),
     '/help/human':('人类平台所有者登录','docs/HUMAN-LOGIN.md',False),
     '/help/project-readiness':('已有项目接管与卡点诊断','docs/PROJECT-READINESS.md',False),
     '/help/orchestration':('跨机器Agent编排与有界委派','docs/ORCHESTRATION-GUIDE.md',False),
@@ -95,6 +99,8 @@ RAW_DOCS={
     '/manual.md':('docs/MANUAL.md',True),
 }
 INDEX='''# 使用手册
+
+[产品工作空间v2：需求、变更、缺陷、Token与原生会话目录](/help/product)。
 
 [人类登录](/login) · [已有项目接管诊断](/help/project-readiness) · [跨机器编排与有界委派](/help/orchestration)。人类使用账号密码；Agent沿用项目身份。
 

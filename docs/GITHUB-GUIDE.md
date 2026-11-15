@@ -21,9 +21,15 @@ python tools/check_git_boundary.py --repo <本项目仓库> --out <本地或serv
 ## 接入与权限
 
 1. 项目负责人在“管理资料”绑定仓库ID、GitHub `owner/name`、显示名称和依据。支持多个仓库，仓库ID不可改绑为另一个远端；换仓库时新建ID并停用旧ID，保留历史。
-2. 实例管理员配置server专用裸镜像与该仓库的**只读部署密钥**。每仓库一把密钥；不复制个人全局GitHub私钥或PAT到server，不把令牌、密码、凭据位置填入项目表单。
-3. 管理员私有 `state/_private/github.json` 中 `projects[project_id][repo_id]` 为 `{repository:"owner/name",key:"<本实例_private下的密钥文件>"}`。签发项目身份并授予 `tracker` 角色；该角色不能开发任务、改变治理或运行测试。
-4. server启用项目专用 `tools/github_tracker.py --state <server状态根> --project <项目ID> --profile <本项目tracker身份> --watch`。只读拉取每60秒一次，手动请求5秒内检查。网络失败保留旧快照和失败状态；没有成功时间不宣称已接入。
+2. SE在“代码与交付 → 仓库只读接入”申请server专属公钥，私钥只保留server。项目SE不需要server SSH或实例管理员身份。
+3. 由有权管理GitHub仓库的人（可以是同一SE）创建**只选择当前仓库、短期有效的fine-grained授权**，Administration读写仅用于登记该公钥。在专用授权框输入，不能写入任务评论、证据、普通项目表单或Git。平台直接核对GitHub仓库和部署密钥API，明确要求`read_only=true`；账号级classic PAT被拒绝。临时授权只在请求内存使用，不持久化，完成后可立即撤销。它的选择范围仍须在GitHub正确配置；平台不声称能够反向证明该授权未选择其他仓库。
+4. server受控代理完成专属镜像、固定远端拉取、refs与真实对象核验并登记原Git审计链。新接入仓库由统一代理每60秒检查；旧项目专属同步器兼容保留。失败显示负责方和下一步，旧快照保留。网络响应未知时先按同一公钥核对，不重复创建。
+
+原实现的卡点是：SE只能绑定仓库，读取器还依赖管理员手工配置私有镜像。现在授权成功后由受控代理填好这个接入，已有repo ID和Git证据门禁保持。SE拥有公告板项目权限不等于拥有任意GitHub仓库权限；外部仓库未授权时明确等待仓库有权者，不再要求实例管理员代建。
+
+首次部署由平台运维核对GitHub known_hosts并安装统一受控同步代理，一次设置后无需为每个新项目编辑配置。旧的人工接入配置作为兼容路径保留。GitHub部署密钥的`read_only`语义及管理权限见[官方API](https://docs.github.com/en/rest/deploy-keys/deploy-keys)。
+
+API：项目路径下 `/git-onboarding?repo=ID` 查询状态；POST `/git-onboarding/request`、`/sync` 载荷为`{repo}`；`/authorize`为`{repo,grant}`。authorize是敏感专用端点，禁止将载荷写入普通operations、Git事件或证据记录。授权与同步重试核对同一公钥/绑定，不接受客户端提交的“已经只读”声明。
 
 镜像在 `state/git-mirrors/<project>/<repo>.git`。此位置自身属于运行态，不上传Git。同步只拉 GitHub已存在的对象与引用，不读取/上传项目的本地资料，不执行仓库代码或子模块，也不自动拉取Git LFS媒体；密钥须在GitHub登记为 `read_only=true`。server主机密钥由管理员核对可信GitHub指纹后加入SSH known_hosts，不能关闭验证。
 

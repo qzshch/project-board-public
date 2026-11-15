@@ -34,6 +34,17 @@ class Node:
             self.seed=read(seed)
             if self.seed['id']!=c['id']:raise ValueError('节点ID不可替换已有身份')
             self.client=Client(c['url'],{'url':c['url'],'token':self.seed['token']},c.get('connect_ip'))
+            from tools.usage_collector import Spool
+            self.usage_spool=Spool(self.home/'usage');self.usage_clients={}
+            # Pending usage outlives a runtime/job. Rebuild only clients whose
+            # private profile and locally-owned binding still match this node.
+            for receipt in (self.home/'bindings').glob('*.json'):
+                identity=read(receipt).get('identity',{});project=c['projects'].get(identity.get('project'))
+                if not project or identity.get('role') not in project['roles']:continue
+                path=Path(project.get('se_profile','')) if identity['role']=='se' else self.home/'profiles'/(identity['id']+'.json')
+                if not path.is_file():continue
+                local=read(path)
+                if local.get('actor')==identity.get('actor') and local.get('project_id')==identity.get('project'):self.usage_clients[identity['id']]=Client(c['url'],local,c.get('connect_ip'),identity['project'])
             for config in c['runtimes'].values():
                 command=config['command']
                 if type(command) is not list or not command or any(type(x) is not str for x in command):raise ValueError('运行时启动命令需本机固定argv数组')
@@ -125,6 +136,7 @@ class Node:
         record={'job':job['job'],'binding':b['id'],'session':session,'started':time.time(),'status':'preparing'};save(path,record)
         try:
             p,config,root=self.validate(b);profile,client=self.profile(b,p);operation=job['body']['operation']
+            self.usage_clients[b['id']]=client
             # A project SE may confirm an uncertain result, but cannot choose
             # some other local conversation. Only this node's pre-effect
             # binding receipt establishes session provenance.
@@ -144,13 +156,16 @@ class Node:
                     if victim:removed=self.drivers.pop(victim);removed.close()
                 local_config={**config,'_approval_context':{'project':b['project'],'role':b['role'],'binding':b['id']},'environment':{**config.get('environment',{}),'PROJECT_BOARD_PROFILE':str(profile),'PROJECT_BOARD_PROJECT':b['project']}}
                 driver=Runtime(b['runtime'],local_config,root,self.home/'processes'/b['id']/uuid.uuid4().hex,b['model']);self.drivers[b['id']]=driver
+            # The locally owned binding, never a remote frame, chooses project
+            # and actor attribution. Existing sessions start with a baseline.
+            driver.wire.usage_sink=lambda frame,b=dict(b),driver=driver:self.usage_spool.capture(frame,b,driver.ready_session or '',getattr(driver,'usage_created',False))
             if operation not in ('stop','create'):
                 active=sum(1 for key,d in self.drivers.items() if key!=b['id'] and d.ready_session and d.busy(d.ready_session))
                 if active>=self.config['max_parallel']:raise Busy('达到本机模型并行上限，输入保留在原队列')
             content=self.prompt(job,profile,client) if operation!='stop' and operation!='create' else ''
             record.update(status='attempting');save(path,record)
             if operation=='create':
-                session=driver.create('board-'+uuid.uuid5(uuid.NAMESPACE_URL,self.client.url+'|'+self.config['id']+'|'+b['project']+'|'+b['id']).hex,b['model']);save(binding_path,{'identity':identity,'session':session,'created':time.time()});record.update(session=session);save(path,record);summary='真实会话已创建；首条任务输入另有持久工作单'
+                session=driver.create('board-'+uuid.uuid5(uuid.NAMESPACE_URL,self.client.url+'|'+self.config['id']+'|'+b['project']+'|'+b['id']).hex,b['model']);driver.usage_created=True;save(binding_path,{'identity':identity,'session':session,'created':time.time()});record.update(session=session);save(path,record);summary='真实会话已创建；首条任务输入另有持久工作单'
             elif not session:raise ProtocolError('没有原会话，不能替换创建')
             elif operation=='stop':summary=driver.stop(session)
             else:driver.send(session,b['model'],content,job['job']);summary='原会话已接收输入；任务交付与验收尚待公告板真实记录'
@@ -171,6 +186,7 @@ class Node:
             while not self.stop.is_set():
                 try:
                     self.heartbeat();job=self.client.call('/api/node/poll',{})
+                    self.usage_spool.flush(self.usage_clients)
                     if job['job']:
                         with self.lock:self.current=job
                         try:self.execute(job)

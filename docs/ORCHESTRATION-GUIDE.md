@@ -89,3 +89,10 @@ SE读取 `GET /api/projects/{project}/orchestration` 查看工作单。先在原
 需要发送评论、领取和交付时，本机维护者可另核准固定的客户端 `request --endpoint /api/operations --payload board-operation.json --out board-operation-receipt.json` 与 `post --event board-event.json --receipt board-event-receipt.json` 命令；Worker用文件填写冻结请求，API仍核对项目身份、范围和权限。不要把任意Shell或可变命令前缀列入规则。
 
 公告板隔离项目API、身份引用和受管会话上下文；原应用的其他插件权限和操作系统文件权限仍由本机维护者配置。同一OS账号下的Agent不构成文件级硬隔离，强隔离应使用独立账号或容器及专用运行配置。
+# 原生会话与用量补充
+
+会话绑定必须保留运行时返回的原生 Session ID。Agent协作和任务详情提供统一目录，
+可按ID、系统、机器、任务和角色搜索、复制、导出；绑定/任务/传输ID不能代替原生ID。
+已有外部会话可用session_register登记并保留previous接续，未知保持未知，不能因此获得控制权。
+节点包现含usage_collector；已识别Codex累计通知写入本机持久队列，按项目绑定归因，
+断线重放同一样本。其他协议未识别字段保持缺采样，不猜测Token。详见[产品操作](/help/product)。

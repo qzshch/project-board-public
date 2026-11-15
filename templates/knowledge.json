@@ -2,7 +2,7 @@
   "background": "描述业务背景与来源",
   "goals": "明确可验收目标",
   "non_goals": "明确本期不做范围",
-  "constraints": "数据与缓存放C盘之外；公共接口变更先确认影响",
+  "constraints": "数据与缓存放C盘之外；公共接口变更先确认影响；并行测试按 /help/test-instances 统一实例清单与排他资源ID，先核对领取、隔离账号端口数据，测试后释放，失联保守恢复",
   "materials": [
     {
       "title": "需求基线",

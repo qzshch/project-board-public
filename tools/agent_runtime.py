@@ -52,6 +52,9 @@ class Wire:
                         if self.runtime!='zcode':response['jsonrpc']='2.0'
                         self.frame(response)
                 else:
+                    if getattr(self,'usage_sink',None):
+                        try:self.usage_sink(frame)
+                        except Exception:self.usage_capture_failed=True
                     self.events.append(frame)
                     if len(self.events)>2000:del self.events[:1000]
         finally:

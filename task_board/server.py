@@ -26,6 +26,11 @@ from .projects import ProjectHub, project_id
 
 WEB_ROOT = Path(__file__).resolve().parents[1] / "task_board_web"
 STATIC = {
+    "/git-onboarding.js":"git-onboarding.js",
+    "/product.js":"product.js",
+    "/workspace-v2.js":"workspace-v2.js",
+    "/workspace-v2.css":"workspace-v2.css",
+    "/dependency-explorer.js":"dependency-explorer.js",
     "/": "index.html",
     "/index.html": "index.html",
     "/app.js": "app.js",
@@ -166,7 +171,8 @@ class Handler(BaseHTTPRequestHandler):
             for item in val if isinstance(val,list) else [val]:self.send_header(key,item)
         self.end_headers()
         if body:
-            self.wfile.write(body)
+            try:self.wfile.write(body)
+            except (BrokenPipeError,ConnectionResetError,ConnectionAbortedError):pass
         self.close_connection = True
 
     def guard(self, write=False):
@@ -489,6 +495,23 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/delegations':
                 from .delegation import listing
                 return self.send(200,listing(self.store,self.actor()))
+            if path=='/api/git-onboarding':
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .git_onboarding import Onboarding
+                return self.send(200,Onboarding(self.store).status(query.get('repo',[''])[0]))
+            if path in ('/api/product','/api/usage','/api/usage/head','/api/sessions'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                if path in ('/api/usage','/api/usage/head'):
+                    from .usage import Usage
+                    usage=Usage(self.store)
+                    return self.send(200,usage.head(self.actor()) if path.endswith('/head') else usage.report(self.actor()))
+                from .product import snapshot
+                data=snapshot(self.store,self.actor())
+                if path=='/api/sessions':
+                    from .orchestration import Orchestrator
+                    from .operations import Operations
+                    data={'references':data['sessions'],'managed':Orchestrator(self.server.hub).listing(self.identity(),self.project)['bindings'],'attempts':Operations(self.store).snapshot(self.actor()).get('cv_sessions',{})}
+                return self.send(200,data)
             if path in ('/api/operations','/api/operations/verify'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .operations import Operations
@@ -736,6 +759,14 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .operations import Operations
                 return self.send(201,Operations(self.store).apply(actor,value))
+            if path in ('/api/git-onboarding/request','/api/git-onboarding/authorize','/api/git-onboarding/sync'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .git_onboarding import Onboarding
+                return self.send(201,getattr(Onboarding(self.store),path.rsplit('/',1)[1])(actor,value))
+            if path=='/api/usage':
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .usage import Usage
+                return self.send(201,Usage(self.store).append(actor,value))
             if path in ('/api/governance','/api/shared'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .governance import Governance

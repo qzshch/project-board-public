@@ -1,0 +1,17 @@
+<!doctype html>
+<!-- Design constraint brief: primary=project-scoped item list and next decision;
+secondary=status, priority, accountable owner and delivery links; tertiary=IDs,
+timestamps and audit anchors. One primary action in the active surface. Build
+hierarchy before color; existing palette tokens, 4/8/12/16/24/32 spacing,
+12/14/16/20/24 type, 400/600 weights. Dense desktop rows; 44px mobile targets.
+Standalone, deliberately synthetic, local-only prototype: never calls board APIs. -->
+<html lang="zh-CN" data-theme="light"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>项目公告板 · 产品工作台设计原型</title><link rel="stylesheet" href="tokens.css"><link rel="stylesheet" href="prototype.css"><script defer src="data.js"></script><script defer src="prototype.js"></script></head>
+<body><a class="skip-link" href="#main">跳到主要内容</a>
+<div class="prototype-banner"><span><strong>交互设计原型 v1</strong><span class="banner-extra"> · 所有数据均为演示，操作只保存在当前浏览器，不连接公告板</span></span><a href="guide.html">阅读详细设计 ↗</a></div>
+<header class="topbar"><button class="icon-button mobile-only" id="menu-toggle" aria-label="打开项目导航" aria-expanded="false"></button><a class="brand" href="#requirements"><span class="brand-mark" aria-hidden="true">▦</span><strong>项目公告板</strong></a><button class="global-search" id="command-open"><span>搜索当前项目的需求、缺陷、任务</span><kbd>Ctrl K</kbd></button><div class="top-actions"><button class="icon-button" id="theme-toggle" aria-label="切换到深色主题"></button><label class="role-select"><span class="sr-only">演示身份</span><select id="role" aria-label="演示身份"><option value="human">人类所有者</option><option value="se">项目 SE</option><option value="worker">Worker</option></select></label><span class="avatar" aria-label="当前演示身份">人</span></div></header>
+<div class="app-layout"><aside class="sidebar" id="sidebar" aria-label="项目导航"><div class="project-picker"><span class="project-symbol">PB</span><label><span class="overline">当前项目 · 演示</span><select id="project" aria-label="当前项目 · 演示"><option value="board">项目公告板</option><option value="sample">示例项目 Beta</option></select></label></div><nav id="nav"></nav><div class="sidebar-footer"><a href="guide.html">设计规范与验收清单 ↗</a><button id="reset-demo">重置演示数据</button><span class="small muted">数据隔离演示 · 无生产权限</span></div></aside>
+<main id="main" tabindex="-1"><div class="breadcrumbs" id="breadcrumbs"></div><div id="page"></div><footer class="workspace-footer"><span>原型快照 · 2026-11-16</span><span id="storage-status">仅本浏览器保存</span></footer></main></div>
+<div id="nav-scrim" hidden></div><div id="drawer-backdrop" hidden></div><aside id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawer-title" hidden tabindex="-1"></aside>
+<dialog id="modal" aria-labelledby="modal-title"><div class="modal-header"><h2 id="modal-title"></h2><button class="icon-button" id="modal-close" aria-label="关闭对话框"></button></div><div id="modal-body"></div></dialog>
+<div class="toast" id="toast" role="status" hidden></div>
+</body></html>

@@ -83,7 +83,11 @@ class Operations:
             from .coordination import ACTIONS as CO_ACTIONS
             from .convergence import ACTIONS as CV_ACTIONS
             from .delegation import ACTIONS as DG_ACTIONS
-            if action in DG_ACTIONS:
+            from .product import ACTIONS as PRODUCT_ACTIONS
+            if action in PRODUCT_ACTIONS:
+                from .product import mutate as product_mutate
+                def mutate(*args):return product_mutate(*args,self.store)
+            elif action in DG_ACTIONS:
                 from .delegation import mutate
             elif action in CV_ACTIONS:
                 from .convergence import mutate as cv_mutate

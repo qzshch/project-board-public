@@ -151,3 +151,7 @@ owner先签发项目专属SE身份并member登记职责；handoff_propose记录�
 服务在尚无人类账号时生成 `state/_private/human/setup.html`，72小时一次性入口，私下提供文件路径给用户，禁止复制到公开手册、普通Agent包或Git。用户自己设置账号密码；不替用户选择生产密码。人类会话能查看全部项目，维护身份继续独立存在。
 
 任意Tailscale节点可以接入，但实例所有者必须先按 `/help/orchestration` 授权项目；本机继续限制根、角色、运行时和并行数。公开 `/node-kit.zip` 无任何凭据。项目SE只管理自己项目绑定，节点不领取owner/管理员身份。撤销节点不证明失联模型已停止；需要时另撤销具体Worker项目身份，并在原机器核对进程。
+# 产品工作空间v2
+
+[需求、变更、缺陷、项目Token与原生会话目录](/help/product)；
+[并行测试实例纪律](/help/test-instances)。原生Session ID可在Agent协作及任务详情查找复制。

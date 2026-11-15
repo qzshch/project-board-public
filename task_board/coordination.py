@@ -138,6 +138,7 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
         v['co_intakes'][p['id']]={**record(p,actor,now),'status':'triage','version':1,'history':[],'tasks':[],'modules':[]};return {'intake':p['id']}
     if action in ('intake_decide','intake_convert'):
         manager(r);e=exact(v['co_intakes'],p.get('id'));integer(p.get('expected_version'),'需求版本')
+        if e.get('product_model_version'):raise BoardError('此记录已采用产品模型，使用产品版本与核验流程',409)
         if p['expected_version']!=e['version']:raise BoardError('需求已有新处置',409)
         if action=='intake_decide':
             checked(p,'id expected_version status reason duplicate tasks modules')
@@ -328,6 +329,7 @@ def sanitize(v,g,actor,r):
     allowed={rid for rid,e in g.get('resource_entries',{}).items() if visible(e,r,actor.get('global_admin',False))}
     def can_ref(ref):return ref.get('kind')!='resource' or ref.get('id') in allowed
     v['co_intakes']={key:e for key,e in v.get('co_intakes',{}).items() if all(can_ref(ref) for ref in e['sources'])}
+    v['product_changes']={key:e for key,e in v.get('product_changes',{}).items() if e['id'] in v['co_intakes']}
     v['co_links']={key:e for key,e in v.get('co_links',{}).items() if can_ref(e['from']) and can_ref(e['to']) and all(ref.get('kind')!='intake' or ref.get('id') in v['co_intakes'] for ref in (e['from'],e['to']))}
     v['co_resource_checks']={rid:[row for row in rows if visible({'visibility':row.get('visibility','operator')},r,actor.get('global_admin',False))] for rid,rows in v.get('co_resource_checks',{}).items() if rid in allowed}
     v['co_resource_checks']={rid:rows for rid,rows in v['co_resource_checks'].items() if rows}
