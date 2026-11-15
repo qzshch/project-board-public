@@ -14,6 +14,23 @@ ACTIONS={'product_open','product_adopt','product_edit','product_confirm','produc
 DEFINITION={'title','body','audience','outcome','scope','non_goals','questions','priority','origin','owner','criteria',
             'actual','expected','environment','observed_version','steps','severity'}
 
+def commutes(action,p,actor,old,new):
+    """Unrelated runner heartbeats must not invalidate an open product form.
+
+    Mutation still checks the live object version, task scopes and permissions.
+    This permits no rebase when the product object itself has changed.
+    """
+    key=p.get('id')
+    if type(key) is not str:return False
+    if action in ('product_open','session_register'):
+        table='session_registry' if action=='session_register' else 'co_intakes'
+        return key not in new.get(table,{})
+    if action=='finding_promote':return type(p.get('finding')) is str and old.get('wf_findings',{}).get(p['finding'])==new.get('wf_findings',{}).get(p['finding'])
+    before=old.get('co_intakes',{}).get(key);after=new.get('co_intakes',{}).get(key)
+    if not after or before!=after or p.get('expected_version')!=after['version']:return False
+    if action=='product_change_decide':return type(p.get('change')) is str and old.get('product_changes',{}).get(p['change'])==new.get('product_changes',{}).get(p['change'])
+    return True
+
 def checked(p,required,optional=''):
     fields(p,set((required+' '+optional).split()),set(required.split()))
 
@@ -37,6 +54,7 @@ def definition(p,kind):
     return out
 
 def get(v,p):
+    integer(p.get('expected_version'),'产品记录版本',1)
     e=exact(v['co_intakes'],p.get('id'))
     if e.get('product_model_version')!=1:raise BoardError('先显式采用产品模型，历史结论保留',409)
     if p.get('expected_version')!=e['version']:raise BoardError('对象已有新版本；重读差异后决定',409)
@@ -51,6 +69,8 @@ def changed_criteria(old,new):
 
 def mutate(v,db,actor,r,action,p,now,g,ts,store):
     prepare(v);v.setdefault('product_changes',{});v.setdefault('session_registry',{})
+    for key in ('id','change','finding','criterion','task','task_scope','milestone','status','duplicate','decision','impact_hash','input_anchor','environment','result','reason','previous','locator','model','runtime','machine','attempt','session','role','kind'):
+        if key in p and (type(p[key]) is not str or len(p[key])>8000):raise BoardError(key+'需有界字符串')
     if action=='session_register':
         checked(p,'id session runtime machine role tasks previous status','attempt locator model')
         for key in ('id','runtime','machine','role','status'):text(p[key],key,160)

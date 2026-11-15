@@ -37,6 +37,13 @@ class ProductCase(unittest.TestCase):
         self.assertEqual(self.op('product_open',d,self.a)[0],201)
         self.assertEqual(self.op('product_confirm',{'id':'worker-idea','expected_version':1,'reason':'Self approve'},self.a)[0],403)
         for endpoint in ('product','usage','sessions','git-onboarding?repo=main'):self.assertEqual(self.call('/api/projects/alpha/'+endpoint,profile=self.b)[0],404)
+    def test_product_object_compare_and_set_ignores_unrelated_background_updates(self):
+        e=self.create();revision=self.call('/api/projects/alpha/operations',profile=self.admin)[1]['revision']
+        self.op('intake_open',{'id':'unrelated','kind':'research','title':'Other activity','body':'Models and runners continue work','sources':[]})
+        p={'id':e['id'],'expected_version':e['version'],'definition':{**e['definition'],'title':'Updated product draft'},'reason':'Same object; unrelated background event'}
+        result=self.op('product_edit',p,revision=revision);self.assertEqual(result[0],201,result[1]);self.assertEqual(result[1]['independent_changes_since'],revision)
+        self.assertEqual(self.op('product_edit',{**p,'definition':{**p['definition'],'title':'Stale overwrite'}},revision=revision)[0],409)
+        current=self.products()['items'][e['id']];self.assertEqual(self.operation('product_schedule',current,milestone={})[0],400)
     def test_old_intake_adoption_preserves_historical_resolution(self):
         self.op('intake_open',{'id':'old','kind':'requirement','title':'History','body':'Old recorded scope','sources':[]})
         self.op('intake_decide',{'id':'old','expected_version':1,'status':'resolved','reason':'Legacy only','duplicate':'','tasks':[],'modules':[]})
