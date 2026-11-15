@@ -9,7 +9,7 @@ from .store import BoardError,fields,text,integer,identifiers,evidence,digest
 from .operations import manager,task_at
 
 KEYS=('threads','reads','plans','plan_heads','claims','verdicts','findings','checks','rollbacks','executors','defaults')
-ACTIONS={'thread_open','thread_reply','thread_decide','thread_ack','thread_resolve','thread_read',
+ACTIONS={'thread_open','thread_reply','thread_decide','thread_ack','thread_resolve','thread_read','thread_wait',
          'criteria_defaults','criteria_plan','criteria_claim','criteria_review','review_open','review_disposition','review_resolve','git_check',
          'rollback_plan','rollback_confirm','rollback_approve','rollback_cancel','rollback_claim','rollback_heartbeat','rollback_finish','rollback_recover','rollback_apply','rollback_executor'}
 ACTIONS |= {'criteria_claim_batch','criteria_review_batch','git_check_batch'}
@@ -21,7 +21,9 @@ def commutes(action,p,actor,old,new):
     same object still conflicts; state transitions and scope checks run again
     under the same write transaction. This is not a client-side blind rebase.
     """
-    if action=='thread_open':
+    if action in ('thread_open','thread_wait'):
+        if action=='thread_wait' and type(p.get('thread')) is not str:return False
+        if action=='thread_wait' and old.get('wf_threads',{}).get(p.get('thread'))!=new.get('wf_threads',{}).get(p.get('thread')):return False
         return not p.get('pause') or {k:s for k,s in old.get('sessions',{}).items() if s['actor']==actor['id'] and s['end'] is None}=={k:s for k,s in new.get('sessions',{}).items() if s['actor']==actor['id'] and s['end'] is None}
     if action=='review_open':
         return not p.get('criterion') or type(p.get('task')) is str and old.get('wf_plan_heads',{}).get(p['task'])==new.get('wf_plan_heads',{}).get(p['task'])
@@ -71,6 +73,24 @@ def independent(t,actor,v,g):
     if effective(v,t,g)['level']=='strict' and actor['id']==t['owner']:raise BoardError('严格任务需不同审核身份；身份区别不证明模型独立',403)
 
 def current(row,t):return row.get('scope')==t['scope_hash'] and row.get('scope_version')==t['scope_version']
+
+def stopped(v,t):
+    return [e['id'] for e in v.get('wf_threads',{}).values() if e['task']==t['spec']['id'] and e['status']!='resolved' and (e.get('decision') or {}).get('decision')=='stop' and current(e['decision'],t)]
+
+def wait_choice(v,db,t,thread,p,actor,r,now,g,ts):
+    from .finishing import participant
+    if thread['author']!=actor['id']:raise BoardError('等待选择属于留言者本人',403)
+    participant(v,t,p,actor)
+    if not current(thread,t):raise BoardError('旧范围留言不能改变当前作业状态',409)
+    if p['pause'] and thread['status']=='resolved':raise BoardError('已解决留言不再进入等待',409)
+    if not p['pause'] and stopped(v,t):raise BoardError('SE已明确停止此范围；自主等待不能覆盖停止决定',409)
+    from .timing import mutate as timing
+    if p['pause']:
+        timing(v,db,actor,r,'time_change',{'task':t['spec']['id'],'scope':t['scope_hash'],'mode':'wait','phase':'implementation','reason':'评论阻塞 '+thread['id']+'：'+thread['affected_step'],'rework':False,**{k:p[k] for k in ('attempt_id','attempt_lease') if k in p}},now,g,ts)
+    else:
+        waiting=[s for s in v['sessions'].values() if s['actor']==actor['id'] and s['task']==t['spec']['id'] and s['end'] is None and s['reason'].startswith('评论阻塞 '+thread['id']+'：')]
+        if waiting:timing(v,db,actor,r,'time_change',{'task':t['spec']['id'],'scope':t['scope_hash'],'mode':'work','phase':'implementation','reason':'留言者自主继续：'+thread['id'],'rework':False,**{k:p[k] for k in ('attempt_id','attempt_lease') if k in p}},now,g,ts)
+    thread['pause']=p['pause']
 
 def plan_for(v,t):
     plan=v.get('wf_plans',{}).get(v.get('wf_plan_heads',{}).get(t['spec']['id']))
@@ -153,7 +173,8 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
         for item in p['items']:text(item,'完成要求',180)
         if p['id'] in v['wf_defaults']:raise BoardError('清单版本不可覆盖',409)
         v['wf_defaults'][p['id']]={**deepcopy(p),'actor':actor['id'],'at':now};return
-    if action in ('thread_reply','thread_decide','thread_ack','thread_resolve','thread_read'):
+    if action in ('thread_reply','thread_decide','thread_ack','thread_resolve','thread_read','thread_wait'):
+        text(p.get('thread'),'线程ID',180)
         thread=v['wf_threads'].get(p.get('thread'))
         if not thread:raise BoardError('评论线程不存在',404)
         t=tasks[thread['task']];tid=t['spec']['id']
@@ -161,7 +182,12 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
             fields(p,{'thread','count'},{'thread','count'});integer(p['count'],'已读位置')
             if p['count']>len(thread['messages']):raise BoardError('已读位置越界')
             reads=v['wf_reads'].setdefault(actor['id'],{});reads[p['thread']]=max(reads.get(p['thread'],0),p['count']);return
-        if action=='thread_reply':
+        if action=='thread_wait':
+            fields(p,{'thread','pause','summary','attempt_id','attempt_lease'},{'thread','pause','summary'});text(p['summary'],'等待选择依据',4000)
+            if type(p['pause']) is not bool:raise BoardError('pause需布尔值')
+            wait_choice(v,db,t,thread,p,actor,r,now,g,tasks)
+            thread['messages'].append({'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['summary'],'at':now,'kind':'wait' if p['pause'] else 'continue'})
+        elif action=='thread_reply':
             fields(p,{'thread','body'},{'thread','body'});text(p['body'],'回复',8000)
             thread['messages'].append({'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['body'],'at':now,'kind':'reply'})
         elif action=='thread_decide':
@@ -185,6 +211,7 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
                 if session['actor']==actor['id'] and session['end'] is None and session['reason'].startswith('评论阻塞 '+thread['id']+'：'):session['end']=now
         else:
             fields(p,{'thread','summary'},{'thread','summary'});text(p['summary'],'解决依据',4000)
+            if (thread.get('decision') or {}).get('decision')=='stop' and current(thread['decision'],t):manager(r)
             if thread['kind']!='discussion':manager(r)
             elif actor['id']!=thread['author']:manager(r)
             thread.update(status='resolved',resolved_by=actor['id'],resolved_at=now)
@@ -198,14 +225,12 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
         if p['id'] in v['wf_threads']:raise BoardError('线程ID不可覆盖',409)
         if p['kind'] not in ('discussion','blocker','deviation') or type(p['pause']) is not bool:raise BoardError('评论类型或暂停标记无效')
         if p['kind']!='discussion':participant(v,t,p,actor)
-        if p['pause'] and p['kind']=='discussion':raise BoardError('普通讨论不暂停任务',403)
+        if p['pause']:participant(v,t,p,actor)
         for key in ('title','body','affected_step'):text(p[key],key,8000)
         identifiers(p['to'],'接收人')
         if any(id not in g['members'] and id not in ('root','SE') for id in p['to']):raise BoardError('接收人需本项目成员或SE',404)
         v['wf_threads'][p['id']]={**public_record(p),'author':actor['id'],'status':'open','created':now,'updated':now,'messages':[{'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['body'],'kind':'opening','at':now}]}
-        if p['pause']:
-            from .timing import mutate as timing
-            timing(v,db,actor,r,'time_change',{'task':tid,'scope':t['scope_hash'],'mode':'wait','phase':'implementation','reason':'评论阻塞 '+p['id']+'：'+p['affected_step'],'rework':False,**{k:p[k] for k in ('attempt_id','attempt_lease') if k in p}},now,g,tasks)
+        if p['pause']:wait_choice(v,db,t,v['wf_threads'][p['id']],p,actor,r,now,g,tasks)
         return {'thread':p['id']}
     if action=='criteria_plan':
         manager(r);keys={'task','scope','scope_version','id','items','defaults','git_required','repo','reason'};fields(p,keys,keys);uid(p['id']);criteria(p['items'],t);text(p['reason'],'计划依据',4000)
@@ -277,7 +302,11 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
     raise BoardError('工作流动作不存在',404)
 
 def blockers(v,t,stage='submit',anchor=None):
+    # Receipt collection never certifies correctness. Outstanding decisions,
+    # criteria and exact-input observations are enforced at SE approval.
+    if stage=='submit':return []
     out=[];tid=t['spec']['id']
+    out += ['SE明确停止：'+key for key in stopped(v,t)]
     for e in v.get('wf_threads',{}).values():
         if e['task']==tid and e['kind'] in ('blocker','deviation') and e['status']!='resolved':out.append('评论待解决：'+e['id'])
     for e in v.get('wf_rollbacks',{}).values():
@@ -307,6 +336,9 @@ def snapshot(store,actor,task_id=None,inbox_only=False):
     from .governance import tasks,load as gov,role
     with store.connection() as db:
         db.execute('BEGIN');v=prepare(load(db));ts=tasks(db);g=gov(db);r=role(db,actor)
+        if task_id and task_id not in ts:raise BoardError('本项目任务不存在',404)
+        from .candidates import readiness
+        detail_readiness=readiness(store,db,ts[task_id]) if task_id else None
     if task_id and task_id not in ts:raise BoardError('本项目任务不存在',404)
     is_manager=r in ('owner','se','reviewer');now=time.time();items=[];unread={}
     for e in v['wf_threads'].values():
@@ -314,7 +346,7 @@ def snapshot(store,actor,task_id=None,inbox_only=False):
         count=max(0,len(e['messages'])-v['wf_reads'].get(actor['id'],{}).get(e['id'],0));unread[e['id']]=count
         if relevant and (e['status']!='resolved' or count):items.append({'kind':'thread','id':e['id'],'task':e['task'],'title':e['title'],'status':e['status'],'unread':count,**({'waiting_seconds':round(now-e['updated'],2)} if e['status']!='resolved' else {})})
     for tid,t in ts.items():
-        if is_manager and t['status']=='submitted':items.append({'kind':'submission','id':tid,'task':tid,'title':t['spec']['title'],'status':'待验收','blockers':blockers(v,t,'accept',submission_anchor(t))})
+        if is_manager and t['status']=='submitted':items.append({'kind':'submission','id':tid,'task':tid,'title':t['spec']['title'],'status':'候选待评审','blockers':detail_readiness['blockers'] if task_id==tid else blockers(v,t,'accept',submission_anchor(t))})
         if is_manager and tid in v['wf_plan_heads'] and not plan_for(v,t):items.append({'kind':'criteria_plan','id':tid,'task':tid,'title':t['spec']['title'],'status':'验收计划需核定新范围'})
     if is_manager:
         for key,claim in v['wf_claims'].items():
@@ -330,7 +362,7 @@ def snapshot(store,actor,task_id=None,inbox_only=False):
     if task_id:
         for key in ('threads','plans','claims','verdicts','findings','checks'):result[key]={k:e for k,e in result[key].items() if e['task']==task_id}
         result['rollbacks']={k:e for k,e in result['rollbacks'].items() if task_id in e['affected_tasks']}
-        result['blockers']=blockers(v,ts[task_id],'accept',submission_anchor(ts[task_id]));result['current_plan']=plan_for(v,ts[task_id])
+        result['blockers']=detail_readiness['blockers'] if ts[task_id].get('latest_submission') else blockers(v,ts[task_id],'accept',submission_anchor(ts[task_id]));result['current_plan']=plan_for(v,ts[task_id]);result['delivery_readiness']=detail_readiness
     result.update(revision=v['revision'],inbox=items,unread=unread,actor=actor['id'],project_role=r,schema=1)
     # Read positions belong to the caller, not to every project member.
     result['reads']=v['wf_reads'].get(actor['id'],{})

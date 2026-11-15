@@ -305,12 +305,14 @@ def attempt_enforce(v,t,action,p,actor,now):
         e=exact(v.get('cv_attempts',{}),p.get('attempt_id'))
         if e['task']!=t['spec']['id']:raise BoardError('尝试不属于当前任务',409)
         lease_check(e,{'lease':p.get('attempt_lease')},actor,t,now);return
-    if action=='submit':
+    if action in ('submit','accept'):
         selection=v.get('cv_selections',{}).get(t['spec']['id']);e=v.get('cv_attempts',{}).get(p.get('attempt_id'))
-        if not selection or not current(selection,t) or selection['id']!=p.get('selection_id') or not e or selection['attempt']!=e['id'] or e['status']!='selected':raise BoardError('提交需SE当前选择的有效尝试与回执',409)
+        if not e or e['actor']!=t['owner'] or e['task']!=t['spec']['id'] or not current(e,t) or e['status'] not in ('candidate','selected'):raise BoardError('提交需本人当前范围已停止的候选尝试',409)
+        if p.get('selection_id') and (not selection or not current(selection,t) or selection['id']!=p['selection_id'] or selection['attempt']!=e['id']):raise BoardError('声明的候选选择已失效',409)
+        if action=='accept' and (not selection or not current(selection,t) or (p.get('selection_id') and selection['id']!=p['selection_id']) or selection['attempt']!=e['id'] or e['status']!='selected'):raise BoardError('验收需SE选择当前候选尝试',409)
         anchor='git:'+p['implementation_commit'] if p.get('implementation_commit') else 'sha256:'+p.get('artifact',{}).get('sha256','')
         if anchor!=e['result']['input_anchor']:raise BoardError('提交输入与SE选择的候选不一致',409)
-        if any(a['status'] in RESERVED for a in attempts):raise BoardError('其他尝试或旧工作区仍需核对，不能交付',409)
+        if action=='accept' and any(a['status'] in RESERVED for a in attempts):raise BoardError('其他尝试或旧工作区仍需核对，不能验收',409)
 
 def enforce(store,db,t,action,p,actor):
     from .operations import load
@@ -320,7 +322,9 @@ def enforce(store,db,t,action,p,actor):
     if action in ('accept','merge','native'):
         binding=binding_state(v,t,g,ts)
         if binding and not binding['valid']:raise BoardError('治理规则引用变化，需SE核定：'+'；'.join(binding['reasons']),409)
-    if action=='submit':rule_delivery(store,db,v,t,p,g,ts)
+    if action=='accept':
+        rule_delivery(store,db,v,t,t.get('latest_submission') or {},g,ts)
+        attempt_enforce(v,t,'accept',t.get('latest_submission') or {},actor,time.time())
     if action in ('submit','progress'):attempt_enforce(v,t,action,p,actor,time.time())
 
 def validate_template(p):
@@ -481,7 +485,10 @@ def mutate(v,db,actor,r,action,p,now,g,ts,store):
         if p['status'] not in ('candidate','failed','cancelled'):raise BoardError('尝试结果无效')
         if not p['stopped']:
             e.update(status='needs_recovery',result=row({k:val for k,val in p.items() if k!='lease'},actor,now));return
-        if p['status']=='candidate':input_anchor(p['input_anchor']);run_refs(v,t,p['runs'],p['input_anchor'])
+        if p['status']=='candidate':
+            input_anchor(p['input_anchor'])
+            from .candidates import references
+            references(v,t,{'implementation_commit':p['input_anchor'][4:]}|{'test_runs':p['runs']} if p['input_anchor'].startswith('git:') else {'artifact':{'ref':'attempt-result','sha256':p['input_anchor'][7:]},'test_runs':p['runs']})
         elif p['input_anchor']:input_anchor(p['input_anchor'])
         e.update(status=p['status'],result=row({k:val for k,val in p.items() if k!='lease'},actor,now));return
     if action=='attempt_recover':
@@ -589,12 +596,14 @@ def workbench(store,db,v,g,ts,actor,r,now):
         if status=='needs_recovery':add('recovery',e['id'],'尝试与工作区待核对',e['task'],status='待恢复',reason='未确认旧执行者停止前保留资源',action='attempt_recover' if manager_role else '',seed={'attempt':e['id']})
         elif status=='candidate' and manager_role:add('candidate',e['id'],'待选择候选成果',e['task'],action='attempt_select',seed={'attempt':e['id']})
     from .governance import blockers,ACTIVE,can_work
-    active=[];available=[]
+    active=[];available=[];dependency_cache={}
     for tid,t in ts.items():
         own_attempts=[e['id'] for e in v['cv_attempts'].values() if e['task']==tid and e['actor']==actor['id'] and current(e,t) and e['status'] in RESERVED|{'candidate','selected'}]
         if (t['owner']==actor['id'] or own_attempts) and t['status'] in ACTIVE:active.append({'id':tid,'title':t['spec']['title'],'status':t['status'],'scope_version':t['scope_version'],'participation':'owner' if t['owner']==actor['id'] else 'participant','attempts':own_attempts})
         if t['status']=='planned' and t['spec'].get('work') and can_work(r,t['spec']['work']['role']):
-            available.append({'id':tid,'title':t['spec']['title'],'blockers':blockers(db,t,actor,getattr(store,'registry',None),context=(ts,g,v))})
+            reasons=blockers(db,t,actor,getattr(store,'registry',None),context=(ts,g,v,dependency_cache))
+            if not manager_role and (not t['spec']['claimable'] or not t['spec']['registered']):reasons+=['任务尚未向Worker发布']
+            available.append({'id':tid,'title':t['spec']['title'],'published':bool(t['spec']['claimable'] and t['spec']['registered']),'blockers':reasons})
     # Stable identity and deterministic priority, independent of model prose.
     unique={e['kind']+':'+e['id']:e for e in items};rank={'recovery':0,'thread':1,'submission':2,'criterion':3,'draft':4,'implementation':5,'rule':6}
     return {'role':'se' if manager_role else 'worker','items':sorted(unique.values(),key=lambda e:(rank.get(e['kind'],10),e['id'])),'my_tasks':active,'claimable':available,'source':'current_authorized_state','not_agent_scheduler':True}

@@ -116,6 +116,7 @@ def task_spec(value: dict) -> dict:
             "description",
             "parents",
             "depends_on",
+            "dependency_requirements",
             "allowed_paths",
             "deliverables",
             "claimable",
@@ -174,6 +175,9 @@ def task_spec(value: dict) -> dict:
     if work is not None:
         from .governance import work_spec
         work = work_spec(work)
+    if 'dependency_requirements' in value:
+        from .dependencies import validate
+        validate(value['dependency_requirements'],identifiers(value.get('depends_on',[]),'依赖'))
     return {
         "id": task_id,
         "title": text(value["title"], "任务名", 300),
@@ -181,6 +185,7 @@ def task_spec(value: dict) -> dict:
         "description": text(value["description"], "范围", 12000),
         "parents": identifiers(value.get("parents", []), "父任务"),
         "depends_on": identifiers(value.get("depends_on", []), "依赖"),
+        **({'dependency_requirements':deepcopy(value['dependency_requirements'])} if 'dependency_requirements' in value else {}),
         "allowed_paths": paths,
         "deliverables": output,
         "claimable": value.get("claimable", False),
@@ -627,6 +632,7 @@ class BoardStore:
         action: str,
         payload: dict,
     ) -> dict:
+        dependency_cache={}
         if type(payload) is not dict:
             raise BoardError("事件内容必须是对象")
         if action == "create":
@@ -661,7 +667,7 @@ class BoardStore:
             from .operations import load as load_operations
             if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced' or load_operations(db)['policy']['enabled']:
                 from .governance import blockers
-                reasons=blockers(db,state,registry=getattr(self,'registry',None))
+                reasons=blockers(db,state,registry=getattr(self,'registry',None),dependency_cache=dependency_cache)
                 if reasons:raise BoardError('；'.join(reasons),409)
             if not re.fullmatch("[a-z][a-z0-9_-]{1,47}", payload["owner"]):
                 raise BoardError("负责人ID不正确")
@@ -678,8 +684,11 @@ class BoardStore:
                 raise BoardError("派发新规划卡前先冻结实际输入packet摘要")
             if payload.get("registered"):
                 task_spec({**state["spec"], "registered": True})
+            from .dependencies import claim as dependency_claim
+            locks=dependency_claim(db,state,getattr(self,'registry',None),dependency_cache) if state['spec'].get('work') else None
             return {
                 "owner": payload["owner"],
+                **({'dependency_locks':locks} if locks is not None else {}),
                 "reason": text(payload["reason"], "派发/转交原因"),
                 "registered": payload.get("registered", False),
             }
@@ -689,7 +698,7 @@ class BoardStore:
             from .operations import load as load_operations
             if state['spec'].get('work') or load_governance(db).get('planning_policy',{}).get('mode')=='enforced' or load_operations(db)['policy']['enabled']:
                 from .governance import blockers
-                reasons = blockers(db, state, actor, getattr(self,'registry',None))
+                reasons = blockers(db, state, actor, getattr(self,'registry',None),dependency_cache=dependency_cache)
                 if reasons:
                     raise BoardError('；'.join(reasons),409)
             if state["owner"] not in (None, actor["id"]):
@@ -698,7 +707,7 @@ class BoardStore:
                 not state["spec"]["claimable"] or not state["spec"]["registered"]
             ):
                 raise BoardError("此范围需root先登记或属于集成人保留范围", 403)
-            for dep in state["spec"]["depends_on"]:
+            for dep in ([] if state['spec'].get('work') else state["spec"]["depends_on"]):
                 found = db.execute(
                     "SELECT state FROM tasks WHERE id=?", (dep,)
                 ).fetchone()
@@ -709,7 +718,9 @@ class BoardStore:
                     "baseline_merged",
                 ):
                     raise BoardError("具体前置尚未验收：" + dep, 409)
-            return {"summary": text(payload["summary"], "领取说明")}
+            from .dependencies import claim as dependency_claim
+            locks=dependency_claim(db,state,getattr(self,'registry',None),dependency_cache) if state['spec'].get('work') else None
+            return {"summary": text(payload["summary"], "领取说明"),**({'dependency_locks':locks} if locks is not None else {})}
         if action in ("note", "scope_proposal"):
             fields(payload, {"summary"}, {"summary"})
             return {"summary": text(payload["summary"], "说明")}
@@ -739,13 +750,13 @@ class BoardStore:
                 fields(payload['artifact'],{'ref','sha256'},{'ref','sha256'});text(payload['artifact']['ref'],'产物来源',2000)
                 if not re.fullmatch('[0-9a-f]{64}',str(payload['artifact']['sha256'])):raise BoardError('产物需完整SHA256')
             from .governance import load as load_governance
-            from .assurance import validation,delivery_evidence,NONCODE
-            assurance=validation(db,state,payload,load_governance(db),registry=getattr(self,'registry',None))
-            if state['spec'].get('work',{}).get('planning'):
-                from .governance import load as load_governance, tasks as governance_tasks
-                from .planning import task_blockers
-                reasons=task_blockers(load_governance(db),governance_tasks(db),state['spec'])
-                if reasons and not (assurance and assurance['level']=='light'):raise BoardError('；'.join(reasons),409)
+            from .assurance import effective,delivery_evidence,NONCODE
+            from .operations import load as load_operations
+            assurance_governance=load_governance(db)
+            from .governance import tasks as governance_tasks
+            assurance_governance['_cv_tasks']=governance_tasks(db)
+            if getattr(self,'registry',None):assurance_governance['consumption']=self.registry.consumption()
+            assurance=effective(load_operations(db),state,assurance_governance)
             fields(
                 payload,
                 {
@@ -787,7 +798,10 @@ class BoardStore:
             open_findings = {f["id"] for f in state["findings"] if f["open"]}
             if not set(addresses) <= open_findings:
                 raise BoardError("引用的返修项不存在或已关闭")
+            from .candidates import references
+            references(load_operations(db),state,payload)
             return {
+                "candidate":True,
                 "summary": text(payload["summary"], "提交说明"),
                 "completeness": mode,
                 "deliverable_ids": selected,
@@ -838,6 +852,10 @@ class BoardStore:
                 "reason": text(payload["reason"], "返修原因"),
                 "findings": findings,
             }
+        if action in ("accept","merge","native"):
+            from .dependencies import review as dependency_review
+            reasons=dependency_review(db,state,getattr(self,'registry',None)) if state['spec'].get('work') else []
+            if reasons:raise BoardError('；'.join(reasons),409)
         if action == "accept":
             from .governance import load as load_governance
             from .assurance import validation,delivery_evidence
@@ -896,6 +914,10 @@ class BoardStore:
             for row in db.execute("SELECT id,state FROM tasks")
         }
         graph[spec["id"]] = spec["depends_on"]
+        from .dependencies import requirement
+        for dep in spec['depends_on']:
+            row=db.execute('SELECT state FROM tasks WHERE id=?',(dep,)).fetchone()
+            if row:requirement({'spec':spec},json.loads(row['state']))
 
         def visit(task, active):
             if task in active:

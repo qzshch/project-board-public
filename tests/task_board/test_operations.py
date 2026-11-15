@@ -9,6 +9,7 @@ import unittest
 from unittest.mock import patch
 import uuid
 from . import test_planning as planning
+from .test_workflow import candidate_blocked
 from .test_governance import EV
 from task_board.operations import Operations
 from task_board.store import digest
@@ -105,7 +106,7 @@ class OperationsCase(unittest.TestCase):
         # Escalate without changing task scope: complete planning is required for
         # future dispatch, and structured current runs are required for delivery.
         self.assess(level='standard')
-        self.assertEqual(self.submit(evidence=EV)[0],409)
+        candidate_blocked(self,self.submit(evidence=EV))
         self.assertEqual(self.submit(evidence=EV,test_runs=[rid],implementation_commit='d'*40)[0],409)
         self.plan();self.review();spec=self.hub.store('alpha').get('new/one')['spec'];spec['work']['planning']=self.binding()
         self.event('new/one','scope',{'spec':spec,'reason':'Adopt reviewed module'},self.admin);self.assess(level='standard');self.set_plan();rid=self.manual()[1]['run'];self.event('new/one','claim',{'summary':'Current approved version'})
@@ -256,7 +257,7 @@ class OperationsCase(unittest.TestCase):
         self.atomic('unrelated/one',['unrelated/']);self.assertEqual(self.ops()['suggested_cases']['unrelated/one'],[])
         self.assertEqual(self.op('case_retire',{'ref':'check@1','mode':'withdrawn','reason':'Expected behavior was wrong'})[0],201)
         self.event('new/one','claim',{'summary':'Current scope'})
-        self.assertEqual(self.submit(test_runs=[rid],verification={'method':'automated','summary':'Cannot use withdrawn proof','reason':'Known defect'})[0],409)
+        candidate_blocked(self,self.submit(test_runs=[rid],verification={'method':'automated','summary':'Cannot use withdrawn proof','reason':'Known defect'}))
 
     def test_cross_project_forecast_only_uses_explicit_fixed_shared_benchmark_bytes(self):
         self.adopt();document=json.dumps({'schema':1,'unit':'minutes','groups':[{'category':'backend','size':'small','uncertainty':'low','context':'portable reviewed setup','samples':6,'p50_minutes':30,'p80_minutes':45}]},ensure_ascii=False,indent=2)+'\n';sha=hashlib.sha256(document.encode()).hexdigest()

@@ -61,14 +61,22 @@ def validation(db,task,p,g,actor=None,registry=None):
     g={**g,'_cv_tasks':tasks(db)};v=load(db);e=effective(v,task,g)
     if registry:
         g['consumption']=registry.consumption();e=effective(v,task,g)
-    if not e['enabled']:return None
+    if p.get('verification',{}).get('status') in ('failed','not_run'):raise BoardError('本机验证尚未通过，不能验收为完成',409)
+    if not e['enabled']:
+        if p.get('test_runs'):validate_delivery(v,task,p)
+        return None
     if not e['assessed']:raise BoardError('当前范围缺少风险评估',409)
     if e['level']=='light':
         verification=p.get('verification')
-        fields(verification,{'method','summary','reason'},{'method','summary','reason'})
+        fields(verification,{'method','summary','reason','status'},{'method','summary','reason'})
         if verification['method'] not in ('inspection','manual','automated','not_applicable'):raise BoardError('验证方式无效')
         text(verification['summary'],'实际检查结果');text(verification['reason'],'验证选择依据')
-        if verification['method']=='automated':validate_delivery(v,task,p)
+        if verification.get('status') in ('failed','not_run'):raise BoardError('本机验证尚未通过，不能验收为完成',409)
+        if p.get('test_runs'):validate_delivery(v,task,p)
+        elif verification['method']=='automated':
+            # A local command/log is a worker statement, not a platform run.
+            # SE must read the referenced originals before accepting it.
+            evidence(p.get('evidence',[]))
     else:
         from .governance import tasks
         from .planning import task_blockers

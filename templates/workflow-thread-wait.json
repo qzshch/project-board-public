@@ -1,0 +1,5 @@
+{
+  "thread": "replace-with-current-thread-id",
+  "pause": false,
+  "summary": "说明选择继续或等待的依据；继续仅限已授权范围，不覆盖SE停止决定"
+}

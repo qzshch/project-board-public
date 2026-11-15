@@ -54,7 +54,7 @@ class ConvergenceCase(unittest.TestCase):
     def test_rule_reuse_creates_fixed_criteria_without_per_card_assessment(self):
         self.prepared();self.bind();op=self.call('/api/projects/alpha/operations',profile=self.a)[1];self.assertTrue(op['effective']['new/one']['assessed']);self.assertEqual(op['effective']['new/one']['level'],'light');self.assertNotIn('new/one',op['assessments']);self.assertTrue(op['wf_plan_heads']['new/one'])
         self.assertEqual(self.event('new/one','claim',{'summary':'Within approved boundary'})[0],201)
-        self.ok('rule_retire',{'ref':'internal@1','reason':'New unknown boundary'});self.assertFalse(self.cv()[1]['bindings']['new/one']['readiness']['valid']);self.assertEqual(self.submit()[0],409)
+        self.ok('rule_retire',{'ref':'internal@1','reason':'New unknown boundary'});self.assertFalse(self.cv()[1]['bindings']['new/one']['readiness']['valid']);fixture.workflow.candidate_blocked(self)
     def test_rule_rejects_scope_flags_outside_path_and_expiry(self):
         self.prepared();self.ok('assess',{'task':'new/one','scope':self.scope()['scope'],'level':'strict','flags':['unknown_impact'],'reason':'Unknown actual impact'})
         self.ok('rule_register',self.rule());state=self.cv()[1]['rules']['internal@1']['readiness'];self.ok('rule_review',{'ref':'internal@1','context_hash':state['context_hash'],'result':'approve','reason':'Known boundary only','evidence':EV});self.assertEqual(self.op('rule_bind',{**self.scope(),'ref':'internal@1','reason':'Must not override unknown impact'},self.a)[0],409)

@@ -97,6 +97,7 @@ def gate_blockers(v,t,stage,anchor,now):
     return ['条件门未满足或观察已过期：'+e['id'] for e in v.get('co_gates',{}).values() if not e.get('retired') and e['task']==t['spec']['id'] and (not current(e,t) or stage in e['stages'] and not gate_ok(v,e,anchor,now))]
 
 def enforce(db,t,stage,p,registry=None):
+    if stage=='submit':return
     from .operations import load
     from .governance import load as gov,tasks
     from .workflow import submission_anchor
@@ -108,6 +109,7 @@ def enforce(db,t,stage,p,registry=None):
         if not plan or plan['context']!=plan_context(v,t,g) or plan.get('review',{}).get('result')!='approve':reasons.append('实施计划已失效或未批准')
     anchor=('git:'+p['implementation_commit'] if p.get('implementation_commit') else 'sha256:'+p['artifact']['sha256'] if p.get('artifact') else '') if stage=='submit' else 'git:'+p['commit'] if stage in ('merge','native') else submission_anchor(t)
     reasons+=gate_blockers(v,t,stage,anchor,time.time())
+    if stage=='accept':reasons+=gate_blockers(v,t,'submit',anchor,time.time())
     if reasons:raise BoardError('；'.join(reasons),409)
 
 def heads(db):

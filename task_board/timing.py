@@ -60,6 +60,9 @@ def mutate(v,db,actor,r,action,p,now,g,tasks):
             participant(v,task,p,actor)
         p={k:val for k,val in p.items() if k!='attempt_lease'}
         if p['mode'] not in ('work','wait','pause','stop') or p['phase'] not in PHASES or type(p['rework']) is not bool:raise BoardError('时间状态/阶段/返修标记无效')
+        if p['mode']=='work':
+            from .workflow import stopped
+            if stopped(v,task):raise BoardError('SE明确停止当前范围，不能自行恢复作业',409)
         text(p['reason'],'作业或等待原因')
         for s in v['sessions'].values():
             if s['actor']==actor['id'] and s['end'] is None:s['end']=now

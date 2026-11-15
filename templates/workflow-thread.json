@@ -9,6 +9,6 @@
   "to": [
     "SE"
   ],
-  "pause": true,
+  "pause": false,
   "affected_step": "<affected step>"
 }

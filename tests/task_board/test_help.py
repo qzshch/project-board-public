@@ -20,7 +20,7 @@ class HelpCase(unittest.TestCase):
         except HTTPError as error:return error.code,error.read(),dict(error.headers)
 
     def test_shareable_guides_are_available_without_project_or_admin_material(self):
-        for path in ('/help','/help/admin','/help/connectivity','/help/operations','/help/runner','/help/agent','/help/owner','/help/templates','/agent-guide.md','/owner-guide.md'):
+        for path in ('/help','/help/async-flow','/help/admin','/help/connectivity','/help/operations','/help/runner','/help/agent','/help/owner','/help/templates','/agent-guide.md','/owner-guide.md'):
             code,body,_=self.get(path);self.assertEqual(code,200,path)
             self.assertNotIn(b'alpha private',body);self.assertNotIn(b'beta private',body)
             self.assertNotIn(b'operator.html',body);self.assertNotIn(b'_private/admin',body)
@@ -47,6 +47,8 @@ class HelpCase(unittest.TestCase):
 
     def test_template_whitelist_does_not_serve_arbitrary_files(self):
         code,body,_=self.get('/templates/project-init.json');self.assertEqual(code,200);self.assertEqual(set(json.loads(body)),{'id','name','description','knowledge','governance_profile'})
+        for name in ('workflow-thread-wait','task-dependency-requirements'):
+            code,body,_=self.get('/templates/'+name+'.json');self.assertEqual(code,200);self.assertIsInstance(json.loads(body),dict)
         for path in ('/templates/../../state/_private/admin.json','/templates/server.json','/help/../../state/_private/admin.json'):
             code,body,_=self.get(path,self.admin);self.assertEqual(code,404,path);self.assertNotIn(self.admin['token'].encode(),body)
 

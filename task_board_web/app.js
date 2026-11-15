@@ -3,7 +3,7 @@ const $ = id => document.getElementById(id);
 const app = {tasks: [], view: 'review', etag: null, limit: 40, selected: null, role: 'viewer', actor: null, loading: false, project: null, projects: [], generation: 0, admin: false};
 const states = {
   planned: ['待登记 / 待开始',''], blocked: ['等待具体前置',''], active: ['进行中','info'],
-  reported: ['材料已交 · 待复核','warn'], submitted: ['已上报 · 待验收','warn'], changes_requested: ['需返修','bad'],
+  reported: ['材料已交 · 待复核','warn'], submitted: ['候选已交 · 待评审','warn'], changes_requested: ['需返修','bad'],
   accepted: ['验收通过','good'], partial_accepted: ['部分验收通过','good'], merged: ['已合入主线','good'],
   partial_merged: ['部分已合入','good'], native_accepted: ['运行验收通过','good'], partial_native: ['部分运行验收','good'],
   baseline_merged: ['声明范围已合入',''], partial_baseline: ['有限候选 / 研究',''], integration_pending: ['候选待接线','info']
@@ -160,6 +160,7 @@ function scopeInputs(form,task) {
   formInput(form,'完整范围说明','description',true,task?.spec.description||'');
   formInput(form,'约定交付项（每行一项）','deliverables',true,task?.spec.deliverables.map(i=>i.label).join('\n')||'');
   formInput(form,'依赖任务ID（每行一个）','depends',true,task?.spec.depends_on.join('\n')||'');
+  formInput(form,'依赖要求JSON（可留空按成果类型推导；代码至少merged）','dependency_requirements',true,task?.spec.dependency_requirements?JSON.stringify(task.spec.dependency_requirements,null,2):'');
   formInput(form,'可写目录（每行一项，工程相对路径）','paths',true,task?.spec.allowed_paths.join('\n')||'');
   formInput(form,'已固定输入包SHA256（新规划任务登记时必填）','packet',false,task?.spec.source?.packet_sha256||'');
   formInput(form,'实现基点完整提交SHA（登记新规划任务时必填）','base',false,task?.spec.source?.base_commit||task?.spec.source?.base||'');
@@ -171,6 +172,7 @@ function readScope(form,task) {
   spec.title=form.elements.title.value;spec.description=form.elements.description.value;
   spec.priority=form.elements.scope_priority.value;
   spec.deliverables=lines('deliverables').map((label,i)=>({id:'D'+(i+1),label}));spec.depends_on=lines('depends');spec.allowed_paths=lines('paths');
+  if(form.elements.dependency_requirements.value.trim())spec.dependency_requirements=JSON.parse(form.elements.dependency_requirements.value);else delete spec.dependency_requirements;
   if(form.elements.packet.value.trim()) spec.source.packet_sha256=form.elements.packet.value.trim();
   if(form.elements.base.value.trim()) spec.source.base_commit=form.elements.base.value.trim();
   if(form.elements.category.value) {

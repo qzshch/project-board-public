@@ -2,7 +2,7 @@
 // Primary: next action and unresolved collaboration. Secondary: fixed scope,
 // input and evidence. History stays collapsed. Reuse existing semantic tokens,
 // 12/16/24 spacing, native forms, one main action and responsive single columns.
-const wfLabels={thread_open:'发起讨论 / 阻塞 / 偏离说明',thread_reply:'回复',thread_decide:'SE记录决策',thread_ack:'确认障碍已解决',thread_resolve:'记录解决 / 停止跟进',thread_read:'标记已读',criteria_plan:'核定结构化验收计划',criteria_claim:'声明此项验证结果',criteria_review:'审核此验收项',review_open:'提出逐条评审发现',review_disposition:'说明修复或异议',review_resolve:'复核处置',git_check:'核验实际Git证据',rollback_plan:'发起回退预览',rollback_confirm:'确认回退影响',rollback_approve:'批准执行回退',rollback_cancel:'取消回退',rollback_apply:'验收并应用回退',rollback_recover:'核对失联执行器并结束',rollback_executor:'授权项目回退执行器',criteria_defaults:'登记项目完成清单版本'};
+const wfLabels={thread_wait:'调整自主等待选择',thread_open:'发起讨论 / 阻塞 / 偏离说明',thread_reply:'回复',thread_decide:'SE记录决策',thread_ack:'确认障碍已解决',thread_resolve:'记录解决 / 停止跟进',thread_read:'标记已读',criteria_plan:'核定结构化验收计划',criteria_claim:'声明此项验证结果',criteria_review:'审核此验收项',review_open:'提出逐条评审发现',review_disposition:'说明修复或异议',review_resolve:'复核处置',git_check:'核验实际Git证据',rollback_plan:'发起回退预览',rollback_confirm:'确认回退影响',rollback_approve:'批准执行回退',rollback_cancel:'取消回退',rollback_apply:'验收并应用回退',rollback_recover:'核对失联执行器并结束',rollback_executor:'授权项目回退执行器',criteria_defaults:'登记项目完成清单版本'};
 const wfKinds={discussion:'普通讨论',blocker:'阻塞求助',deviation:'计划偏离'};
 const wfStatuses={open:'待处理',awaiting_worker:'待执行者确认',resolved:'已解决',awaiting_review:'待复核',fixed:'已核验修复',dismissed:'已核验非问题',proposed:'待影响确认',approved:'已批准',running:'执行中',prepared:'候选已生成 / 部署待验收',failed:'失败（证据保留）',needs_recovery:'需SE核对并恢复',cancelled:'已取消',applied:'已应用'};
 function wfButton(box,action,task,seed={},label){const b=el('button',label||wfLabels[action]);b.type='button';b.onclick=()=>wfForm(action,task,seed);box.append(b);return b;}
@@ -11,11 +11,12 @@ function wfWriter(){return app.role!=='viewer'&&!['runner','tracker','restorer']
 function wfJson(box,value){const d=el('details',undefined,'relation-details');d.append(el('summary','核对固定输入、影响与证据'),el('pre',JSON.stringify(value,null,2)));box.append(d);}
 async function renderTaskWorkflow(body,task){
  const project=app.project,generation=app.generation,host=section('任务协作与逐项验收');host.id='task-workflow';body.append(host);host.append(el('p','读取当前项目协作记录…','muted'));
- try{const data=await api('/api/workflow/task?task='+encodeURIComponent(task.spec.id));if(project!==app.project||generation!==app.generation||!host.isConnected)return;host.dataset.revision=data.revision;host.replaceChildren(el('h3','任务协作与逐项验收'));renderTaskConvergence(host,task);const continuation=el('details',undefined,'relation-details');continuation.open=!!ws.ops?.cv_attempt_policies?.[task.spec.id]||!!ws.ops?.co_plan_policy?.[task.spec.id]||Object.values(ws.ops?.co_checkpoints||{}).some(e=>e.task===task.spec.id);continuation.append(el('summary','实施计划、检查点与增量评审'));host.append(continuation);renderTaskContinuation(continuation,task);
-  if(data.blockers.length)host.append(el('p',data.blockers.join('\n'),'notice detail-text'));
+ try{const data=await api('/api/workflow/task?task='+encodeURIComponent(task.spec.id));if(project!==app.project||generation!==app.generation||!host.isConnected)return;host.dataset.revision=data.revision;host.replaceChildren(el('h3','任务协作与逐项验收'));renderTaskConvergence(host,task);const continuation=el('details',undefined,'relation-details');continuation.open=!!ws.ops?.cv_attempt_policies?.[task.spec.id]||!!ws.ops?.co_plan_policy?.[task.spec.id]?.required||Object.values(ws.ops?.co_checkpoints||{}).some(e=>e.task===task.spec.id);continuation.append(el('summary','实施计划、检查点与增量评审'));host.append(continuation);renderTaskContinuation(continuation,task);
+  if(task.status==='submitted'){const d=data.delivery_readiness;host.append(el('p',`候选成果已进入待评审队列。${d?.ready_for_acceptance?'当前门禁已满足，等待SE核对原件并决定。':'尚有验收条件待处理，可先评审已交成果。'}验证来源：${d?.verification_origin==='platform_run_reference'?'引用平台运行，是否通过须核对运行记录':'Worker陈述与原件引用，不代表平台验证通过'}。`,'notice detail-text'));}
+  if(data.blockers.length)host.append(el('p','验收前需处理：\n'+data.blockers.join('\n'),'notice detail-text'));
   const controls=el('div',undefined,'graph-controls');host.append(controls);if(wfWriter())wfButton(controls,'thread_open',task.spec.id,fAttemptSeed(task.spec.id));if(wfManager())wfButton(controls,'criteria_plan',task.spec.id);wfButton(controls,'rollback_plan',task.spec.id,{},'查看 / 发起回退').hidden=!wfManager();
   const threads=section('讨论、阻塞与计划偏离');host.append(threads);
-  if(!Object.keys(data.threads).length)threads.append(el('p','尚无评论。遇到阻塞可暂停相关步骤并请求SE决定；独立范围仍按原授权执行。','muted'));
+  if(!Object.keys(data.threads).length)threads.append(el('p','尚无评论。留言时可自主选择等待或继续已授权工作；成果可先入队，SE明确停止或范围变更仍须遵守。','muted'));
   for(const th of Object.values(data.threads).reverse()){
    const card=el('article',undefined,'resource-card');card.dataset.thread=th.id;card.append(el('h4',th.title),el('p',`${wfKinds[th.kind]} · ${wfStatuses[th.status]} · 未读 ${data.unread[th.id]||0}\n影响步骤：${th.affected_step}`,'secondary detail-text'));
    for(const m of th.messages.slice(-5))card.append(el('p',`${m.actor} · ${new Date(m.at*1000).toLocaleString()}\n${m.body}`,'detail-text'));
@@ -23,6 +24,9 @@ async function renderTaskWorkflow(body,task){
    const buttons=el('div',undefined,'graph-controls');card.append(buttons);
    if(wfWriter()){wfButton(buttons,'thread_reply',task.spec.id,{thread:th.id});wfButton(buttons,'thread_read',task.spec.id,{thread:th.id,count:th.messages.length});
     if(wfManager()&&th.status!=='resolved'){wfButton(buttons,'thread_decide',task.spec.id,{thread:th.id});wfButton(buttons,'thread_resolve',task.spec.id,{thread:th.id});}
+    if(th.author===app.actor&&fParticipant(task)&&th.scope===task.scope_hash&&th.scope_version===task.scope_version){
+     if(th.pause||th.status!=='resolved')wfButton(buttons,'thread_wait',task.spec.id,{thread:th.id,pause:!th.pause,...fAttemptSeed(task.spec.id)},th.pause?'自主继续，不等待回复':'选择等待回复');
+     if(th.kind==='discussion'&&th.status!=='resolved'&&!wfManager())wfButton(buttons,'thread_resolve',task.spec.id,{thread:th.id});}
     if((task.owner===app.actor||th.author===app.actor&&fParticipant(task))&&th.status==='awaiting_worker')wfButton(buttons,'thread_ack',task.spec.id,{thread:th.id,...fAttemptSeed(task.spec.id)});}
    if(wfWriter())coButton(card,'intake_open',null,{title:th.title,body:th.messages[0]?.body||'',sources:[{kind:'thread',id:th.id}]},'需要独立跟踪时转为需求');threads.append(card);
   }
@@ -66,6 +70,7 @@ async function renderWorkflowInbox(box){
 }
 const wfFields={
  thread_open:[['id','线程ID','id'],['kind','评论类型','select',wfKinds],['title','主题'],['body','障碍、已尝试方法或偏离原因','text'],['affected_step','受影响步骤 / 独立部分'],['to','接收人Actor，每行一项；SE表示项目负责人','lines'],['pause','暂停相关工作并开始记录等待','bool']],
+ thread_wait:[['thread','线程ID'],['pause','是否等待回复并记录等待时间','bool'],['summary','等待或继续的依据与范围','text']],
  thread_reply:[['thread','线程ID'],['body','回复内容','text']],thread_decide:[['thread','线程ID'],['decision','决策','select',{continue:'按当前授权继续',changes:'按已登记正式变更继续',stop:'保持暂停'}],['summary','结论、依据与边界','text'],['reference','正式scope事件ID，或治理序号:哈希；无变更留空']],
  thread_ack:[['thread','线程ID'],['summary','已核对的输入、决策与解决情况','text']],thread_resolve:[['thread','线程ID'],['summary','解决 / 停止跟进依据','text']],thread_read:[['thread','线程ID'],['count','已读到第几条消息','number']],
  criteria_defaults:[['id','清单不可变版本ID','id'],['items','项目完成要求，每行一项','lines'],['reason','登记依据','text']],
@@ -91,7 +96,7 @@ async function wfForm(action,taskId,seed={}){
    if(type==='json')value=JSON.stringify(value,null,2);else if(type==='criteria')value=value.map(c=>[c.id,c.deliverable,c.method,c.expected].join(' | ')).join('\n');else if(type==='evidence')value=value.map(e=>e.path+' | '+e.sha256).join('\n');else if(type==='lines')value=Array.isArray(value)?value.join('\n'):value;
    formInput(form,label,key,['text','json','lines','criteria','evidence'].includes(type),value);}
  }
- if(['draft_save','template_register'].includes(action))cvDraftEditor(form,defaults.items);if(action==='intake_convert')fAttachSpec(form,defaults.spec);if(['thread_open','thread_ack','checkpoint'].includes(action))fOptionalFields(form,['attempt_id','attempt_lease','selection_id']);
+ if(['draft_save','template_register'].includes(action))cvDraftEditor(form,defaults.items);if(action==='intake_convert')fAttachSpec(form,defaults.spec);if(['thread_open','thread_ack','checkpoint'].includes(action))fOptionalFields(form,['attempt_id','attempt_lease','selection_id']);if(action==='thread_wait')fOptionalFields(form,['attempt_id','attempt_lease']);
  body.append(el('p','评论不授予越界修改权限；回退先确认影响，不删除历史或执行网页提供的命令。','secondary'));const message=el('p','','form-message'),save=el('button','追加'+wfLabels[action],'primary');save.type='submit';form.append(message,save);let frozen=null;
  form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{if(!validResourceDialog(body,project,generation))throw new Error('项目或窗口已变化');if(!frozen){const p={};
    for(const [key,,type]of wfFields[action]){let value=form.elements[key].value.trim();if(type==='bool')value=value==='true';else if(type==='number')value=Number(value);else if(type==='json')value=JSON.parse(value);else if(type==='lines')value=value.split('\n').map(s=>s.trim()).filter(Boolean);else if(type==='evidence')value=value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const [path,sha256]=s.split('|').map(x=>x.trim());return {path,sha256};});else if(type==='criteria')value=value.split('\n').map(s=>s.trim()).filter(Boolean).map(s=>{const [id,deliverable,method,...expected]=s.split('|').map(x=>x.trim());return {id,deliverable,method,expected:expected.join(' | ')};});p[key]=value;}

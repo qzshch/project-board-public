@@ -408,6 +408,7 @@ class Handler(BaseHTTPRequestHandler):
                         "project_start_schema": 2,
                         "se_self_service": self.server.settings.get('se_self_service') is True,
                         "worker_access_schema": 1,
+                        "async_flow_schema": 1,
                         "workflow_schema": 1,
                         "coordination_schema": 1,
                         "convergence_schema": 1,

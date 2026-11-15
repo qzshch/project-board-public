@@ -157,7 +157,7 @@ def impact(all_tasks, contract, governance=None):
             **({'module_scopes':{r:digest(modules[r]) for r in sorted(module_refs)}} if module_refs else {}),
             'scopes':{k:all_tasks[k]['scope_hash'] for k in sorted(affected)}}
 
-def blockers(db, task, actor=None, registry=None, context=None):
+def blockers(db, task, actor=None, registry=None, context=None, dependency_cache=None):
     # The authorized snapshot already holds these rows in one read transaction.
     # Reuse it for every queue item rather than decoding the whole project N
     # times. Admission calls still read fresh rows under the write transaction.
@@ -189,11 +189,8 @@ def blockers(db, task, actor=None, registry=None, context=None):
     if not spec['allowed_paths']:out.append('写范围未知')
     if actor and not can_work(role(db,actor),work['role']):
         out.append('执行角色不匹配')
-    for dep in spec['depends_on']:
-        if dep not in all_tasks or all_tasks[dep]['status'] not in DONE:out.append('硬前置未验收：'+dep)
-        elif all_tasks[dep].get('latest_submission'):
-            from .workflow import blockers as workflow_blockers,submission_anchor
-            if workflow_blockers(ops,all_tasks[dep],'accept',submission_anchor(all_tasks[dep])):out.append('硬前置有未解决的协作/验收/回退：'+dep)
+    from .dependencies import resolve as dependency_resolve
+    out.extend(dependency_resolve(db,task,registry,(all_tasks,gov,ops),context[3] if context is not None and len(context)>3 else dependency_cache)[0])
     for ref in work['contracts']:
         contract=gov['contracts'].get(ref)
         if not contract or contract['status']!='frozen':out.append('接口未冻结：'+ref)
@@ -239,12 +236,23 @@ class Governance:
             planning_snapshot(value,all_tasks)
             for c in value['changes'].values():c['impact_hash']=digest(c['impact'])
             if getattr(self.store,'registry',None):value['consumption']=self.store.registry.consumption()
-            queue=[]
+            queue=[];dependency_cache={}
             for t in all_tasks.values():
-                if t['status']=='planned':queue.append({'id':t['spec']['id'],'blockers':blockers(db,t,registry=getattr(self.store,'registry',None),context=(all_tasks,value,ops))})
+                if t['status']=='planned':queue.append({'id':t['spec']['id'],'blockers':blockers(db,t,registry=getattr(self.store,'registry',None),context=(all_tasks,value,ops,dependency_cache))})
             graph=[]
             for tid,t in all_tasks.items():
-                graph += [{'from':d,'to':tid,'type':'hard'} for d in t['spec']['depends_on']]
+                from .dependencies import resolve as dependency_resolve,requirement,anchors as dependency_anchors
+                dep_reasons,dep_facts=dependency_resolve(db,t,getattr(self.store,'registry',None),(all_tasks,value,ops),dependency_cache) if t['spec'].get('work') and t['status'] not in DONE else ([],{})
+                locked=dependency_anchors(db,tid)
+                if locked is not None:
+                    for d in t['spec']['depends_on']:
+                        if d in dep_facts and locked.get(d)!=dep_facts[d]:
+                            dep_reasons.append('依赖 '+d+'：领取后的消费锚点已改变')
+                            del dep_facts[d]
+                for d in t['spec']['depends_on']:
+                    try:req=requirement(t,all_tasks[d])
+                    except (BoardError,KeyError):req={'kind':'unknown','stage':'unknown'}
+                    graph.append({'from':d,'to':tid,'type':'hard','result_kind':req['kind'],'required_stage':req['stage'],'ready':d in dep_facts if t['status'] not in DONE else None,'blockers':[x for x in dep_reasons if ' '+d+'：' in x]})
                 graph += [{'from':p,'to':tid,'type':'containment'} for p in t['spec'].get('parents',[]) if p in all_tasks]
                 w=t['spec'].get('work',{})
                 for typ,key in [('product','inputs'),('coupling','couplings'),('contract','contracts'),('asset','assets'),('exclusive','resources')]:

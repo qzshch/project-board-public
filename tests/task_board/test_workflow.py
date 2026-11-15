@@ -5,6 +5,10 @@ from . import test_git_tracking as fixture
 from task_board.store import digest
 
 EV=[{'path':'fixture/actual-review.txt','sha256':'b'*64}]
+def candidate_blocked(case,result=None):
+    result=result or case.submit()
+    case.assertEqual(result[0],201,result[1])
+    case.assertEqual(case.event('new/one','accept',{'submission':result[1]['event_id'],'summary':'Unresolved gates must still reject SE acceptance','deliverable_ids':['D1'],'evidence':EV},case.admin)[0],409)
 class WorkflowCase(unittest.TestCase):
     setUp=fixture.GitCase.setUp
     tearDown=fixture.GitCase.tearDown
@@ -39,7 +43,7 @@ class WorkflowCase(unittest.TestCase):
         self.claimed();before=self.hub.store('alpha').get('new/one');p=self.thread_payload();rid=uuid.uuid4().hex;rev=self.call('/api/projects/alpha/operations',profile=self.admin)[1]['revision']
         first=self.op('thread_open',p,self.a,rid,rev);self.assertEqual(first[0],201,first[1]);self.assertTrue(self.op('thread_open',p,self.a,rid,rev)[1]['replayed'])
         after=self.hub.store('alpha').get('new/one');self.assertEqual(before,after)
-        self.assertEqual(self.submit()[0],409)
+        candidate_blocked(self)
         self.assertEqual(self.op('thread_reply',{'thread':'question','body':'Have you tried the documented input?'})[0],201)
         self.assertEqual(self.op('thread_ack',{'thread':'question','summary':'A reply alone must not unlock'},self.a)[0],409)
         self.assertEqual(self.op('thread_decide',{'thread':'question','decision':'continue','summary':'Confirmed input version; remain in assigned scope','reference':''})[0],201)
@@ -58,7 +62,7 @@ class WorkflowCase(unittest.TestCase):
         self.member(role='viewer');self.assertEqual(self.op('thread_reply',{'thread':'question','body':'write'},self.a)[0],403)
 
     def test_criteria_claim_review_exact_input_and_findings_close_independently(self):
-        self.claimed();self.assertEqual(self.op('criteria_plan',self.plan())[0],201);self.assertEqual(self.submit()[0],409)
+        self.claimed();self.assertEqual(self.op('criteria_plan',self.plan())[0],201);candidate_blocked(self)
         claim={**self.scope(),'plan':'accept-v1','criterion':'AC1','input_anchor':'git:'+'c'*40,'summary':'Observed correct result','runs':[],'evidence':EV};result=self.op('criteria_claim',claim,self.a);self.assertEqual(result[0],201,result[1])
         self.assertEqual(self.submit()[0],201)
         sub=self.hub.store('alpha').get('new/one')['latest_submission']['id'];accept={'submission':sub,'summary':'Review','deliverable_ids':['D1'],'evidence':EV}
@@ -182,7 +186,7 @@ class WorkflowCase(unittest.TestCase):
         self.op('criteria_defaults',{'id':'done-v2','items':['Additional project check'],'reason':'New default for later tasks only'})
         p=self.call('/api/projects/alpha/workflow/task?task=new/one',profile=self.a)[1]['current_plan'];self.assertEqual([i['id'] for i in p['items']],['AC1','DOD-1']);self.assertEqual(p['items'][-1]['expected'],'Actual preview inspected')
         spec=deepcopy(self.hub.store('alpha').get('new/one')['spec']);spec['description']='New scope after clarification';self.event('new/one','scope',{'spec':spec,'reason':'Changed input'},self.admin)
-        self.assertIsNone(self.call('/api/projects/alpha/workflow/task?task=new/one',profile=self.a)[1]['current_plan']);self.assertEqual(self.submit()[0],409)
+        self.assertIsNone(self.call('/api/projects/alpha/workflow/task?task=new/one',profile=self.a)[1]['current_plan']);candidate_blocked(self)
 
     def test_precise_knowledge_references_keep_unrelated_material_edits_out_of_scope(self):
         self.claimed();k={'background':'context','goals':'goal','non_goals':'other','constraints':'bounded','materials':[{'title':'required','location':'docs/required','version':'1','sha256':'a'*64}],'entries':[]};self.gov('knowledge',k)

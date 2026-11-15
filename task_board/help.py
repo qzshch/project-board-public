@@ -38,6 +38,7 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'workflow-thread-wait.json','task-dependency-requirements.json',
     'finishing-actions.json',
     'convergence-draft.json','convergence-rule.json','convergence-attempt.json','convergence-template.json',
     'coordination-intake.json','coordination-triage.json','coordination-convert.json','coordination-link.json','coordination-checkpoint.json','coordination-plan-policy.json','coordination-plan.json','coordination-plan-review.json','coordination-review-batch.json','coordination-root-cause.json','coordination-improvement.json','coordination-wip.json','coordination-gate.json','coordination-gate-retire.json','coordination-gate-confirm.json','coordination-observer.json','project-observer-config.json',
@@ -54,6 +55,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/async-flow':('Worker异步交付与基线依赖','docs/ASYNC-WORKFLOW.md',False),
     '/help/worker-start':('Worker自助加入与认领','docs/WORKER-START.md',False),
     '/help/project-start':('项目SE自助开通与owner身份','docs/PROJECT-START.md',False),
     '/help/finishing':('选择最短路径：接续与操作减负','docs/FINISHING-GUIDE.md',False),
@@ -79,6 +81,8 @@ RAW_DOCS={
     '/manual.md':('docs/MANUAL.md',True),
 }
 INDEX='''# 使用手册
+
+当前异步协作规则：[自主等待、候选待评审和依赖解锁](/help/async-flow)。普通任务直接认领、工作、提交候选；SE异步验收并推进基线。
 
 作为 Worker，先读[自助加入与认领](/help/worker-start)：只需指定项目入口，自行生成普通身份，从任务池领取并交付；不向负责人索要owner身份。
 

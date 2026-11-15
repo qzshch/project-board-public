@@ -1,5 +1,7 @@
 # 分级治理、时间、测试与资产操作 API
 
+当前协作规则见[Worker异步交付与基线依赖](/help/async-flow)：留言可自主选择等待，成果先进入候选待评审；知识/产物按审核版本消费，代码须合入且包含在下游固定基线中。普通任务不默认叠加实施审批、尝试或平台执行器。
+
 产品4新增 operations schema 1，任务 API v2、规划 schema 2 保持兼容。所有接口以 `/api/projects/{project_id}` 为前缀，先鉴权再读取或返回内容。执行器不能获得其他项目或全局管理权限。
 
 | 方法 | 相对路径 | 内容 |
@@ -74,7 +76,7 @@ member可选actor_kind=human/agent/unknown；经理配置后，时间时段固�
 
 ## 任务协作、逐项验收与回退
 
-评论、阻塞求助和计划偏离在任务内登记，SE正式决定后由执行者确认恢复；评论不改变范围或释放排他资源。结构化验收固定范围与精确输入，执行者声明、审核者逐项复核；Git祖先关系不替代最终提交测试。SE待办集中展示协作、交付与回退事项。回退先冻结影响并逐人确认，任务/模块追加新版本，代码/部署使用单独批准的项目执行器，不覆盖历史或给予实例全局权限。详见[协作与回退操作手册](/help/workflow)。
+评论、阻塞求助和计划偏离在任务内登记，Worker自主选择是否等待，可在回复前提交候选；SE明确停止仍须遵守，问题核准和范围变更由SE处理；评论不改变范围或释放排他资源。结构化验收固定范围与精确输入，执行者声明、审核者逐项复核；Git祖先关系不替代最终提交测试。SE待办集中展示协作、交付与回退事项。回退先冻结影响并逐人确认，任务/模块追加新版本，代码/部署使用单独批准的项目执行器，不覆盖历史或给予实例全局权限。详见[协作与回退操作手册](/help/workflow)。
 
 
 ## 需求、接续与持续改进
@@ -86,3 +88,9 @@ member可选actor_kind=human/agent/unknown；经理配置后，时间时段固�
 
 
 收口新增criteria_claim_batch、criteria_review_batch、git_check_batch，全部复用原单项校验及项目事务。参与者time_change可带attempt_id/attempt_lease记录本人时段，任务时间完整性仍由负责人确认。详见[增量API](/help/finishing)。
+
+## 自主等待与候选接收
+
+新增thread_wait：thread、pause(bool)、summary；可选本人attempt_id/attempt_lease，不传task/scope/selection_id。仅线程作者且当前合法参与者可改当前范围等待。pause:false不需要SE回复，也不能覆盖SE正式stop或改变其他任务计时。thread_open的discussion也可pause:true。
+
+workflow/task及brief.collaboration.delivery_readiness区分收件与准备度，包含candidate_received、ready_for_acceptance、blockers、verification_origin及dependency_lock_state；返回准备度不授予验收权。health.async_flow_schema=1。未决留言、门禁与失败验证可先submit；accept继续核验，原submit条件门推迟到accept。详见/help/async-flow。

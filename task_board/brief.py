@@ -24,7 +24,7 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
         else:assets[ref]={**g['assets'][lock['release']],'lock':lock}
     return {'project_id':project,'api_base':url+'/api/projects/'+project,'task_id':task_id,
             'role':w['role'],'scope_version':task['scope_version'],'scope_hash':task['scope_hash'],
-            'collaboration':{k:workflow[k] for k in ('threads','current_plan','findings','blockers','rollbacks')},
+            'collaboration':{k:workflow[k] for k in ('threads','current_plan','findings','blockers','rollbacks','delivery_readiness')},
             'continuation':{k:coordination[k] for k in ('resume','plans','batches','gates','intakes','cursor')},
             'context_pack':{'endpoint':url+'/api/projects/'+project+'/convergence/context?task='+__import__('urllib.parse',fromlist=['quote']).quote(task_id,safe=''),'instruction':'按实际引用裁剪材料；摘要保留来源与哈希，变化继续按游标分页读取'},
             'execution_records':{'attempts':[{k:e.get(k) for k in ('id','actor','workspace','status','scope','scope_version','baseline','result')} for e in op.get('cv_attempts',{}).values() if e['task']==task_id],

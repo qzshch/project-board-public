@@ -1,5 +1,7 @@
 # 多项目公告板 API v2
 
+当前协作规则见[Worker异步交付与基线依赖](/help/async-flow)：留言可自主选择等待，成果先进入候选待评审；知识/产物按审核版本消费，代码须合入且包含在下游固定基线中。普通任务不默认叠加实施审批、尝试或平台执行器。
+
 本文件是通用接口规范，不包含任何项目的任务、项目列表、成员、密钥或资源。可从服务 `/api-docs.md` 获取；客户端脚本为 `/client.py`。接入其他项目无需获得某个业务项目的 Git 仓库权限。
 
 ## 认证与范围
@@ -119,3 +121,9 @@ GET /api/projects/{project_id}/worker-entry：开放项目提供本项目名称�
 ## SE直接创建（project_start_schema=2）
 
 GET /api/se-entry匿名返回实例se_self_service布尔值及create-se入口，不枚举项目。POST /api/projects/{project_id}/se-start在实例启用时接受本机生成的独立Bearer种子和{request_id,actor,project}，仅首次新建；catalog原子保存项目、普通actor对应owner成员、credentials和se_starts幂等绑定，不返回token。不接受角色选择，不接管既有或已退役ID，不覆盖未发布目录；当前owner可读回精确原请求，撤销/移交不能恢复。活跃显式预约需维护者先处理，撤销的未用预约不占号；旧grant本身不能冒充新种子。knowledge.entries可仅title/location，规范化version=unversioned和空SHA；materials仍要求固定版本和SHA。
+
+## 异步候选与依赖要求
+
+submit成功生成candidate:true回执与submitted状态，只表示收件。未决留言、审核或质量条件允许入队，accept/merge/native继续按当前精确输入校验。verification可附status（passed/failed/not_run/not_applicable/unknown）；本机声明不是平台通过。引用test_runs仍须属于当前项目、范围代次和输入。
+
+任务spec可选dependency_requirements，键为depends_on中的任务ID，值可含kind(code/knowledge/artifact)、stage(accepted/merged/native_accepted)、repo。代码不能降级为仅accepted，默认merged且实际合入提交可从下游work.baseline到达。claim/assign事件的dependency_locks固定消费锚点，不修改历史任务投影；锚点漂移需SE追加范围后重领。完整规则、旧记录兼容与例子见/help/async-flow。

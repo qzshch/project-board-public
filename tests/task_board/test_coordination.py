@@ -87,7 +87,7 @@ class CoordinationCase(unittest.TestCase):
 
     def test_task_plan_risk_gates_and_current_contract_context(self):
         self.claimed();self.assertEqual(self.op('execution_policy',{**self.scope(),'required':True,'reason':'SE selects plan review before further execution'})[0],201)
-        self.assertEqual(self.submit()[0],409)
+        workflow.candidate_blocked(self)
         self.assertEqual(self.op('execution_plan',self.plan(paths=['outside.py']),self.a)[0],409)
         self.assertEqual(self.op('execution_plan',self.plan(),self.a)[0],201)
         review={**self.scope(),'plan':'steps-1','result':'approve','reason':'Steps, write scope and verification reviewed'}
@@ -121,10 +121,10 @@ class CoordinationCase(unittest.TestCase):
         analytics=self.co()[1]['analytics'];self.assertEqual(analytics['root_causes']['test_gap'],1);self.assertGreater(analytics['intervals']['claim_to_submit']['samples'],0)
 
     def test_human_and_timer_gates_bind_exact_input_and_never_accept_automatically(self):
-        self.claimed();self.assertEqual(self.op('condition_gate',self.gate())[0],201);self.assertEqual(self.submit()[0],409)
+        self.claimed();self.assertEqual(self.op('condition_gate',self.gate())[0],201);workflow.candidate_blocked(self)
         gate=self.co()[1]['gates']['external'];p={'id':'external','gate_hash':gate['gate_hash'],'reason':'Authorized reviewer checked fixed input'}
         self.assertEqual(self.op('gate_confirm',p,self.a)[0],403);self.assertEqual(self.op('gate_confirm',p)[0],201)
-        self.assertEqual(self.submit('d'*40)[0],409);self.assertEqual(self.submit()[0],201)
+        workflow.candidate_blocked(self,self.submit('d'*40));self.assertEqual(self.submit()[0],201)
         self.assertEqual(self.hub.store('alpha').get('new/one')['status'],'submitted')
         self.assertEqual(self.op('condition_gate',self.gate(id='timer',kind='timer',not_before=time.time()+3600))[0],201)
         self.assertFalse(self.co()[1]['gates']['timer']['satisfied'])
@@ -173,7 +173,7 @@ class CoordinationCase(unittest.TestCase):
         self.assertFalse(self.co(task='new/one')[1]['resume']['plan_required']);self.assertEqual(self.submit()[0],201)
 
     def test_gate_replacement_is_explicit_and_keeps_old_record(self):
-        self.claimed();self.op('condition_gate',self.gate());gate=self.co()[1]['gates']['external'];self.assertEqual(self.submit()[0],409)
+        self.claimed();self.op('condition_gate',self.gate());gate=self.co()[1]['gates']['external'];workflow.candidate_blocked(self)
         p={'id':'external','gate_hash':gate['gate_hash'],'reason':'SE replaces obsolete prerequisite after checking impact'}
         self.assertEqual(self.op('gate_retire',p,self.a)[0],403);self.assertEqual(self.op('gate_retire',p)[0],201)
         self.assertTrue(self.co()[1]['gates']['external']['retired']);self.assertFalse(self.co()[1]['gates']['external']['satisfied']);self.assertEqual(self.submit()[0],201)
