@@ -57,6 +57,14 @@ class OrchestrationCase(unittest.TestCase):
         p=result[1];self.assertEqual(p['project_id'],'alpha');self.assertEqual(self.call('/api/projects/beta/snapshot',profile=p)[0],404)
         self.assertEqual(self.call('/api/node/profile',{'binding':'se-one'},self.node)[0],403)
         self.assertEqual(self.call('/api/node/profile',{'binding':'binding-one'},self.node)[1]['token'],p['token'])
+    def test_native_permission_observation_notifies_se_without_fake_worker_comment(self):
+        self.prepare_node();self.bind();self.bind('se','se-one')
+        for _ in range(4):
+            job=self.poll();session='worker-session' if job['binding']['id']=='binding-one' else 'se-session';self.assertEqual(self.report(job,session=session)[0],200)
+        caps=self.call('/api/nodes',profile=self.admin)[1]['nodes'][0]['capabilities'];p={'capabilities':caps,'observations':[{'binding':'binding-one','session':'worker-session','status':'approval_required'}]}
+        self.assertEqual(self.call('/api/node/heartbeat',p,self.node)[0],200);self.assertEqual(self.call('/api/node/heartbeat',p,self.node)[0],200)
+        notice=self.poll();self.assertEqual(notice['binding']['id'],'se-one');self.assertEqual(notice['body']['kind'],'runtime_approval');self.report(notice,session='se-session');self.assertIsNone(self.poll()['job'])
+        self.assertFalse(Operations(self.hub.store('alpha')).snapshot().get('wf_threads'));self.assertEqual(self.hub.store('alpha').get('work/one')['status'],'planned')
     def test_comment_and_reply_notify_original_sessions_once(self):
         self.prepare_node();self.bind();self.bind('se','se-one');worker=self.call('/api/node/profile',{'binding':'binding-one'},self.node)[1]
         for _ in range(4):

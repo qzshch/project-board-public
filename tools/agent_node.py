@@ -13,7 +13,7 @@ class Node:
         self.path=Path(path).resolve();self.config=read(path);c=self.config
         self.home=Path(c['state']).resolve()
         if os.name=='nt' and self.home.drive.upper()=='C:':raise ValueError('节点状态、日志和项目根需放C盘外')
-        self.home.mkdir(parents=True,exist_ok=True);self.stop=threading.Event();self.drivers={};self.caps={};self.current=None;self.lock=threading.RLock()
+        self.home.mkdir(parents=True,exist_ok=True,mode=0o700);self.stop=threading.Event();self.drivers={};self.caps={};self.current=None;self.lock=threading.RLock();self.acknowledged_sessions={}
         if type(c['max_parallel']) is not int or not 1<=c['max_parallel']<=32:raise ValueError('max_parallel需1～32')
         for pid,project in c['projects'].items():
             for alias,root in project['roots'].items():
@@ -81,27 +81,42 @@ class Node:
         # Only references + current authorized context, never model keys or
         # another project's full snapshot. Raw output stays in the runtime.
         context=client.call('/api/convergence/context?task='+__import__('urllib.parse',fromlist=['quote']).quote(tid,safe='')) if tid else {'workbench':'/api/convergence','inbox':'/api/workflow/inbox'}
-        return '\n'.join(['你作为本项目'+('SE' if b['role']=='se' else 'Worker')+'工作。仅处理项目 '+b['project']+'，不得混用其他项目上下文。','公告板 '+url,'本机私有项目身份路径：'+str(profile)+'（仅工具读取，不输出内容/凭据）。','任务 '+(tid or 'SE工作台')+'；固定范围 '+b['scope'],'事件通知 '+json.dumps(body,ensure_ascii=False),'当前接手上下文 '+json.dumps(context,ensure_ascii=False),'Worker在线核对并自行领取指定任务；留言后自行决定是否等待，已有SE stop必须遵守。完成后提交成果、记录、结论、证据到待评审队列，不自行冒充验收。SE回复写回原评论；可按具体任务/动作委派独立复核，保留原门禁。','如果当前范围、依赖或权限不满足，登记真实卡点，不伪造历史PASS或改绑项目。'])
+        rules=[rule['command'] for rule in self.config['runtimes'][b['runtime']].get('approved_commands',[]) if rule.get('project')==b['project'] and rule.get('role')==b['role'] and (not rule.get('binding') or rule['binding']==b['id']) and Path(rule['cwd']).resolve()==Path(self.config['projects'][b['project']]['roots'][b['root']]).resolve()]
+        return '\n'.join(['你作为本项目'+('SE' if b['role']=='se' else 'Worker')+'工作。仅处理项目 '+b['project']+'，不得混用其他项目上下文。','公告板 '+url,'本机私有项目身份路径：'+str(profile)+'（仅工具读取，不输出内容/凭据）。','本机预先核准命令（仍逐次核对脚本哈希）：'+json.dumps(rules,ensure_ascii=False),'环境变量PROJECT_BOARD_PROFILE与PROJECT_BOARD_PROJECT只指向本会话身份及项目。','任务 '+(tid or 'SE工作台')+'；固定范围 '+b['scope'],'事件通知 '+json.dumps(body,ensure_ascii=False),'当前接手上下文 '+json.dumps(context,ensure_ascii=False),'Worker在线核对并自行领取指定任务；留言后自行决定是否等待，已有SE stop必须遵守。完成后提交成果、记录、结论、证据到待评审队列，不自行冒充验收。SE回复写回原评论；可按具体任务/动作委派独立复核，保留原门禁。','如果当前范围、依赖或权限不满足，登记真实卡点，不伪造历史PASS或改绑项目。'])
     def report(self,job,status,session,summary):
         payload={'job':job['job'],'lease':job['lease'],'status':status,'session':session,'summary':summary}
         path=self.home/'receipts'/(job['job']+'.report.json');save(path,payload)
         # Server binds lease and terminal result; retry only this frozen report.
         for attempt in range(3):
-            try:return self.client.call('/api/node/report',payload)
+            try:
+                result=self.client.call('/api/node/report',payload)
+                if status=='accepted' and session:self.acknowledged_sessions[job['binding']['id']]=session
+                return result
             except ClientError as exc:
                 if exc.status not in (0,502,503,504) or attempt==2:raise
                 self.stop.wait(.5*(attempt+1))
     def beat(self):
         while not self.stop.is_set():
             try:
-                self.client.call('/api/node/heartbeat',{'capabilities':self.caps})
+                self.heartbeat()
                 with self.lock:job=self.current
                 if job:self.report(job,'heartbeat',job['binding'].get('session'),'准备/发送/等待阶段续租')
             except ClientError as exc:
                 if exc.status in (401,403):self.stop.set()
             self.stop.wait(15)
+    def heartbeat(self):
+        # Infrastructure can report a native permission failure even when the
+        # model cannot execute its board client. This is not a Worker comment
+        # or permission approval, and never changes the task's result.
+        observations=[]
+        with self.lock:current=self.current
+        for key,driver in list(self.drivers.items()):
+            if current and current['binding']['id']==key:continue
+            if driver.ready_session and self.acknowledged_sessions.get(key)==driver.ready_session and any(e.get('method')=='approval_required' for e in driver.wire.events):observations.append({'binding':key,'session':driver.ready_session,'status':'approval_required'})
+        return self.client.call('/api/node/heartbeat',{'capabilities':self.caps,'observations':observations})
     def execute(self,job):
-        if any(not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}',value) for value in (job['job'],job['binding']['id'])):raise ProtocolError('工作单/绑定ID不是安全的本机收据标识')
+        reserved={'CON','PRN','AUX','NUL',*('COM'+str(i) for i in range(1,10)),*('LPT'+str(i) for i in range(1,10))}
+        if any(type(value) is not str or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,99}',value) or value.endswith('.') or value.split('.')[0].upper() in reserved for value in (job['job'],job['binding']['id'])):raise ProtocolError('工作单/绑定ID不是安全的本机收据标识')
         b=job['binding'];session=b.get('session');path=self.home/'receipts'/(job['job']+'.json');old=read(path) if path.exists() else None
         if old and old['status'] in ('attempting','needs_recovery'):
             self.report(job,'needs_recovery',old.get('session'),'本机存在未确认副作用；请SE核对原收据，禁止自动重放');return
@@ -110,6 +125,16 @@ class Node:
         record={'job':job['job'],'binding':b['id'],'session':session,'started':time.time(),'status':'preparing'};save(path,record)
         try:
             p,config,root=self.validate(b);profile,client=self.profile(b,p);operation=job['body']['operation']
+            # A project SE may confirm an uncertain result, but cannot choose
+            # some other local conversation. Only this node's pre-effect
+            # binding receipt establishes session provenance.
+            binding_path=self.home/'bindings'/(b['id']+'.json')
+            identity={key:b[key] for key in ('id','project','actor','role','runtime','model','root')};identity.update(url=self.client.url,cwd=str(root))
+            bound=read(binding_path) if binding_path.exists() else None
+            if bound and bound['identity']!=identity:raise ProtocolError('本机绑定上下文不匹配，不能换项目、身份或工作根恢复')
+            if session and (not bound or bound.get('session')!=session):raise ProtocolError('没有属于本机此绑定的会话收据，不能接管其他会话')
+            if session:self.acknowledged_sessions[b['id']]=session
+            if not bound:save(binding_path,{'identity':identity,'session':None,'created':time.time()})
             driver=self.drivers.get(b['id'])
             if not driver:
                 active=sum(1 for d in self.drivers.values() if d.ready_session and d.busy(d.ready_session))
@@ -117,14 +142,15 @@ class Node:
                 if len(self.drivers)>=self.config['max_parallel']:
                     victim=next((key for key,d in self.drivers.items() if not d.ready_session or not d.busy(d.ready_session)),None)
                     if victim:removed=self.drivers.pop(victim);removed.close()
-                driver=Runtime(b['runtime'],config,root,self.home/'processes'/b['id']/uuid.uuid4().hex,b['model']);self.drivers[b['id']]=driver
+                local_config={**config,'_approval_context':{'project':b['project'],'role':b['role'],'binding':b['id']},'environment':{**config.get('environment',{}),'PROJECT_BOARD_PROFILE':str(profile),'PROJECT_BOARD_PROJECT':b['project']}}
+                driver=Runtime(b['runtime'],local_config,root,self.home/'processes'/b['id']/uuid.uuid4().hex,b['model']);self.drivers[b['id']]=driver
             if operation not in ('stop','create'):
                 active=sum(1 for key,d in self.drivers.items() if key!=b['id'] and d.ready_session and d.busy(d.ready_session))
                 if active>=self.config['max_parallel']:raise Busy('达到本机模型并行上限，输入保留在原队列')
             content=self.prompt(job,profile,client) if operation!='stop' and operation!='create' else ''
             record.update(status='attempting');save(path,record)
             if operation=='create':
-                session=driver.create('board-'+uuid.uuid5(uuid.NAMESPACE_URL,b['id']).hex,b['model']);record.update(session=session);save(path,record);summary='真实会话已创建；首条任务输入另有持久工作单'
+                session=driver.create('board-'+uuid.uuid5(uuid.NAMESPACE_URL,self.client.url+'|'+self.config['id']+'|'+b['project']+'|'+b['id']).hex,b['model']);save(binding_path,{'identity':identity,'session':session,'created':time.time()});record.update(session=session);save(path,record);summary='真实会话已创建；首条任务输入另有持久工作单'
             elif not session:raise ProtocolError('没有原会话，不能替换创建')
             elif operation=='stop':summary=driver.stop(session)
             else:driver.send(session,b['model'],content,job['job']);summary='原会话已接收输入；任务交付与验收尚待公告板真实记录'
@@ -144,7 +170,7 @@ class Node:
         try:
             while not self.stop.is_set():
                 try:
-                    self.client.call('/api/node/heartbeat',{'capabilities':self.caps});job=self.client.call('/api/node/poll',{})
+                    self.heartbeat();job=self.client.call('/api/node/poll',{})
                     if job['job']:
                         with self.lock:self.current=job
                         try:self.execute(job)

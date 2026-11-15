@@ -11,6 +11,14 @@
 
 模型还需要获准访问server公告板。Codex本机argv可显式使用 `codex -c sandbox_workspace_write.network_access=true app-server`；这由本机维护者配置，server不能发来该开关。其他运行时按原生权限策略预先允许本项目必需的文件和公告板访问。运行时请求额外审批时接入端不自动批准，先由原机器维护者核对；不可把“网络被沙箱禁止”解释成公告板未授权。
 
+原生权限通道阻止工具时，节点把真实 `approval_required` 状态和一次去重通知交给SE，面板可见；不会伪造Worker已留言或自动批准命令。由本机维护者通过原应用核定项目所需权限后，再通知原会话继续。未实现的Zcode auto模式以及会跳过原权限判断的模式，不作为自动解决办法。
+
+本机维护者也可在运行时私有config预先写入 `approved_commands`：每项必须有完全相同的 `command`、固定 `cwd`、`script` 的绝对路径和该文件 `sha256`。仅对本节点已创建/恢复的会话核对当前文件后，回答Zcode Bash或Codex命令执行的一次原生许可；不接受命令前缀/正则，也不接受额外沙箱放宽。内容或参数改变即不批准，server和项目SE不能通过API下发这些规则。规则与脚本应由本机维护者保护，勿从未审查的项目文件自动导入；未配置的请求仍留作本机授权卡点。DeepSeek SDK未声明支持的许可形状继续拒绝，由其本机运行配置核定。
+
+每条规则还必须写 `project` 与 `role`，可再写具体 `binding`；Worker不会复用SE或其他项目的规则。固定客户端命令可以引用节点注入的 `PROJECT_BOARD_PROFILE` 与 `PROJECT_BOARD_PROJECT` 环境变量，身份仍来自本次绑定，不在命令里放token。模型只看到当前项目/角色/工作根适用的命令。实际一次许可在节点私有日志记录命令摘要、脚本哈希和原会话，不声称是人类现场批准。
+
+Windows子会话能访问的工具链可能不同于当前终端。尤其Codex沙箱未必能执行用户AppData下的解释器；本机维护者需选择对子会话可执行的已授权工具位置。请用实际工具动作核对，不能只检查宿主机上文件存在。Zcode的 `ZCODE_HOME` 不是完整的配置/会话隔离开关，独立配置与存储应按安装版本真实设置核对，不能据它宣称已隔离。
+
 项目根和节点状态放C盘外；应用既有配置与凭据不由公告板迁移。若运行时默认产生项目缓存，按该运行时的本机配置固定到项目/server目录。允许项目可登记多个根别名；SE只选择别名，不能在HTTP请求中注入磁盘路径。节点开通项目集合需要扩展时由实例维护者重新授权新节点ID，不能由项目Agent扩展。
 
 ## 三种运行时分别适配
@@ -24,6 +32,8 @@
 Zcode安装版本若需要 provider 文件路径，可在本机config的 `environment` 指定 `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` 与 `ZCODE_PERSONAL_PROVIDER_CONFIG_FILE`，仅保存路径，勿复制密钥到公共模板。供应商路由名称可能留有旧配置，实际探测失败就不可派发。更换安装版本、路由或本机配置后重新探测并重启接入端。
 
 Zcode路由要求推理级别时，在该运行时本机config增加 `"model_options":{"实际provider/model":{"reasoningLevel":"实际支持的值"}}`，探测和创建使用同一组选项，不猜测供应商可用级别。原生“正在运行”拒绝作为忙碌留队处理，不会因一次状态竞争丢掉通知。
+
+同一组选项也随每次输入明确传给Zcode，避免其旧式输入路径重置选择。DeepSeek SDK可在本机运行时config指定 `"reasoning_effort":"实际支持的值"`，由初始化握手核定。模型探测验证助手实际输出；不能因为用户提示中有预期文本或运行时确认接收，就认定模型已正常执行。
 
 DeepSeek SDK支持排队输入、原会话恢复及状态通知；当前官方SDK没有单会话取消方法，面板停止请求会明确返回不支持，需在原节点核对处理，不能为停止一位Worker关闭其他人的会话。SDK审批与问题请求不自动批准。未安装、未登录、路由不可用、探测失败或90秒无心跳的运行时均不可派发。控制面握手通过不等于模型执行、代码测试或交付已通过。
 
@@ -49,6 +59,8 @@ SE读取 `GET /api/projects/{project}/orchestration` 查看工作单。先在原
 
 人工核对后可发送 `action:"recover"`，payload包含 `job,session,status,summary,evidence`；status只能为 `accepted` 或 `failed`，evidence填真实本机收据/证据位置。已有会话不能换ID。已确认创建的原会话接收输入使用新明确的resume工作单；确认未执行的动作由SE重新决定，恢复不会自动重放旧副作用。收据和原失败保留。撤销节点只撤销后续控制面权限，失联工作是否停止仍需原机器核对；如需撤销Worker项目权限，另用既有身份撤销流程。
 
+节点还会核对本机 `state/bindings` 中原项目、角色、身份、工作根和会话ID，服务端SE填写一个session ID本身不能接管其他聊天。恢复时保留并备份节点私有状态、绑定和收据；本机归属记录丢失时先恢复其原备份，不通过编辑收据、猜测ID或新建替代会话绕过核对。
+
 ## SE按工作判断是否下放
 
 普通Worker本来就可做研究、材料整理、测试执行和规划草案；SE只负责关键范围、接口和发布决定。无需为普通领取与提交增加委派表单。
@@ -58,3 +70,22 @@ SE读取 `GET /api/projects/{project}/orchestration` 查看工作单。先在原
 允许动作是 `criteria_review,review_resolve,run_request,manual_run,accept,merge,native,request_changes`。调用原 `/operations` 或 `/events` 时，在顶层加 `"delegation":"授权ID"`，其余原请求与证据要求保持。不会改变Worker项目角色，不能借授权管理成员、批准公共接口或发布其他任务。需要多任务测试时分别授权与运行，不将单任务授权扩成整套项目权限。
 
 实现者/曾提交该任务成果者不能受托复核自己任务；不同身份不证明不同模型独立。严格任务的最终验收、基线处置保留给SE/人类。原验收项、测试、实际Git和运行门禁不会因为委派而跳过。撤销、过期、范围/成果变更会阻止后续新操作；已完成的相同请求可读回原回执，审计保留授权ID、操作者和结论。遇到权限、持久化、生产或未知影响，交回SE重新核定。
+
+本机规则示例（Git Bash语法；路径、项目和SHA必须按本机真实值填写，示例不授予权限）：
+
+```json
+{
+  "approved_commands": [{
+    "project": "your-project",
+    "role": "worker",
+    "command": "\"G:/tools/python/python.exe\" -B \"G:/board-node/tools/task_board_client.py\" --profile \"$PROJECT_BOARD_PROFILE\" status",
+    "cwd": "G:/your-project",
+    "script": "G:/board-node/tools/task_board_client.py",
+    "sha256": "REPLACE_WITH_ACTUAL_SCRIPT_SHA256"
+  }]
+}
+```
+
+需要发送评论、领取和交付时，本机维护者可另核准固定的客户端 `request --endpoint /api/operations --payload board-operation.json --out board-operation-receipt.json` 与 `post --event board-event.json --receipt board-event-receipt.json` 命令；Worker用文件填写冻结请求，API仍核对项目身份、范围和权限。不要把任意Shell或可变命令前缀列入规则。
+
+公告板隔离项目API、身份引用和受管会话上下文；原应用的其他插件权限和操作系统文件权限仍由本机维护者配置。同一OS账号下的Agent不构成文件级硬隔离，强隔离应使用独立账号或容器及专用运行配置。

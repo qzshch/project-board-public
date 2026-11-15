@@ -15,7 +15,8 @@ def prepare(db):
 
 def label(value):
     text(value,'标识',100)
-    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,99}',value):raise BoardError('标识只能含字母、数字、点、下划线、冒号或连字符')
+    reserved={'CON','PRN','AUX','NUL',*('COM'+str(i) for i in range(1,10)),*('LPT'+str(i) for i in range(1,10))}
+    if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,99}',value) or value.endswith('.') or value.split('.')[0].upper() in reserved:raise BoardError('标识需跨平台安全：字母、数字、点、下划线或连字符，不用设备名、冒号或结尾点')
     return value
 def manager(hub,identity,pid):
     hub.authorize(identity,pid);actor=hub.effective_actor(identity,pid)
@@ -71,7 +72,7 @@ class Orchestrator:
             db.execute('BEGIN IMMEDIATE');db.execute('UPDATE orch_nodes SET enabled=0 WHERE id=?',(p['id'],));self.hub.audit(db,'node_revoked',None,identity['actor']['id'],p);db.commit()
         return {'revoked':p['id'],'running_work':'撤销控制面权限；失联运行须在原节点核对停止，不能假定已终止'}
     def heartbeat(self,node,p):
-        fields(p,{'capabilities'},{'capabilities'});caps=p['capabilities']
+        fields(p,{'capabilities','observations'},{'capabilities'});caps=p['capabilities']
         if type(caps) is not dict or set(caps)-RUNTIMES:raise BoardError('运行时类型无效')
         for key,c in caps.items():
             fields(c,{'ready','version','models','roots','reason'},{'ready','version','models','roots','reason'})
@@ -82,7 +83,19 @@ class Orchestrator:
                 if pid not in json.loads(node['definition'])['projects'] or type(roots) is not list:raise BoardError('节点项目/根越界',403)
                 for root in roots:label(root)
         with self.hub.connection() as db:
-            db.execute('BEGIN IMMEDIATE');self.live(db,node);db.execute('UPDATE orch_nodes SET capabilities=?,last_seen=? WHERE id=? AND enabled=1',(canonical(caps),time.time(),node['id']));db.commit()
+            db.execute('BEGIN IMMEDIATE');self.live(db,node);observations=p.get('observations',[])
+            if type(observations) is not list or len(observations)>32:raise BoardError('运行时观察需最多32项')
+            for observation in observations:
+                fields(observation,{'binding','session','status'},{'binding','session','status'})
+                row=db.execute('SELECT * FROM orch_bindings WHERE id=?',(observation['binding'],)).fetchone()
+                if not row or json.loads(row['definition'])['node']!=node['id'] or row['session']!=observation['session']:raise BoardError('只能报告本机原绑定会话',403)
+                if observation['status']!='approval_required':raise BoardError('不支持此观察状态')
+                if row['status']!='approval_required':
+                    b=json.loads(row['definition']);db.execute("UPDATE orch_bindings SET status='approval_required' WHERE id=?",(row['id'],));self.hub.audit(db,'runtime_local_approval_required',row['project'],node['id'],observation)
+                    latest=db.execute("SELECT id FROM orch_jobs WHERE binding=? AND status='accepted' AND json_extract(body,'$.operation') IN ('notify','resume') ORDER BY rowid DESC LIMIT 1",(row['id'],)).fetchone();incident=latest['id'] if latest else row['session']
+                    for se in db.execute('SELECT id,definition FROM orch_bindings WHERE project=? AND id<>?',(row['project'],row['id'])).fetchall():
+                        if json.loads(se['definition'])['role']=='se':self.enqueue(db,se['id'],'local-approval:'+row['id']+':'+incident,{'operation':'notify','kind':'runtime_approval','task':b['task'],'binding':row['id'],'summary':'原生运行时要求本机授权；先核对本机策略，不自动批准或重建会话'})
+            db.execute('UPDATE orch_nodes SET capabilities=?,last_seen=? WHERE id=? AND enabled=1',(canonical(caps),time.time(),node['id']));db.commit()
         return {'heartbeat':True}
     def enqueue(self,db,binding,event,body):
         jid='job-'+uuid.uuid4().hex
