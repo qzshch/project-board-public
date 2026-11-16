@@ -48,6 +48,7 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'stage-plan.json','stage-focus.json','stage-review.json','function-tree.json',
     'project-test-discipline.md',
     'product-requirement.json','product-defect.json','token-usage.json','session-reference.json',
     'agent-node-config.json','agent-binding.json','delegation-grant.json',
@@ -68,6 +69,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/stages-tree':('阶段目标、优先级与产品功能树','docs/STAGES-AND-FUNCTION-TREE.md',False),
     '/help/focus':('当前权威状态、历史与最短交付','docs/FOCUS-CONVERGENCE.md',False),
     '/help/test-instances':('项目测试实例与并发纪律','docs/TEST-INSTANCE-DISCIPLINE.md',False),
     '/help/product':('需求、缺陷、用量与会话目录','docs/PRODUCT-WORKSPACE.md',False),

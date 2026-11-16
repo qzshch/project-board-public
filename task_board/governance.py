@@ -294,7 +294,11 @@ class Governance:
             return {'revision':revision+1,'hash':hashed}
 
     def _mutate(self,db,v,actor,r,action,p):
-        if action in ('resource_register','resource_update','resource_retire','resource_classify'):
+        from .roadmap import ACTIONS as ROADMAP_ACTIONS
+        if action in ROADMAP_ACTIONS:
+            from .roadmap import mutate
+            mutate(db,v,actor,r,action,p,self.store)
+        elif action in ('resource_register','resource_update','resource_retire','resource_classify'):
             from .resources import mutate
             mutate(db,v,actor,r,action,p,getattr(self.store,'registry',None))
         elif action in ('planning_enable','planning_decision','module_plan','module_review','milestone_plan','milestone_review'):

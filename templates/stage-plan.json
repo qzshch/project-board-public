@@ -1,0 +1,16 @@
+{
+  "id": "minimum-delivery",
+  "version": "1",
+  "title": "最小可用交付",
+  "goal": "完成一个可实际验证的端到端使用场景",
+  "scope": "由本项目SE填写本次纳入内容",
+  "non_goals": "后续扩展按优先级独立排期，不作为所有任务的领取前置",
+  "priority": "P1",
+  "input_anchor": "",
+  "repo": "",
+  "tasks": [],
+  "criteria": [{"id": "END-TO-END", "expected": "在明确的固定版本与环境实测目标场景，按原件核对结论"}],
+  "entry_stages": [],
+  "reviewer": "project-se",
+  "reason": "替换为本项目真实任务、审核者与固定基线；未知不填造假SHA"
+}

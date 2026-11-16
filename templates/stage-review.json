@@ -1,0 +1,1 @@
+{"ref":"minimum-delivery@1","scope":"读取roadmap返回的阶段scope","input_anchor":"读取阶段实际固定锚点","result":"fail","checks":[{"id":"END-TO-END","result":"fail","summary":"替换为真实核对，未完成不记通过"}],"summary":"替换为实际阶段验证与剩余范围","evidence":[]}

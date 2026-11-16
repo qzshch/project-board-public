@@ -26,6 +26,7 @@ from .projects import ProjectHub, project_id
 
 WEB_ROOT = Path(__file__).resolve().parents[1] / "task_board_web"
 STATIC = {
+    "/roadmap.js":"roadmap.js",
     "/focus.js":"focus.js",
     "/git-onboarding.js":"git-onboarding.js",
     "/product.js":"product.js",
@@ -422,6 +423,7 @@ class Handler(BaseHTTPRequestHandler):
                         "api_version": 2 if self.server.hub else 1,
                         "product_version": 4,
                         "focus_schema": 1,
+                        "roadmap_schema": 1,
                         "governance_schema": 2,
                         "operations_schema": 1,
                         "git_schema": 1,
@@ -456,6 +458,10 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/orchestration':
                 from .orchestration import Orchestrator
                 return self.send(200,Orchestrator(self.server.hub).listing(self.identity(),self.project))
+            if path=='/api/roadmap':
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .roadmap import snapshot
+                return self.send(200,snapshot(self.store,self.actor()))
             if path=='/api/current':
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .focus import snapshot

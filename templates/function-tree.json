@@ -1,0 +1,8 @@
+{
+  "version":"1",
+  "reason":"仅组织产品功能，不重写任务、依赖、接口或验收",
+  "nodes":[
+    {"id":"product","title":"产品","description":"项目产品边界","parent":"","module_ids":[],"task_ids":[]},
+    {"id":"core-capability","title":"核心功能","description":"填入本项目玩家/用户可感知的功能","parent":"product","module_ids":[],"task_ids":[]}
+  ]
+}

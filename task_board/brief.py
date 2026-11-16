@@ -15,6 +15,10 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
     from .workflow import snapshot as workflow_snapshot
     workflow=workflow_snapshot(store,actor or {'id':'','role':'agent'},task_id)
     from .focus import delivery_path
+    from .roadmap import task_hints,tree_projection
+    brief_tasks={t['spec']['id']:t for t in store.snapshot()['tasks']}
+    stage_hint=task_hints(g,brief_tasks)[task_id]
+    tree=tree_projection(g,brief_tasks)
     snapshots={loc['location'] for e in g.get('resource_entries',{}).values() if e.get('information_role')=='snapshot' for loc in e['locations']}
     pinned=set(g['modules'].get(w.get('planning',{}).get('module'),{}).get('knowledge_refs',[]))
     current_materials=[];historical_materials=[]
@@ -31,6 +35,8 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
         elif lock['shared']:assets[ref]={**store.registry.get(lock['release'],project,True),'lock':lock}
         else:assets[ref]={**g['assets'][lock['release']],'lock':lock}
     return {'project_id':project,'api_base':url+'/api/projects/'+project,'task_id':task_id,
+            'project_stage':{**stage_hint,'focus':g.get('stage_focus'),'endpoint':url+'/api/projects/'+project+'/roadmap','instruction':'聚焦阶段只影响推荐顺序；无真实前置的其他任务仍可领取，原门禁不变。'},
+            'function_tree':{'node':tree['task_map'].get(task_id),'version':g.get('function_tree_head'),'endpoint':url+'/api/projects/'+project+'/roadmap','instruction':'功能分类不改写任务scope、接口或验收；未归类不等于不存在。'},
             'authority':{'current_endpoint':url+'/api/projects/'+project+'/current','instruction':'以实时任务、当前候选、验收及合入记录为准；项目文档与轮次报告是参考，不要求每轮手工同步状态副本。'},
             'delivery_path':delivery_path(task,op['effective'][task_id],workflow['current_plan']),
             'role':w['role'],'scope_version':task['scope_version'],'scope_hash':task['scope_hash'],

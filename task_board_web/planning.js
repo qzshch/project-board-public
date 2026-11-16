@@ -3,6 +3,8 @@
 // boundaries and milestone evidence. Tertiary: immutable history. Reuse surface,
 // ink/secondary/muted, type-14/16/20 and space-12/16/24/32 tokens; no new palette.
 function renderPlanning(box,d){
+  if(typeof renderProductPlanning==='function')renderProductPlanning(box);
+  const advanced=el('details',undefined,'relation-details');advanced.id='technical-planning';advanced.open=!ws.roadmap?.tree.definition;advanced.append(el('summary','技术规划、工程里程碑与历史版本'));box.append(advanced);box=advanced;
   const names={draft:'待澄清',research:'调研中',design:'方案待确认'};
   const health=d.planning_health,lead=section('从项目框架逐步展开');
   lead.append(el('p','项目目标 → 模块边界 → 调研与决策 → 接口冻结 → 原子任务 → 阶段验证','secondary'));

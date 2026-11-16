@@ -604,6 +604,10 @@ def workbench(store,db,v,g,ts,actor,r,now):
             reasons=blockers(db,t,actor,getattr(store,'registry',None),context=(ts,g,v,dependency_cache))
             if not manager_role and (not t['spec']['claimable'] or not t['spec']['registered']):reasons+=['任务尚未向Worker发布']
             available.append({'id':tid,'title':t['spec']['title'],'published':bool(t['spec']['claimable'] and t['spec']['registered']),'blockers':reasons})
+    from .roadmap import task_hints,priority_key
+    hints=task_hints(g,ts)
+    for row in available:row['stage_hint']=hints[row['id']]
+    available.sort(key=lambda row:priority_key(ts[row['id']],hints))
     # Stable identity and deterministic priority, independent of model prose.
     unique={e['kind']+':'+e['id']:e for e in items};rank={'recovery':0,'thread':1,'submission':2,'criterion':3,'draft':4,'implementation':5,'rule':6}
     from .focus import groups
@@ -666,5 +670,6 @@ def context_pack(store,actor,tid,since=''):
     packet={'schema':1,'task':tid,'scope':brief['scope_hash'],'scope_version':brief['scope_version'],'sources':sources,'resume':co['resume'],'plans':co['plans'],'criteria':brief['collaboration']['current_plan'],'tests':brief['test_plan'],'rule':conv['bindings'].get(tid),'attempts':conv['attempts'],'sessions':conv['sessions'],'selection':conv['selections'].get(tid),'resources':brief['resource_directory'],'changes':changes,'materials_truncated':len(materials)>32,'instructions':['核对当前范围、批准规则/计划、未决发现和资源访问条件','摘要是有来源的读视图，不替代实际原件或正式变更','变化通知可能含项目公共边界更新；按readback重新读取，has_more时继续分页','原始聊天和日志留本地/NAS；会话引用不证明进程已经停止']}
     packet['material_readback']={'endpoint':'/api/projects/'+project+'/brief?task='+tid,'remaining_locations':[m['location'] for m in materials[32:]],'reason':'最多32条摘要，剩余入口按同一范围brief读取' if len(materials)>32 else ''}
     packet['authority']=brief['authority'];packet['delivery_path']=brief['delivery_path']
+    packet['project_stage']=brief['project_stage'];packet['function_tree']=brief['function_tree']
     packet['historical_materials_readback']={'endpoint':'/api/projects/'+project+'/brief?task='+tid,'count':len(brief['historical_materials'])}
     packet['project_id']=project;packet['sha256']=digest(packet);return packet

@@ -45,7 +45,7 @@ function render() {
     (!$('record-view')||!$('record-view').value||taskRecordView(t)===$('record-view').value) &&
     (!$('priority').value || t.spec.priority===$('priority').value) &&
     (!query || `${t.spec.id} ${t.spec.title} ${t.spec.description} ${t.owner||''} ${t.latest_summary}`.toLowerCase().includes(query)))
-    .sort((a,b)=>(a.spec.priority||'P1').localeCompare(b.spec.priority||'P1') || b.updated_at.localeCompare(a.updated_at) || a.spec.id.localeCompare(b.spec.id));
+    .sort((a,b)=>(a.spec.priority||'P1').localeCompare(b.spec.priority||'P1') || (typeof roadmapFocusRank==='function'?roadmapFocusRank(a)-roadmapFocusRank(b):0) || b.updated_at.localeCompare(a.updated_at) || a.spec.id.localeCompare(b.spec.id));
   const list=$('task-list'); list.replaceChildren();
   for(const task of rows.slice(0,app.limit)) {
     const row=$('task-template').content.firstElementChild.cloneNode(true);
@@ -102,6 +102,7 @@ async function showDetail(id) {
   summary.append(grid,el('p',task.spec.description,'detail-text'));
   if(task.spec.source?.existing) summary.append(el('p','已有成果：'+task.spec.source.existing,'detail-text secondary'));
   body.append(summary);
+  if(typeof renderTaskRoadmap==='function')renderTaskRoadmap(body,task);
   const deliverables=section('约定交付与验收');const items=el('ul');
   for(const item of task.spec.deliverables) items.append(el('li',`${Object.hasOwn(task.accepted,item.id)?'已验收':'待验收'} · ${item.id} ${item.label}`,'detail-text'));
   deliverables.append(items); body.append(deliverables);
