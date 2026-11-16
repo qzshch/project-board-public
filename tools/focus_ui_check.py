@@ -24,6 +24,7 @@ async def main():
         return await original(*args,**kwargs)
     try:
         c.claimed();c.op('criteria_plan',c.plan());c.discussion('old');c.discussion('current')
+        c.gov('knowledge',{'background':'背景与旧进展；'*120,'goals':'当前目标','non_goals':'范围以外','constraints':'执行约束必须完整保留','materials':[],'entries':[]})
         c.gov('resource_register',c.payload(information_role='snapshot',title='旧轮次状态报告'))
         asyncio.create_subprocess_exec=hidden
         async with async_playwright() as pw:
@@ -32,6 +33,7 @@ async def main():
                 capture();ctx=await browser.new_context(viewport={'width':1440,'height':960});page=await ctx.new_page();page.on('pageerror',lambda e:report['errors'].append(str(e)))
                 ticket=c.hub.admin_store.create_ticket(c.hub.admin_store.authenticate(c.admin['token']));await ctx.request.post(c.url+'/api/session',data={'ticket':ticket});await page.goto(c.url+'/?project=alpha',wait_until='networkidle');await page.wait_for_selector('#current-state .workspace-grid')
                 check('实时权威记录' in await page.locator('#current-state').inner_text(),'overview reads real project current endpoint')
+                check(not await page.locator('[data-project-definition=full]').evaluate('(e)=>e.open') and '执行约束必须完整保留' in await page.locator('[data-project-definition=full]').text_content(),'long project definition folded with complete constraints retained')
                 check(not await page.locator('#workspace-body details').first.evaluate('(e)=>e.open'),'project references folded by default')
                 await page.evaluate("setView('active')");check(await page.locator('#task-list').get_by_role('button',name='alpha private task',exact=True).count()==0,'legacy planned structure excluded from current execution')
                 await page.select_option('#record-view','structure');check(await page.locator('#task-list').get_by_role('button',name='alpha private task',exact=True).count()==1,'historical task remains available through explicit view')
