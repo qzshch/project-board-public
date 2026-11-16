@@ -1,11 +1,11 @@
 """Project SE read-only onboarding. Never journal the transient GitHub grant.
 
-A selected-repository fine-grained grant authorizes GitHub's deploy-key API.
-Only the generated repository-specific read-only key remains on NAS. No input
+Prefer SE-local existing GitHub authority, followed by NAS capability proof.
+A selected-repository fine-grained grant remains an optional path. No input
 can choose a local path, host, command or remote. Unknown API effects reconcile
 by key before another create. Existing operator mirrors remain compatible.
 """
-import json, os, threading, uuid, time
+import json, os, threading, uuid, time, subprocess
 from pathlib import Path
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 from urllib.error import HTTPError, URLError
@@ -48,6 +48,7 @@ class Onboarding:
                 self.tracking.mirror(rid,repo);data={'stage':'ready','origin':'existing_verified_mirror','next_owner':'NAS_tracker','next':'已有接入可继续使用，保留原repo ID与审计链','synced_at':repo['synced_at']}
             except BoardError:pass
         if not repo['enabled']:data={**data,'stage':'disabled','next_owner':'project_SE','next':'仓库已停用；原始审计和镜像受控保留，新读取被拒绝'}
+        if data.get('stage')=='awaiting_github_authorization':data={**data,'next':'优先用本机现有gh/Git管理授权登记NAS公钥，然后核验接入；也可手动登记，无需新建token。'}
         return {k:v for k,v in data.items() if k not in ('key','credential')}
     def request(self,actor,p):
         from .governance import role
@@ -76,8 +77,48 @@ class Onboarding:
             code,out,_=run(['ssh-keygen','-y','-f',str(key)],cwd=root,evidence=root/'audit',purpose='reconcile public key with pre-effect owned intent',timeout=15)
             if code:raise BoardError('专属密钥生成结果需恢复',409)
             public=out.decode('utf8').strip()
-            data={'project':self.tracking.project,'repo':rid,'repository':repo['repository'],'stage':'awaiting_github_authorization','public_key':public,'key':str(key),'actor':actor['id'],'at':time.time(),'next_owner':'repository_authority','next':'SE使用所选单仓库短期fine-grained授权完成外部登记；只保存NAS专属只读密钥'}
+            data={'project':self.tracking.project,'repo':rid,'repository':repo['repository'],'stage':'awaiting_github_authorization','public_key':public,'key':str(key),'actor':actor['id'],'at':time.time(),'next_owner':'repository_authority','next':'SE优先用本机现有GitHub管理授权登记此公钥，再核验接入；也可手动登记或使用单仓库临时授权。'}
             atomic(path,data);return self.status(rid)
+    def complete(self,actor,p):
+        """Verify external registration using only the NAS key, never a receipt.
+
+        Authentication binds the key to this repository. A no-input upload-pack
+        handshake proves read access; GitHub must explicitly deny receive-pack
+        as read-only. No ref update or pack is sent. All other failures reject.
+        """
+        fields(p,{'repo','repository','public_key'},{'repo','repository','public_key'})
+        rid=repo_id(p['repo']);self.request(actor,{'repo':rid})
+        with LOCK:
+            path=self.location(rid);data=json.loads(path.read_text('utf8'));repo=self.tracking.state()['repos'][rid]
+            if not repo['enabled'] or repo['repository']!=p['repository'] or data['repository']!=repo['repository'] or data['public_key']!=p['public_key']:raise BoardError('公钥或仓库绑定已变化；重读当前接入信息',409)
+            from tools.owned_process import run
+            key=Path(data['key']);private=self.tracking.root/'_private'
+            if not key.resolve().is_relative_to(private.resolve()) or key.is_symlink() or not key.is_file():raise BoardError('专属私钥归属无效',409)
+            args=['ssh','-F',os.devnull,'-i',str(key),'-o','UserKnownHostsFile="'+str(private/'github-known-hosts')+'"','-o','IdentitiesOnly=yes','-o','IdentityAgent=none','-o','BatchMode=yes','-o','StrictHostKeyChecking=yes','-o','ConnectTimeout=10','git@github.com']
+            def probe(command):
+                try:return run(args+command,cwd=self.tracking.root,evidence=path.parent/'audit',purpose='Verify fixed GitHub deployment-key capability without ref updates',input_data=b'',timeout=30)
+                except (OSError,TimeoutError,subprocess.TimeoutExpired):raise BoardError('NAS GitHub核验超时或不可用；旧镜像保留，不能当作只读通过',502) from None
+            try:
+                code,out,err=probe(['-T'])
+                expected="Hi "+repo['repository']+"! You've successfully authenticated, but GitHub does not provide shell access."
+                if code!=1 or (out+err).decode(errors='replace').strip().casefold()!=expected.casefold():raise BoardError('GitHub未确认此公钥属于目标仓库部署密钥；检查本机登记及NAS网络/主机密钥',409)
+                code,out,err=probe(["git-upload-pack '"+repo['repository']+".git'"])
+                if code!=0 or len(out)<4 or out[:4].strip(b'0123456789abcdef'):raise BoardError('GitHub未确认目标仓库可读；不能启用镜像',409)
+                code,out,err=probe(["git-receive-pack '"+repo['repository']+".git'"])
+                if code!=1 or out or err.strip()!=b'ERROR: The key you are authenticating with has been marked as read only.':raise BoardError('GitHub未明确确认只读拒写；可写密钥及未知错误均不接入，请核对部署密钥未勾选写权限',409)
+                # Recheck after external I/O; stopping a repo must win the race.
+                latest=self.tracking.state()['repos'][rid]
+                if not latest['enabled'] or latest['repository']!=repo['repository']:raise BoardError('核验期间仓库已停用或变化',409)
+                config=private/'github.json';current=json.loads(config.read_text('utf8')) if config.exists() else {'projects':{}}
+                entries=current.setdefault('projects',{}).setdefault(self.tracking.project,{})
+                if rid in entries and (entries[rid].get('repository')!=repo['repository'] or entries[rid].get('key')!=str(key)):raise BoardError('已有接入绑定不匹配；不能静默替换',409)
+                entries[rid]={'repository':repo['repository'],'key':str(key),'authorization':'github_verified_readonly_deploy_key'}
+                atomic(config,current)
+                data.update(stage='authorized',read_only=True,verification='github_ssh_repository_identity_read_and_explicit_readonly_denial',verified_at=time.time(),next_owner='NAS_broker',next='同步真实Git引用与对象')
+                atomic(path,data)
+            except BoardError as exc:
+                data.update(stage='verification_failed',next_owner='project_SE',next=str(exc));atomic(path,data);raise
+        return self.sync(actor,{'repo':rid})
     def authorize(self,actor,p):
         fields(p,{'repo','grant'},{'repo','grant'});rid=repo_id(p['repo']);token=p['grant']
         if type(token) is not str or not token.startswith('github_pat_') or not 40<len(token)<500:raise BoardError('仅接受所选单仓库短期fine-grained授权；不接受账号级classic PAT')
@@ -113,6 +154,8 @@ class Onboarding:
         from .operations import manager
         fields(p,{'repo'},{'repo'});rid=repo_id(p['repo'])
         with self.store.connection() as db:manager(role(db,actor))
+        path=self.location(rid)
+        if path.exists() and json.loads(path.read_text('utf8')).get('stage')=='verification_failed':raise BoardError('先重新核验只读接入；拉取成功不能代替只读核验，旧镜像保留',409)
         config=self.tracking.root/'_private/github.json'
         try:entry=json.loads(config.read_text('utf8'))['projects'][self.tracking.project][rid]
         except (FileNotFoundError,KeyError):raise BoardError('先完成GitHub单仓库授权',409)

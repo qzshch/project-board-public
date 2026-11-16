@@ -1,5 +1,7 @@
 # 部署、恢复与归档
 
+SE本机GitHub接入使用 `/github-kit.zip` 与项目身份；新 `/git-onboarding/complete` 不接收GitHub凭据，而在server用受控SSH验证目标仓库身份、读取及明确只读拒写。仅做无输入协议握手，不发送引用更新。保持严格主机密钥检查与专属私钥隔离。旧fine-grained方式和已配置镜像兼容；源码回退不删除新接入配置、原密钥或审计链。
+
 当前正式服务部署在 **server**，与PC开关机无关。独立开发仓库仍在G:/project-board。
 
 - 正式入口：http://example-server.example-tailnet.ts.net:18785（Tailscale私网）；无MagicDNS时客户端用 `--connect-ip 100.64.0.10` 保持规范Host。

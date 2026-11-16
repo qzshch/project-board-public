@@ -374,6 +374,9 @@ class Handler(BaseHTTPRequestHandler):
             if path in ('/runner-kit.zip','/rollback-kit.zip'):
                 from .help import runner_kit
                 return self.send(200,runner_kit(path=='/rollback-kit.zip'),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-runner.zip"'})
+            if path=='/github-kit.zip':
+                from .help import github_kit
+                return self.send(200,github_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-github.zip"'})
             if path=='/observer-kit.zip':
                 from .help import observer_kit
                 return self.send(200,observer_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-observer.zip"'})
@@ -424,6 +427,7 @@ class Handler(BaseHTTPRequestHandler):
                         "product_version": 4,
                         "focus_schema": 1,
                         "roadmap_schema": 1,
+                        "git_local_onboarding_schema": 1,
                         "governance_schema": 2,
                         "operations_schema": 1,
                         "git_schema": 1,
@@ -771,7 +775,7 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .operations import Operations
                 return self.send(201,Operations(self.store).apply(actor,value))
-            if path in ('/api/git-onboarding/request','/api/git-onboarding/authorize','/api/git-onboarding/sync'):
+            if path in ('/api/git-onboarding/request','/api/git-onboarding/authorize','/api/git-onboarding/complete','/api/git-onboarding/sync'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .git_onboarding import Onboarding
                 return self.send(201,getattr(Onboarding(self.store),path.rsplit('/',1)[1])(actor,value))

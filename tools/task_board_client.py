@@ -177,7 +177,7 @@ class Client:
         # Never send project credentials via a machine-wide HTTP proxy.
         self.opener = build_opener(ProxyHandler({}))
 
-    def call(self, path: str, payload=None):
+    def call(self, path: str, payload=None, *, timeout=12):
         if (
             self.project
             and path.startswith("/api/")
@@ -204,7 +204,7 @@ class Client:
         replayable=payload is None or type(payload) is dict and bool(payload.get('request_id')) and endpoint in {'events','governance','operations','se-start','worker-join','bootstrap','orchestration'}
         for attempt in range(3 if replayable else 1):
             try:
-                with self.opener.open(Request(target,data=body,headers=headers),timeout=12) as response:return json.load(response)
+                with self.opener.open(Request(target,data=body,headers=headers),timeout=timeout) as response:return json.load(response)
             except HTTPError as exc:
                 try:message=json.loads(exc.read(65536)).get('error','请求失败')
                 except (ValueError,UnicodeError):message='请求失败'

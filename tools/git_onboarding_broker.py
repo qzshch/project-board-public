@@ -26,6 +26,7 @@ def main():
                     if entry.get('authorization')!='github_verified_readonly_deploy_key':continue
                     repo=tracking.state()['repos'].get(rid)
                     if not repo or not repo['enabled']:continue
+                    if Onboarding(store).status(rid).get('stage')=='verification_failed':continue
                     if repo['request']!=repo['synced_request'] or time.monotonic()-last.get((pid,rid),0)>60:
                         Onboarding(store).sync(actor,{'repo':rid},stop.is_set);last[(pid,rid)]=time.monotonic()
                         print(json.dumps({'project':pid,'repo':rid,'checked':True}),flush=True)

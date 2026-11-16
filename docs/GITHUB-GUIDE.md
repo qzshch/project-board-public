@@ -22,14 +22,29 @@ python tools/check_git_boundary.py --repo <本项目仓库> --out <本地或serv
 
 1. 项目负责人在“管理资料”绑定仓库ID、GitHub `owner/name`、显示名称和依据。支持多个仓库，仓库ID不可改绑为另一个远端；换仓库时新建ID并停用旧ID，保留历史。
 2. SE在“代码与交付 → 仓库只读接入”申请server专属公钥，私钥只保留server。项目SE不需要server SSH或实例管理员身份。
-3. 由有权管理GitHub仓库的人（可以是同一SE）创建**只选择当前仓库、短期有效的fine-grained授权**，Administration读写仅用于登记该公钥。在专用授权框输入，不能写入任务评论、证据、普通项目表单或Git。平台直接核对GitHub仓库和部署密钥API，明确要求`read_only=true`；账号级classic PAT被拒绝。临时授权只在请求内存使用，不持久化，完成后可立即撤销。它的选择范围仍须在GitHub正确配置；平台不声称能够反向证明该授权未选择其他仓库。
+3. **优先复用SE本机已有GitHub管理授权**：使用下述本机工具，通过已有 `gh` 登录或 Git credential helper 为绑定仓库登记同一server公钥，明确要求 `read_only=true`；GitHub凭据不传给公告板。也可到本仓库GitHub设置的 Deploy keys 添加面板公钥，**不勾选 Allow write access**，然后点击“我已登记公钥，核验并接入”。两者均无需另建token或找实例管理员。
+   可选兼容方式：没有可复用登录且不采用手动登记时，由仓库有权者提供**只选当前仓库的fine-grained授权**，Administration读写仅用于登记公钥，在专用授权框输入。该框继续拒绝classic PAT；不向聊天、评论、普通表单或Git提交凭据。授权只在内存使用，不持久化；选择范围须在GitHub正确配置，平台不能反向证明它未选其他仓库。
 4. server受控代理完成专属镜像、固定远端拉取、refs与真实对象核验并登记原Git审计链。新接入仓库由统一代理每60秒检查；旧项目专属同步器兼容保留。失败显示负责方和下一步，旧快照保留。网络响应未知时先按同一公钥核对，不重复创建。
 
 原实现的卡点是：SE只能绑定仓库，读取器还依赖管理员手工配置私有镜像。现在授权成功后由受控代理填好这个接入，已有repo ID和Git证据门禁保持。SE拥有公告板项目权限不等于拥有任意GitHub仓库权限；外部仓库未授权时明确等待仓库有权者，不再要求实例管理员代建。
 
 首次部署由平台运维核对GitHub known_hosts并安装统一受控同步代理，一次设置后无需为每个新项目编辑配置。旧的人工接入配置作为兼容路径保留。GitHub部署密钥的`read_only`语义及管理权限见[官方API](https://docs.github.com/en/rest/deploy-keys/deploy-keys)。
 
-API：项目路径下 `/git-onboarding?repo=ID` 查询状态；POST `/git-onboarding/request`、`/sync` 载荷为`{repo}`；`/authorize`为`{repo,grant}`。authorize是敏感专用端点，禁止将载荷写入普通operations、Git事件或证据记录。授权与同步重试核对同一公钥/绑定，不接受客户端提交的“已经只读”声明。
+### SE本机最短路径
+
+下载 [GitHub接入工具包](/github-kit.zip)，解压到项目的非C盘工具目录，安装包中 `requirements.txt`（Python 3.11+、psutil）。使用**本项目SE身份**执行，路径按实际替换：
+
+```sh
+python tools/github_connect.py --profile G:/项目私有目录/owner.json --repo main --evidence G:/项目接入记录/github
+```
+
+默认先复用有效 `gh` 登录，再尝试 Git credential helper；可用 `--credential-source gh` 或 `--credential-source git` 明确选择。不会自动登录、弹窗、生成token或推送代码。登录账号必须实际具有**目标仓库部署密钥管理权限**；能clone/push、仅持有SSH源码写权限或口头许可不一定足够。缺少权限时先核对本机账号/仓库授权，不要默认要求用户生成token或请公告板管理员代办。
+
+工具只访问绑定仓库的GitHub元数据和部署密钥API；先核对同一公钥，存在则复用，网络结果未知时原命令重试，不重复建密钥。同一公钥已有写权限时不会自动删除或降权。完成后只把项目/仓库/公钥发给server；服务端用server私钥独立核验GitHub返回的**仓库身份、读取能力与明确只读拒写**。拒写检查只进行无输入的协议握手，不发送引用更新、对象包或执行仓库代码；连接错误、错误仓库、可写密钥和未知响应均不视为通过。实际refs/对象同步成功才显示 `ready`；同步失败可从原状态继续。
+
+只读密钥的生命周期仍受GitHub规则影响：删除用于创建它的PAT或撤销OAuth授权可能连带删除部署密钥，不能承诺“立即撤销且接入不受影响”；变更授权后应重新核对接入状态。[GitHub官方说明](https://docs.github.com/en/rest/deploy-keys/deploy-keys)。
+
+API：项目路径下 `/git-onboarding?repo=ID` 查询状态；POST `/git-onboarding/request`、`/sync` 载荷为`{repo}`；新 `/complete` 为`{repo,repository,public_key}`，只接受当前服务端绑定与公钥并独立核验，不接受“已只读”等客户端结论。`/authorize`兼容载荷为`{repo,grant}`，仍为敏感专用端点，禁止记录载荷。各路径均要求项目经理权限，不能跨项目使用；本机工具不需要server SSH、私钥或全局身份。GitHub授权与项目身份分别核对。
 
 镜像在 `state/git-mirrors/<project>/<repo>.git`。此位置自身属于运行态，不上传Git。同步只拉 GitHub已存在的对象与引用，不读取/上传项目的本地资料，不执行仓库代码或子模块，也不自动拉取Git LFS媒体；密钥须在GitHub登记为 `read_only=true`。server主机密钥由管理员核对可信GitHub指纹后加入SSH known_hosts，不能关闭验证。
 

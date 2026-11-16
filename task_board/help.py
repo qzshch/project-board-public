@@ -32,6 +32,18 @@ def node_kit():
             entry=zipfile.ZipInfo(name,(2026,1,1,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.create_system=3;entry.external_attr=0o100644<<16;z.writestr(entry,data)
     return output.getvalue()
 
+
+def github_kit():
+    names=('tools/github_connect.py','tools/task_board_client.py','tools/owned_process.py','docs/GITHUB-GUIDE.md')
+    files={n:(ROOT/n).read_bytes() for n in names};files['tools/__init__.py']=b'';files['requirements.txt']=b'psutil>=6,<8\n'
+    files['README.md']=b'Project SE local GitHub onboarding. Python 3.11+. Read docs/GITHUB-GUIDE.md. Use your project profile and existing gh/Git login. No credentials included.\n'
+    files['MANIFEST.json']=json.dumps({n:hashlib.sha256(v).hexdigest() for n,v in files.items()},sort_keys=True,indent=2).encode()
+    output=io.BytesIO()
+    with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:
+        for name,data in files.items():
+            item=zipfile.ZipInfo(name,(2026,1,1,0,0,0));item.compress_type=zipfile.ZIP_DEFLATED;item.create_system=3;item.external_attr=0o100644<<16;z.writestr(item,data)
+    return output.getvalue()
+
 def runner_kit(rollback=False):
     """Only executable client sources, never state/config/identities."""
     files={name:(ROOT/name).read_bytes() for name in ('tools/quality_runner.py','tools/task_board_client.py','tools/owned_process.py','tools/runner_process.py')}
