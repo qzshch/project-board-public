@@ -26,6 +26,7 @@ from .projects import ProjectHub, project_id
 
 WEB_ROOT = Path(__file__).resolve().parents[1] / "task_board_web"
 STATIC = {
+    "/focus.js":"focus.js",
     "/git-onboarding.js":"git-onboarding.js",
     "/product.js":"product.js",
     "/workspace-v2.js":"workspace-v2.js",
@@ -420,6 +421,7 @@ class Handler(BaseHTTPRequestHandler):
                         "ready": True,
                         "api_version": 2 if self.server.hub else 1,
                         "product_version": 4,
+                        "focus_schema": 1,
                         "governance_schema": 2,
                         "operations_schema": 1,
                         "git_schema": 1,
@@ -454,6 +456,10 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/api/orchestration':
                 from .orchestration import Orchestrator
                 return self.send(200,Orchestrator(self.server.hub).listing(self.identity(),self.project))
+            if path=='/api/current':
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .focus import snapshot
+                return self.send(200,snapshot(self.store,self.actor()))
             if path in ('/api/convergence','/api/convergence/context','/api/convergence/template'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .convergence import snapshot,context_pack,template_definition

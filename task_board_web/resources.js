@@ -7,12 +7,13 @@ const resourceCategories={cache:'缓存',research:'调研材料',art:'美术与�
 const resourceKinds={nas:'NAS目录 / 文件',smb:'SMB共享',ssh:'SSH位置',local:'本地机器',http:'HTTP(S)入口',repo:'仓库内说明'};
 const resourceVisibility={project:'本项目成员',managers:'负责人 / 继承SE',operator:'仅实例管理员'};
 const resourceAvailability={available:'登记为可用（读取时仍需核对）',request_access:'需要申请文件权限',offline:'所属机器离线',missing:'入口已失效',unknown:'尚未复核原件现状'};
-const resourceView={category:'',origin:'',q:'',task:'',retired:false,offset:0,token:0};
-function resetResources(){Object.assign(resourceView,{category:'',origin:'',q:'',task:'',retired:false,offset:0,token:resourceView.token+1});}
-function openTaskResources(task){resourceView.task=task;resourceView.offset=0;selectWorkspacePanel('assets');}
+const resourceView={view:'current',category:'',origin:'',q:'',task:'',retired:false,offset:0,token:0};
+function resetResources(){Object.assign(resourceView,{view:'current',category:'',origin:'',q:'',task:'',retired:false,offset:0,token:resourceView.token+1});}
+function openTaskResources(task){resourceView.task=task;resourceView.view='all';resourceView.offset=0;selectWorkspacePanel('assets');}
 function resourceAction(box,label,fn){const b=el('button',label);b.type='button';b.onclick=fn;box.append(b);return b;}
 function resourceCard(e){
   const card=el('article',undefined,'resource-card');card.dataset.resource=e.id;
+  card.append(el('p',e.information_role==='snapshot'?'历史快照 · 不覆盖当前状态':'外部参考 · 当前状态请查实时记录','secondary'));
   const head=el('div',undefined,'section-head'),title=el('div');title.append(el('h3',e.title),el('p',`${resourceCategories[e.category]} · ${resourceVisibility[e.visibility]} · ${e.status==='retired'?'已停止推荐':'有效入口'} · v${e.entry_version}`,'muted'));head.append(title);card.append(head);
   card.append(el('p',e.description,'detail-text'),el('p',`维护者 ${e.owner} · 版本 ${e.version}\n${resourceAvailability[e.availability]}${e.mutable?' · 动态内容，不以固定SHA代表整个目录':''}`,'detail-text secondary'));
   for(const loc of e.locations){const block=el('div',undefined,'resource-location');block.append(el('p',resourceKinds[loc.kind]+' · '+loc.machine,'muted'));
@@ -42,17 +43,18 @@ async function renderProjectResources(box){
   if(app.role==='reviewer')resourceAction(tools,'登记资源入口',()=>editResource());
   const guide=el('a','资源与接手操作手册');guide.href='/help/resources';guide.target='_blank';guide.rel='noopener';tools.append(guide);
   const filter=el('form',undefined,'graph-controls');sectionBox.append(filter);
+  const view=selectInput(filter,'资料视图','resource-view',{current:'常用参考',history:'历史快照',all:'全部资料'},resourceView.view);
   const category=selectInput(filter,'分类','resource-category',{'':'全部分类',...resourceCategories},resourceView.category);
   const origin=selectInput(filter,'来源','resource-origin',{'':'全部来源',registered:'人工登记入口',run_artifact:'自动运行记录',knowledge:'既有项目知识'},resourceView.origin);
   const task=selectInput(filter,'相关任务','resource-task',{'':'整个项目',...Object.fromEntries(app.tasks.map(t=>[t.spec.id,t.spec.id]))},resourceView.task);
   const status=selectInput(filter,'状态','resource-status',{active:'有效入口',all:'含已停用历史'},resourceView.retired?'all':'active');
   const search=el('input');search.name='resource-search';search.type='search';search.placeholder='搜索位置、用途或维护者';search.setAttribute('aria-label','搜索项目资源');search.value=resourceView.q;filter.append(search);const submit=el('button','筛选资源');submit.type='submit';filter.append(submit);
-  function changed(){Object.assign(resourceView,{category:category.value,origin:origin.value,task:task.value,retired:status.value==='all',q:search.value.trim(),offset:0});renderWorkspace();}
-  for(const input of [category,origin,task,status])input.onchange=changed;
+  function changed(){Object.assign(resourceView,{view:view.value,category:category.value,origin:origin.value,task:task.value,retired:status.value==='all',q:search.value.trim(),offset:0});renderWorkspace();}
+  for(const input of [view,category,origin,task,status])input.onchange=changed;
   filter.onsubmit=e=>{e.preventDefault();changed();};
   const output=el('div');sectionBox.append(output);output.append(el('p','读取本项目可见资源…','muted'));
   try{
-    const params=new URLSearchParams({category:resourceView.category,origin:resourceView.origin,task:resourceView.task,q:resourceView.q,retired:String(resourceView.retired),offset:resourceView.offset,limit:50});
+    const params=new URLSearchParams({view:resourceView.view,category:resourceView.category,origin:resourceView.origin,task:resourceView.task,q:resourceView.q,retired:String(resourceView.retired),offset:resourceView.offset,limit:50});
     const data=await api('/api/resources?'+params);
     if(project!==app.project||generation!==app.generation||token!==resourceView.token||ws.panel!=='assets'||!sectionBox.isConnected)return;
     output.replaceChildren();output.append(el('p',`当前可见 ${data.total} 项 · `+Object.entries(data.counts).map(([k,n])=>resourceCategories[k]+' '+n).join(' / '),'muted'));
@@ -72,6 +74,7 @@ async function editResource(id,preset){
   const project=app.project,generation=app.generation,body=resourceDialog(id?'更新资源登记':'登记资源入口');let revision,seed;
   try{const data=await api(id?'/api/resources/'+encodeURIComponent(id):'/api/resources?limit=1');if(!validResourceDialog(body,project,generation))return;revision=data.revision;seed=data.entry||preset||{};}catch(error){body.append(el('p',error.message,'notice'));return;}
   const form=el('form',undefined,'review-form');body.append(form);
+  selectInput(form,'资料角色','information_role',{reference:'参考资料（不代表实时进展）',snapshot:'历史快照 / 轮次报告'},seed.information_role||'reference');
   for(const [key,label]of [['id','稳定资源ID（实例资料使用operator-前缀）'],['title','入口名称'],['description','用途与内容范围'],['owner','维护者Actor ID'],['version','内容版本或动态标识']])formInput(form,label,key,key==='description',seed[key]||(key==='owner'?app.actor:key==='version'?'live':''));
   if(id)form.elements.id.readOnly=true;
   selectInput(form,'资源分类','category',resourceCategories,seed.category||'research');selectInput(form,'可见范围','visibility',app.admin?resourceVisibility:{project:resourceVisibility.project,managers:resourceVisibility.managers},seed.visibility||'project');
@@ -84,6 +87,6 @@ async function editResource(id,preset){
   for(const [key,label]of [['retention','保留与清理规则'],['usage_notes','许可、使用限制及其他接手注意事项'],['tasks','关联任务ID，每行一项；留空为项目通用'],['modules','关联模块@版本，每行一项'],['asset_refs','关联私有资产版本或固定消费ID，每行一项'],['reason','本次登记 / 更新依据']])formInput(form,label,key,true,Array.isArray(seed[key])?seed[key].join('\n'):seed[key]||'');
   form.append(el('p','本操作只登记入口，不读取/上传原件，不授予NAS权限，也不删除任何文件。','secondary'));
   const message=el('p','','form-message'),save=el('button',id?'保存入口新版本':'登记入口');save.type='submit';form.append(message,save);let frozen=null;
-  form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{if(!validResourceDialog(body,project,generation))throw new Error('项目或当前窗口已变化');if(!frozen){const p={};for(const k of ['id','title','description','owner','version','category','visibility','availability','retention','usage_notes','reason'])p[k]=form.elements[k].value.trim();p.mutable=form.elements.mutable.value==='true';p.integrity={kind:form.elements.integrity_kind.value,sha256:form.elements.sha256.value.trim(),subject:form.elements.digest_subject.value.trim()};for(const k of ['tasks','modules','asset_refs'])p[k]=form.elements[k].value.split('\n').map(s=>s.trim()).filter(Boolean);p.locations=[...locations.querySelectorAll('.resource-location-editor')].map(row=>Object.fromEntries([...row.querySelectorAll('[data-location-field]')].map(i=>[i.dataset.locationField,i.value.trim()])));if(id)p.expected_version=seed.entry_version;frozen={request_id:requestId(),expected_revision:revision,action:id?'resource_update':'resource_register',payload:p};}await api('/api/governance',frozen);await refreshWorkspace(generation);if(validResourceDialog(body,project,generation))$('detail').close();}catch(error){if(error.status===400)frozen=null;if(validResourceDialog(body,project,generation))message.textContent=error.message;}finally{save.disabled=false;}};
+  form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{if(!validResourceDialog(body,project,generation))throw new Error('项目或当前窗口已变化');if(!frozen){const p={};for(const k of ['id','title','description','owner','version','category','visibility','availability','retention','usage_notes','reason','information_role'])p[k]=form.elements[k].value.trim();p.mutable=form.elements.mutable.value==='true';p.integrity={kind:form.elements.integrity_kind.value,sha256:form.elements.sha256.value.trim(),subject:form.elements.digest_subject.value.trim()};for(const k of ['tasks','modules','asset_refs'])p[k]=form.elements[k].value.split('\n').map(s=>s.trim()).filter(Boolean);p.locations=[...locations.querySelectorAll('.resource-location-editor')].map(row=>Object.fromEntries([...row.querySelectorAll('[data-location-field]')].map(i=>[i.dataset.locationField,i.value.trim()])));if(id)p.expected_version=seed.entry_version;frozen={request_id:requestId(),expected_revision:revision,action:id?'resource_update':'resource_register',payload:p};}await api('/api/governance',frozen);await refreshWorkspace(generation);if(validResourceDialog(body,project,generation))$('detail').close();}catch(error){if(error.status===400)frozen=null;if(validResourceDialog(body,project,generation))message.textContent=error.message;}finally{save.disabled=false;}};
 }
 function retireResource(entry){const project=app.project,generation=app.generation,body=resourceDialog('停止推荐入口，不删除原件'),form=el('form',undefined,'review-form');body.append(form);form.append(el('p',entry.title+' · v'+entry.entry_version,'secondary'));formInput(form,'停用依据与替代入口','reason',true,'');const msg=el('p','','form-message'),save=el('button','确认停止推荐');save.type='submit';form.append(msg,save);let frozen=null;form.onsubmit=async e=>{e.preventDefault();save.disabled=true;try{if(!validResourceDialog(body,project,generation))throw new Error('项目已变化');if(!frozen)frozen={request_id:requestId(),expected_revision:ws.data.revision,action:'resource_retire',payload:{id:entry.id,expected_version:entry.entry_version,reason:form.elements.reason.value.trim()}};await api('/api/governance',frozen);await refreshWorkspace(generation);if(validResourceDialog(body,project,generation))$('detail').close();}catch(error){if(error.status===400)frozen=null;if(validResourceDialog(body,project,generation))msg.textContent=error.message;}finally{save.disabled=false;}};}

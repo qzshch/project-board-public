@@ -14,6 +14,14 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
     resources=Directory(store).listing(actor,operator,brief_task=task_id)
     from .workflow import snapshot as workflow_snapshot
     workflow=workflow_snapshot(store,actor or {'id':'','role':'agent'},task_id)
+    from .focus import delivery_path
+    snapshots={loc['location'] for e in g.get('resource_entries',{}).values() if e.get('information_role')=='snapshot' for loc in e['locations']}
+    pinned=set(g['modules'].get(w.get('planning',{}).get('module'),{}).get('knowledge_refs',[]))
+    current_materials=[];historical_materials=[]
+    for item in g['knowledge'].get('materials',[]):
+        row={**item,'information_role':'snapshot' if item['location'] in snapshots else 'reference'}
+        explicit=item['location'] in pinned or any(x==item['location'] or x.startswith(item['location']+'@') for x in w['inputs'])
+        (historical_materials if row['information_role']=='snapshot' and not explicit else current_materials).append(row)
     from .coordination import snapshot as coordination_snapshot
     coordination=coordination_snapshot(store,actor or {'id':'','role':'agent'},task_id)
     assets={}
@@ -23,13 +31,15 @@ def build_brief(store, task_id, project, url, actor=None, operator=False):
         elif lock['shared']:assets[ref]={**store.registry.get(lock['release'],project,True),'lock':lock}
         else:assets[ref]={**g['assets'][lock['release']],'lock':lock}
     return {'project_id':project,'api_base':url+'/api/projects/'+project,'task_id':task_id,
+            'authority':{'current_endpoint':url+'/api/projects/'+project+'/current','instruction':'以实时任务、当前候选、验收及合入记录为准；项目文档与轮次报告是参考，不要求每轮手工同步状态副本。'},
+            'delivery_path':delivery_path(task,op['effective'][task_id],workflow['current_plan']),
             'role':w['role'],'scope_version':task['scope_version'],'scope_hash':task['scope_hash'],
             'collaboration':{k:workflow[k] for k in ('threads','current_plan','findings','blockers','rollbacks','delivery_readiness')},
             'continuation':{k:coordination[k] for k in ('resume','plans','batches','gates','intakes','cursor')},
             'context_pack':{'endpoint':url+'/api/projects/'+project+'/convergence/context?task='+__import__('urllib.parse',fromlist=['quote']).quote(task_id,safe=''),'instruction':'按实际引用裁剪材料；摘要保留来源与哈希，变化继续按游标分页读取'},
             'execution_records':{'attempts':[{k:e.get(k) for k in ('id','actor','workspace','status','scope','scope_version','baseline','result')} for e in op.get('cv_attempts',{}).values() if e['task']==task_id],
                                  'sessions':[{k:e.get(k) for k in ('id','attempt','session','tool','model','machine','previous','checkpoint')} for e in op.get('cv_sessions',{}).values() if e['task']==task_id]},
-            'baseline':w['baseline'],'read_materials':g['knowledge'].get('materials',[]),'project_entries':g['knowledge'].get('entries',[]),
+            'baseline':w['baseline'],'read_materials':current_materials,'historical_materials':historical_materials,'project_entries':g['knowledge'].get('entries',[]),
             'git':{'repositories':[{k:r.get(k) for k in ('id','repository','title','synced_at')} for r in git['repos'].values() if r['enabled']],
                    'local_storage_policy':git['policy'],'instruction':'仅审核纳入的源码/说明/测试代码进Git；资料和运行产物留本地/NAS；此接入不执行add/commit/push'},
             'constraints':g['knowledge'].get('constraints','待SE填写'),

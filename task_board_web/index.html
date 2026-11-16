@@ -30,6 +30,7 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
   <script src="/git-onboarding.js" defer></script>
   <script src="/dependency-explorer.js" defer></script>
   <script src="/workspace-v2.js" defer></script>
+  <script src="/focus.js" defer></script>
 </head>
 <body>
   <main class="shell">
@@ -52,10 +53,10 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
     </section>
     <section id="task-board" class="panel board" aria-labelledby="queue-title" hidden>
       <div class="section-head"><div><h2 id="queue-title">交付与验收队列</h2><p class="muted" id="scope-note">正在读取任务范围</p></div><span class="badge" id="identity">只读视图</span></div>
-      <nav class="tabs" aria-label="任务视图"><button data-view="review" aria-pressed="true">待验收</button><button data-view="rework">需返修</button><button data-view="active">执行范围</button><button data-view="archive">已接收资料</button><button data-view="all">全部</button></nav>
+      <nav class="tabs" aria-label="任务视图"><button data-view="review" aria-pressed="true">待验收</button><button data-view="rework">需返修</button><button data-view="active">当前执行</button><button data-view="archive">已完成</button><button data-view="all">全部</button></nav>
       <div class="filters">
         <label class="search"><span class="sr-only">搜索任务</span><input id="search" type="search" placeholder="搜索任务 ID、范围、负责人…" autocomplete="off"></label>
-        <label><span class="sr-only">任务层次</span><select id="kind"><option value="">全部层次</option><option value="plan">新增协作任务</option><option value="integration">主线集成</option><option value="delivery">协作交付</option><option value="family">任务族</option><option value="native">运行验收</option></select></label>
+        <label><span class="sr-only">任务层次</span><select id="kind"><option value="">全部层次</option><option value="atomic">原子任务</option><option value="plan">历史计划</option><option value="integration">主线集成</option><option value="delivery">协作交付</option><option value="family">任务族</option><option value="native">运行验收</option></select></label>
         <label><span class="sr-only">优先级</span><select id="priority"><option value="">全部优先级</option><option>P0</option><option>P1</option><option>P2</option></select></label>
       </div>
       <div class="list-head"><span>任务与声明范围</span><span>状态 / 负责人</span><span>版本与最近更新</span></div>

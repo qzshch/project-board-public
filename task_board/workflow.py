@@ -13,6 +13,7 @@ ACTIONS={'thread_open','thread_reply','thread_decide','thread_ack','thread_resol
          'criteria_defaults','criteria_plan','criteria_claim','criteria_review','review_open','review_disposition','review_resolve','git_check',
          'rollback_plan','rollback_confirm','rollback_approve','rollback_cancel','rollback_claim','rollback_heartbeat','rollback_finish','rollback_recover','rollback_apply','rollback_executor'}
 ACTIONS |= {'criteria_claim_batch','criteria_review_batch','git_check_batch'}
+ACTIONS.add('thread_supersede')
 
 def commutes(action,p,actor,old,new):
     """Compare the actual read set, not unrelated runner heartbeats.
@@ -21,6 +22,8 @@ def commutes(action,p,actor,old,new):
     same object still conflicts; state transitions and scope checks run again
     under the same write transaction. This is not a client-side blind rebase.
     """
+    # Succession reads both threads; a stale replacement must never commute.
+    if action=='thread_supersede':return False
     if action in ('thread_open','thread_wait'):
         if action=='thread_wait' and type(p.get('thread')) is not str:return False
         if action=='thread_wait' and old.get('wf_threads',{}).get(p.get('thread'))!=new.get('wf_threads',{}).get(p.get('thread')):return False
@@ -173,11 +176,23 @@ def mutate(v,db,actor,r,action,p,now,g,tasks,store):
         for item in p['items']:text(item,'完成要求',180)
         if p['id'] in v['wf_defaults']:raise BoardError('清单版本不可覆盖',409)
         v['wf_defaults'][p['id']]={**deepcopy(p),'actor':actor['id'],'at':now};return
-    if action in ('thread_reply','thread_decide','thread_ack','thread_resolve','thread_read','thread_wait'):
+    if action in ('thread_reply','thread_decide','thread_ack','thread_resolve','thread_read','thread_wait','thread_supersede'):
         text(p.get('thread'),'线程ID',180)
         thread=v['wf_threads'].get(p.get('thread'))
         if not thread:raise BoardError('评论线程不存在',404)
         t=tasks[thread['task']];tid=t['spec']['id']
+        if action=='thread_supersede':
+            manager(r);fields(p,{'thread','replacement','summary'},{'thread','replacement','summary'})
+            text(p['summary'],'接续依据',4000);uid(p['replacement'],'接续线程ID')
+            target=v['wf_threads'].get(p['replacement'])
+            if not target or target['id']==thread['id'] or target['task']!=tid:raise BoardError('需同任务的另一现有线程',409)
+            if thread['status']=='resolved' or target['status']=='resolved' or not current(target,t):raise BoardError('接续线程须处于当前范围且未解决',409)
+            if thread['kind']!='discussion' or target['kind']!='discussion' or thread.get('pause') or any((x.get('decision') or {}).get('decision')=='stop' and current(x['decision'],t) for x in (thread,target)):
+                raise BoardError('阻塞、等待或停止决定需按原流程核准，不可用讨论接续解除',409)
+            thread.update(status='resolved',superseded_by=target['id'],resolved_by=actor['id'],resolved_at=now,updated=now)
+            thread['messages'].append({'id':uuid.uuid4().hex,'actor':actor['id'],'body':p['summary'],'at':now,'kind':'supersede','replacement':target['id']})
+            target.setdefault('supersedes',[]).append(thread['id']);target['updated']=now
+            return {'thread':thread['id'],'replacement':target['id']}
         if action=='thread_read':
             fields(p,{'thread','count'},{'thread','count'});integer(p['count'],'已读位置')
             if p['count']>len(thread['messages']):raise BoardError('已读位置越界')
@@ -363,7 +378,8 @@ def snapshot(store,actor,task_id=None,inbox_only=False):
         for key in ('threads','plans','claims','verdicts','findings','checks'):result[key]={k:e for k,e in result[key].items() if e['task']==task_id}
         result['rollbacks']={k:e for k,e in result['rollbacks'].items() if task_id in e['affected_tasks']}
         result['blockers']=detail_readiness['blockers'] if ts[task_id].get('latest_submission') else blockers(v,ts[task_id],'accept',submission_anchor(ts[task_id]));result['current_plan']=plan_for(v,ts[task_id]);result['delivery_readiness']=detail_readiness
-    result.update(revision=v['revision'],inbox=items,unread=unread,actor=actor['id'],project_role=r,schema=1)
+    from .focus import groups
+    result.update(revision=v['revision'],inbox=items,unread=unread,actor=actor['id'],project_role=r,schema=1,**groups(items))
     # Read positions belong to the caller, not to every project member.
     result['reads']=v['wf_reads'].get(actor['id'],{})
     return result

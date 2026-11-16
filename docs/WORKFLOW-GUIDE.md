@@ -119,3 +119,7 @@ python client.py --profile <本项目身份> request --endpoint /api/operations 
 
 
 当前可显式选择多个验收项，使用criteria_claim_batch/criteria_review_batch共用输入和证据、分别保留结论；git_check_batch可对同一精确输入选择阶段登记。任一项无效则整批回滚，单项动作保持。参与者只在有效本人尝试内登记及确认自己的阻塞。见[最短路径与字段](/help/finishing)。
+
+## 重复提醒的接续
+
+工作台 action_groups 以任务汇总当前行动，notifications 单列已解决讨论的未读通知；原 inbox 完整保留。SE 使用 thread_supersede（thread、replacement、summary）显式接续同任务的普通讨论；目标须在当前 scope/代次且未解决。旧线程保留消息和 superseded_by，新线程记录 supersedes。暂停、阻塞、偏离和当前停止决定不能通过此动作收口，继续按原核准流程。动作沿 operations 的固定请求及版本校验；不按相似标题自动合并。

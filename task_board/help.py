@@ -68,6 +68,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/focus':('当前权威状态、历史与最短交付','docs/FOCUS-CONVERGENCE.md',False),
     '/help/test-instances':('项目测试实例与并发纪律','docs/TEST-INSTANCE-DISCIPLINE.md',False),
     '/help/product':('需求、缺陷、用量与会话目录','docs/PRODUCT-WORKSPACE.md',False),
     '/help/human':('人类平台所有者登录','docs/HUMAN-LOGIN.md',False),

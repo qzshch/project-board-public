@@ -25,21 +25,24 @@ async function api(path, value, global=false) {
   const result=await response.json(); if(!response.ok){const error=new Error(result.error||'请求失败');error.status=response.status;throw error;}return result;
 }
 function matchView(task) {
+  if(app.view!=='all'&&app.view!=='archive'&&typeof taskRecordView==='function'&&taskRecordView(task)!=='current')return false;
   if(app.view==='review') return ['reported','submitted'].includes(task.status);
   if(app.view==='rework') return task.status==='changes_requested';
-  if(app.view==='active') return ['plan','integration','atomic'].includes(task.spec.kind)||Boolean(task.spec.work);
+  if(app.view==='active') return typeof taskRecordView==='function'?taskRecordView(task)==='current':['plan','integration','atomic'].includes(task.spec.kind)||Boolean(task.spec.work);
   if(app.view==='archive') return ['baseline_merged','partial_baseline','accepted','partial_accepted','merged','partial_merged','native_accepted','partial_native'].includes(task.status);
   return true;
 }
 function setView(view) { if(typeof selectWorkspacePanel==='function')selectWorkspacePanel('tasks');app.view=view; app.limit=40; document.querySelectorAll('[data-view]').forEach(n=>n.setAttribute('aria-pressed',String(n.dataset.view===view))); render(); }
 function render() {
-  $('count-review').textContent=app.tasks.filter(t=>['reported','submitted'].includes(t.status)).length;
-  $('count-rework').textContent=app.tasks.filter(t=>t.status==='changes_requested').length;
+  const currentTasks=app.tasks.filter(t=>typeof taskRecordView!=='function'||taskRecordView(t)==='current');
+  $('count-review').textContent=currentTasks.filter(t=>['reported','submitted'].includes(t.status)).length;
+  $('count-rework').textContent=currentTasks.filter(t=>t.status==='changes_requested').length;
   $('count-active').textContent=app.tasks.filter(t=>t.status==='active').length;
-  $('count-family').textContent=app.tasks.filter(t=>t.spec.work).length;
-  $('scope-note').textContent=`${app.tasks.length} 项任务 · ${app.tasks.filter(t=>t.spec.kind==='plan').length} 张协作卡 · 交付、合入与运行验收分别追踪`;
+  $('count-family').textContent=app.tasks.filter(t=>t.spec.kind==='atomic').length;
+  $('scope-note').textContent=`${app.tasks.length} 条完整记录 · 当前执行与历史结构分开查看 · 交付、合入与运行验收分别追踪`;
   const query=$('search').value.trim().toLowerCase();
   const rows=app.tasks.filter(t=>matchView(t) && (!$('kind').value || t.spec.kind===$('kind').value || t.spec.work?.category===$('kind').value) &&
+    (!$('record-view')||!$('record-view').value||taskRecordView(t)===$('record-view').value) &&
     (!$('priority').value || t.spec.priority===$('priority').value) &&
     (!query || `${t.spec.id} ${t.spec.title} ${t.spec.description} ${t.owner||''} ${t.latest_summary}`.toLowerCase().includes(query)))
     .sort((a,b)=>(a.spec.priority||'P1').localeCompare(b.spec.priority||'P1') || b.updated_at.localeCompare(a.updated_at) || a.spec.id.localeCompare(b.spec.id));
@@ -129,8 +132,9 @@ async function showDetail(id) {
     const plan=ws.ops.test_plans[task.spec.id];if(plan)sectionBox.append(el('p','验证计划：'+plan.cases.join('、'),'detail-text'));
     if(app.role==='reviewer')operationButton(sectionBox,'核定当前任务风险','assess',{task:task.spec.id,level:risk?.level||'light'});
     if(fParticipant(task)||app.role==='reviewer')operationButton(sectionBox,'记录当前作业','time_change',{task:task.spec.id,phase:'implementation',mode:'work',rework:false});body.append(sectionBox);}
+  if(typeof renderCandidateDelivery==='function')renderCandidateDelivery(body,task);
   renderTaskWorkflow(body,task);
-  const history=section('历史时间线');const timeline=el('div','正在读取…','timeline');history.append(timeline);body.append(history);
+  const history=el('details',undefined,'relation-details');history.append(el('summary','历史时间线 · 保留全部事件'));const timeline=el('div','正在读取…','timeline');history.append(timeline);body.append(history);
   if(!$('detail').open) $('detail').showModal();
   $('detail').scrollTop=0;
   try {

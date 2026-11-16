@@ -17,8 +17,11 @@ async function renderTaskWorkflow(body,task){
   const controls=el('div',undefined,'graph-controls');host.append(controls);if(wfWriter())wfButton(controls,'thread_open',task.spec.id,fAttemptSeed(task.spec.id));if(wfManager())wfButton(controls,'criteria_plan',task.spec.id);wfButton(controls,'rollback_plan',task.spec.id,{},'查看 / 发起回退').hidden=!wfManager();
   const threads=section('讨论、阻塞与计划偏离');host.append(threads);
   if(!Object.keys(data.threads).length)threads.append(el('p','尚无评论。留言时可自主选择等待或继续已授权工作；成果可先入队，SE明确停止或范围变更仍须遵守。','muted'));
-  for(const th of Object.values(data.threads).reverse()){
+  const threadHistory=el('details',undefined,'relation-details');threadHistory.append(el('summary','已解决与被替代的讨论 · 历史保留'));
+  for(const th of Object.values(data.threads).sort((a,b)=>b.updated-a.updated)){
    const card=el('article',undefined,'resource-card');card.dataset.thread=th.id;card.append(el('h4',th.title),el('p',`${wfKinds[th.kind]} · ${wfStatuses[th.status]} · 未读 ${data.unread[th.id]||0}\n影响步骤：${th.affected_step}`,'secondary detail-text'));
+   if(th.superseded_by)card.append(el('p','当前由讨论 '+th.superseded_by+' 接续；本条保留为历史。','secondary'));
+   if(th.supersedes?.length)card.append(el('p','接续此前讨论：'+th.supersedes.join('、'),'secondary'));
    for(const m of th.messages.slice(-5))card.append(el('p',`${m.actor} · ${new Date(m.at*1000).toLocaleString()}\n${m.body}`,'detail-text'));
    if(th.messages.length>5)wfJson(card,th.messages);
    const buttons=el('div',undefined,'graph-controls');card.append(buttons);
@@ -28,8 +31,10 @@ async function renderTaskWorkflow(body,task){
      if(th.pause||th.status!=='resolved')wfButton(buttons,'thread_wait',task.spec.id,{thread:th.id,pause:!th.pause,...fAttemptSeed(task.spec.id)},th.pause?'自主继续，不等待回复':'选择等待回复');
      if(th.kind==='discussion'&&th.status!=='resolved'&&!wfManager())wfButton(buttons,'thread_resolve',task.spec.id,{thread:th.id});}
     if((task.owner===app.actor||th.author===app.actor&&fParticipant(task))&&th.status==='awaiting_worker')wfButton(buttons,'thread_ack',task.spec.id,{thread:th.id,...fAttemptSeed(task.spec.id)});}
-   if(wfWriter())coButton(card,'intake_open',null,{title:th.title,body:th.messages[0]?.body||'',sources:[{kind:'thread',id:th.id}]},'需要独立跟踪时转为需求');threads.append(card);
+   if(wfManager()&&th.status!=='resolved'&&th.kind==='discussion'&&!th.pause){const targets=Object.values(data.threads).filter(x=>x.id!==th.id&&x.kind==='discussion'&&x.status!=='resolved'&&x.scope===task.scope_hash&&x.scope_version===task.scope_version);if(targets.length){const controls=el('details',undefined,'relation-details');controls.append(el('summary','此提醒已由其他讨论接续'));const select=selectInput(controls,'接续线程','replacement-'+th.id,Object.fromEntries(targets.map(x=>[x.id,x.title+' · '+x.id])),targets[0].id),button=el('button','确认接续依据');button.type='button';button.onclick=()=>wfForm('thread_supersede',task.spec.id,{thread:th.id,replacement:select.value});controls.append(button);card.append(controls);}}
+   if(wfWriter())coButton(card,'intake_open',null,{title:th.title,body:th.messages[0]?.body||'',sources:[{kind:'thread',id:th.id}]},'需要独立跟踪时转为需求');(th.status==='resolved'?threadHistory:threads).append(card);
   }
+  if(threadHistory.children.length>1)threads.append(threadHistory);
   const ac=section('结构化验收标准');host.append(ac);const plan=data.current_plan;if(plan){if(wfWriter()&&task.owner===app.actor)fBatchButton(ac,task,data,false);if(wfManager())fBatchButton(ac,task,data,true);}
   if(!plan)ac.append(el('p','此范围尚未核定结构化验收计划；历史验收不自动补造。','muted'));
   else{ac.append(el('p',`${plan.id} · 固定范围 v${plan.scope_version} · ${plan.git_required?'要求实际Git核验':'按产物或检查验证'}`,'secondary'));
@@ -63,7 +68,7 @@ async function renderWorkflowInbox(box){
   host.append(el('p','待办由项目权限、评论和交付门禁生成；等待不等于投入，评论不等于范围授权。','secondary'));
   const tools=el('div',undefined,'graph-controls');host.append(tools);if(wfManager()){wfButton(tools,'rollback_plan',null);wfButton(tools,'criteria_defaults',null);wfButton(tools,'rollback_executor',null);}
   if(!cv.workbench.items.length)host.append(el('p','当前没有待处理事项。','empty'));
-  for(const item of cv.workbench.items){const row=el('article',undefined,'resource-card');row.dataset.inbox=item.kind;row.append(el('h4',item.title),el('p',`${item.task||item.id} · ${wfStatuses[item.status]||item.status}${item.unread?' · 未读 '+item.unread:''}${item.waiting_seconds!==undefined?' · 等待 '+hours(item.waiting_seconds):''}`,'secondary'));if(item.reason)row.append(el('p',item.reason,'secondary'));if(item.task){const b=el('button','打开相关任务');b.onclick=()=>showDetail(item.task);row.append(b);}else{const b=el('button',item.kind==='rule'?'打开治理规则':'打开规划与模板');b.onclick=()=>selectWorkspacePanel(item.kind==='rule'?'policy':'planning');row.append(b);}if(item.action){if(cvLabels[item.action])cvButton(row,item.action,item.task||null,item.seed);else coButton(row,item.action,item.task||null,item.seed);}host.append(row);}
+  renderFocusInbox(host,cv.workbench);
   for(const [title,items]of [['我正在执行',cv.workbench.my_tasks],['可领取与阻塞原因',cv.workbench.claimable]]){const group=section(title);if(!items.length)group.append(el('p','当前无任务。','muted'));for(const t of items){const b=el('button',t.title+' · '+t.id);b.onclick=()=>showDetail(t.id);group.append(b);if(t.blockers?.length)group.append(el('p',t.blockers.join('；'),'secondary'));}host.append(group);}
   const history=el('details',undefined,'relation-details');history.append(el('summary','已结束回退历史'));for(const p of Object.values(d.rollbacks).reverse())renderRollback(['applied','cancelled','failed'].includes(p.status)?history:host,p);if(history.children.length>1)host.append(history);
  }catch(error){if(host.isConnected)host.append(el('p',error.message,'notice'));}

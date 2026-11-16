@@ -54,3 +54,7 @@ python client.py --profile <本项目身份> request --endpoint /api/governance 
 ## 需求、接续与持续改进
 
 第二批提供需求/发现池与SE分诊、来源关系、任务实施计划、执行检查点与增量消息消费、差异行内评审批次、根因改进与WIP/流动统计、固定输入外部条件及本地资源实际核验。入口为“需求与改进”、任务详情及原时间/质量/资产页。轻量任务无额外审批，旧任务显式采用后才增加实施门禁；换会话不自动释放资源。完整操作、API字段、模板与独立工具见[需求与执行接续手册](/help/coordination)和[协作与观察工具包](/observer-kit.zip)。
+
+## 参考资料与历史快照
+
+资源登记的 information_role 可为 reference（默认参考）或 snapshot（历史快照/轮次报告）。登记界面可选择；SE 可通过 resource_classify，仅提交 id、expected_version、information_role、reason 追加分类，不修改原文件。资源列表 view=current/history/all 分开阅读；默认 API 保持 all，任务资源入口提供全部相关材料。文档标题“当前”不代表服务已核对其正文或最新性，实时进度读取 /api/projects/<project>/current。

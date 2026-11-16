@@ -606,7 +606,9 @@ def workbench(store,db,v,g,ts,actor,r,now):
             available.append({'id':tid,'title':t['spec']['title'],'published':bool(t['spec']['claimable'] and t['spec']['registered']),'blockers':reasons})
     # Stable identity and deterministic priority, independent of model prose.
     unique={e['kind']+':'+e['id']:e for e in items};rank={'recovery':0,'thread':1,'submission':2,'criterion':3,'draft':4,'implementation':5,'rule':6}
-    return {'role':'se' if manager_role else 'worker','items':sorted(unique.values(),key=lambda e:(rank.get(e['kind'],10),e['id'])),'my_tasks':active,'claimable':available,'source':'current_authorized_state','not_agent_scheduler':True}
+    from .focus import groups
+    ordered=sorted(unique.values(),key=lambda e:(rank.get(e['kind'],10),e['id']))
+    return {'role':'se' if manager_role else 'worker','items':ordered,**groups(ordered),'my_tasks':active,'claimable':available,'source':'current_authorized_state','not_agent_scheduler':True}
 
 def snapshot(store,actor,task_id=None):
     from .operations import load
@@ -663,4 +665,6 @@ def context_pack(store,actor,tid,since=''):
     changes=feed(store,actor,{'cursor':[cursor],'limit':['100'],'task':[tid]})
     packet={'schema':1,'task':tid,'scope':brief['scope_hash'],'scope_version':brief['scope_version'],'sources':sources,'resume':co['resume'],'plans':co['plans'],'criteria':brief['collaboration']['current_plan'],'tests':brief['test_plan'],'rule':conv['bindings'].get(tid),'attempts':conv['attempts'],'sessions':conv['sessions'],'selection':conv['selections'].get(tid),'resources':brief['resource_directory'],'changes':changes,'materials_truncated':len(materials)>32,'instructions':['核对当前范围、批准规则/计划、未决发现和资源访问条件','摘要是有来源的读视图，不替代实际原件或正式变更','变化通知可能含项目公共边界更新；按readback重新读取，has_more时继续分页','原始聊天和日志留本地/NAS；会话引用不证明进程已经停止']}
     packet['material_readback']={'endpoint':'/api/projects/'+project+'/brief?task='+tid,'remaining_locations':[m['location'] for m in materials[32:]],'reason':'最多32条摘要，剩余入口按同一范围brief读取' if len(materials)>32 else ''}
+    packet['authority']=brief['authority'];packet['delivery_path']=brief['delivery_path']
+    packet['historical_materials_readback']={'endpoint':'/api/projects/'+project+'/brief?task='+tid,'count':len(brief['historical_materials'])}
     packet['project_id']=project;packet['sha256']=digest(packet);return packet

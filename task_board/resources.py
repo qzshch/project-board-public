@@ -46,7 +46,8 @@ def filtered(g,role='agent',operator=False):
 def validate(p,g,tasks):
     keys={'id','title','category','description','owner','visibility','locations','version','mutable',
           'integrity','availability','retention','tasks','modules','asset_refs','usage_notes','reason'}
-    fields(p,keys|{'expected_version'},keys)
+    fields(p,keys|{'expected_version','information_role'},keys)
+    if p.get('information_role','reference') not in ('reference','snapshot'):raise BoardError('资料角色需 reference 或 snapshot')
     if type(p['id']) is not str or not re.fullmatch('[a-z][a-z0-9-]{0,79}',p['id']):raise BoardError('资源ID需小写字母、数字和短横线')
     for k in ('category','visibility','availability'):
         if type(p[k]) is not str:raise BoardError(k+'需字符串')
@@ -74,7 +75,7 @@ def validate(p,g,tasks):
     if not set(p['tasks'])<=set(tasks) or not set(p['modules'])<=set(g.get('modules',{})):raise BoardError('关联需为本项目已有任务/模块',409)
     allowed=set(g['assets'])|set(g.get('consumption',{}))
     if not set(p['asset_refs'])<=allowed:raise BoardError('关联资产需为本项目已有版本或固定消费',409)
-    return {k:deepcopy(p[k]) for k in keys}
+    return {**{k:deepcopy(p[k]) for k in keys},'information_role':p.get('information_role','reference')}
 
 
 def mutate(db,g,actor,role,action,p,registry=None):
@@ -93,10 +94,15 @@ def mutate(db,g,actor,role,action,p,registry=None):
         if not old or not visible(old,role,operator):raise BoardError('资源入口不存在',404)
         integer(p.get('expected_version'),'资源版本')
         if p['expected_version']!=old['entry_version']:raise BoardError('资源版本已变化，重读后决定',409)
-        if action=='resource_update':
+        if action=='resource_classify':
+            fields(p,{'id','expected_version','information_role','reason'},{'id','expected_version','information_role','reason'})
+            if p['information_role'] not in ('reference','snapshot'):raise BoardError('资料角色无效')
+            text(p['reason'],'分类依据',4000)
+            old.update(information_role=p['information_role'],entry_version=old['entry_version']+1,updated_at=now,updated_by=actor['id'],reason=p['reason'])
+        elif action=='resource_update':
             if old['status']=='retired':raise BoardError('已停用入口保留历史，使用新ID登记替代位置',409)
             from .governance import tasks
-            value=validate(p,{**g,'consumption':registry.consumption() if registry else g.get('consumption',{})},tasks(db))
+            value=validate({**p,'information_role':p.get('information_role',old.get('information_role','reference'))},{**g,'consumption':registry.consumption() if registry else g.get('consumption',{})},tasks(db))
             entries[p['id']]={**value,'entry_version':old['entry_version']+1,'status':'active','created_at':old['created_at'],'updated_at':now,'updated_by':actor['id'],'origin':'registered'}
         elif action=='resource_retire':
             fields(p,{'id','expected_version','reason'},{'id','expected_version','reason'});text(p['reason'],'停止推荐依据',4000)
@@ -173,7 +179,13 @@ class Directory:
             rows=[e for e in rows if (not e['tasks'] and not e['modules']) or task_id in e['tasks'] or module in e['modules']]
             for e in rows:
                 if e['origin']=='run_artifact':e['record_scope_current']=e['scopes'].get(task_id)==t['scope_hash'] and e['scope_versions'].get(task_id)==t['scope_version']
+        view=get('view','all')
+        if view not in ('current','history','all'):raise BoardError('资料视图无效')
+        for e in rows:
+            e['information_role']=e.get('information_role','snapshot' if e['origin']=='run_artifact' or e['category'] in ('archive','test_records','logs') else 'reference')
+            e['authority']='external_reference' if e['information_role']=='reference' else 'historical_snapshot'
         if get('retired')!='true':rows=[e for e in rows if e['status']!='retired']
+        if view!='all':rows=[e for e in rows if (e['information_role']=='snapshot' or e['status']=='retired')==(view=='history')]
         counts={k:sum(e['category']==k for e in rows) for k in CATEGORIES}
         rows=[e for e in rows if (not category or e['category']==category) and (not origin or e['origin']==origin) and (not needle or needle in json.dumps(e,ensure_ascii=False).casefold())]
         rows.sort(key=lambda e:(e['origin']!='registered',-e['updated_at'],e['id']))
@@ -192,7 +204,7 @@ class Directory:
             with self.store.connection() as db:
                 for row in db.execute("SELECT payload FROM governance_events ORDER BY seq"):
                     event=json.loads(row['payload'])
-                    if event['action'] not in ('resource_register','resource_update','resource_retire') or event['payload']['id']!=rid:continue
+                    if event['action'] not in ('resource_register','resource_update','resource_retire','resource_classify') or event['payload']['id']!=rid:continue
                     previous=event['state']['resource_entries'][rid]
                     if visible(previous,role,operator):versions.append(previous)
         return {'revision':g['revision'],'id':rid,'versions':versions}

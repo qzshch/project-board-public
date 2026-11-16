@@ -23,9 +23,10 @@ function renderWorkspace(){
   if(ws.panel==='overview'){
     const planning=section('项目规划');planning.append(el('p',ws.ops?.policy.enabled?`项目默认${tierNames[ws.ops.policy.profile]}治理：按当前任务风险决定规划与验证门禁。`:d.planning_policy.mode==='enforced'?'已启用规划门禁：执行任务需绑定通过评审的模块版本。':'历史兼容模式：任务尚未按新规划门禁核定。','secondary'));const go=el('button','打开框架与规划');go.onclick=()=>selectWorkspacePanel('planning');planning.append(go);box.append(planning);
     cards(box,[['项目背景',d.knowledge.background],['目标',d.knowledge.goals],['非目标',d.knowledge.non_goals],['约束',d.knowledge.constraints]]);
-    for(const [key,title] of [['materials','必读材料 · 固定版本'],['entries','项目入口']])listLines(box,title,d.knowledge[key]||[],r=>`${r.title} · ${r.version}\n${r.location}\nSHA256 ${r.sha256}`);
-    listLines(box,'里程碑与验收',Object.values(d.milestones),r=>`${r.id} · ${r.status} · ${r.goal}\n验收：${r.acceptance}${r.evidence.length?' · 证据 '+r.evidence.length+' 项':''}`);
-    listLines(box,'决策与历史变更',d.decisions.slice(-8).reverse(),r=>`${r.summary}\n依据：${r.reason} · ${r.actor}`);
+    const reference=el('details',undefined,'relation-details');reference.append(el('summary','项目资料与历史快照 · 按需查阅'),el('p','文件记录其版本时的背景、输入或历史结论；当前进展以实时任务、验收及合入记录为准。无需每轮手工重写状态报告。','secondary'));
+    for(const [key,title] of [['materials','材料 · 固定版本'],['entries','资料入口']])listLines(reference,title,d.knowledge[key]||[],r=>`${r.title} · ${r.version}\n${r.location}\nSHA256 ${r.sha256}`);box.append(reference);
+    relationDetails(box,'里程碑登记与证据',Object.values(d.milestones),r=>`${r.id} · ${r.status} · ${r.goal}\n验收：${r.acceptance}${r.evidence.length?' · 证据 '+r.evidence.length+' 项':''}`);
+    relationDetails(box,'历史决策与变更',d.decisions.slice(-8).reverse(),r=>`${r.summary}\n依据：${r.reason} · ${r.actor}`);
   }
   if(ws.panel==='planning')renderPlanning(box,d);
   if(ws.panel==='planning')renderConvergencePlanning(box);

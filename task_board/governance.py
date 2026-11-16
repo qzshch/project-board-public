@@ -285,7 +285,7 @@ class Governance:
             value=load(db);revision=value.pop('revision');previous=value.pop('head')
             if revision!=request['expected_revision']:raise BoardError('治理资料已变化；重读后决定',409)
             r=value['members'].get(actor['id'],{}).get('role',actor['role'])
-            operator_resource=actor.get('global_admin') and action in ('resource_register','resource_update','resource_retire')
+            operator_resource=actor.get('global_admin') and action in ('resource_register','resource_update','resource_retire','resource_classify')
             if action not in ('handoff_accept','contract_confirm') and r not in MANAGERS and not operator_resource:raise BoardError('需本项目owner/SE',403)
             self._mutate(db,value,actor,r,action,payload)
             event={'action':action,'payload':payload,'state':value,'at':time.time()}
@@ -294,7 +294,7 @@ class Governance:
             return {'revision':revision+1,'hash':hashed}
 
     def _mutate(self,db,v,actor,r,action,p):
-        if action in ('resource_register','resource_update','resource_retire'):
+        if action in ('resource_register','resource_update','resource_retire','resource_classify'):
             from .resources import mutate
             mutate(db,v,actor,r,action,p,getattr(self.store,'registry',None))
         elif action in ('planning_enable','planning_decision','module_plan','module_review','milestone_plan','milestone_review'):
