@@ -130,4 +130,4 @@ submit成功生成candidate:true回执与submitted状态，只表示收件。未
 
 ## 人类与节点控制面（后续明确新增需求）
 
-第三批历史范围不含托管；本轮按用户新需求增加独立人类账号和可扩展节点，非重新扩大原第三批。`GET /api/human/status` 公开；`POST /api/human/setup|login|password` 使用独立会话，Agent不能自称人类。人类Bearer不复用项目token。`GET /api/nodes` 与 `POST /api/nodes/pair|revoke` 仅实例所有者；`POST /api/node/enroll|heartbeat|poll|report|profile` 仅节点身份。项目SE使用 `GET|POST /api/projects/{project}/orchestration`；项目数据仍按项目鉴权。请求字段、回执、原会话恢复、失败边界见 [编排手册](/help/orchestration)。诊断 `GET /api/projects/{project}/readiness` 只读。
+第三批历史范围不含托管；本轮按用户新需求增加独立人类账号和可扩展节点，非重新扩大原第三批。`GET /api/human/status` 公开；`POST /api/human/setup|login|password` 使用独立会话，Agent不能自称人类。人类Bearer不复用项目token。`GET /api/nodes` 与 `POST /api/nodes/pair|revoke` 仅实例所有者；`POST /api/node/enroll|heartbeat|poll|report|profile` 仅节点身份。项目SE可使用 `GET /api/projects/{project}/nodes`、`POST /api/projects/{project}/nodes/pair|connect|revoke` 自助管理本项目专用节点，不经过实例管理员；`connect`只登记本机节点凭据摘要，不提交原值。项目SE使用 `GET|POST /api/projects/{project}/orchestration`；项目数据仍按项目鉴权。请求字段、回执、原会话恢复、失败边界见 [编排手册](/help/orchestration)。诊断 `GET /api/projects/{project}/readiness` 只读。

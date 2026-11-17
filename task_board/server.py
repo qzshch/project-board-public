@@ -441,6 +441,7 @@ class Handler(BaseHTTPRequestHandler):
                         "async_flow_schema": 1,
                         "human_auth_schema": 1,
                         "orchestration_schema": 1,
+                        "project_node_self_service": True,
                         "orchestration_runtimes": ["codex","zcode","deepseek","antigravity"],
                         "retrospective_schema": 1,
                         "delegation_schema": 1,
@@ -463,7 +464,7 @@ class Handler(BaseHTTPRequestHandler):
             query = parse_qs(parsed.query)
             if path=='/api/nodes':
                 from .orchestration import Orchestrator
-                return self.send(200,Orchestrator(self.server.hub).nodes(self.identity()))
+                return self.send(200,Orchestrator(self.server.hub).nodes(self.identity(),self.project))
             if path=='/api/orchestration':
                 from .orchestration import Orchestrator
                 return self.send(200,Orchestrator(self.server.hub).listing(self.identity(),self.project))
@@ -678,9 +679,11 @@ class Handler(BaseHTTPRequestHandler):
                 elif path=='/api/node/profile':result=control.profile(node,value)
                 else:raise BoardError('节点接口不存在',404)
                 return self.send(200,result)
-            if path in ('/api/nodes/pair','/api/nodes/revoke'):
+            if path in ('/api/nodes/pair','/api/nodes/connect','/api/nodes/revoke'):
                 from .orchestration import Orchestrator
                 control=Orchestrator(self.server.hub)
+                if self.project:return self.send(201,control.project_node(self.identity(),self.project,path.rsplit('/',1)[1],value))
+                if path.endswith('/connect'):raise BoardError('SE接入请使用具体项目路径',403)
                 return self.send(201,control.pair(self.identity(),value) if path.endswith('/pair') else control.revoke(self.identity(),value))
             if path.startswith('/api/human/') and self.server.human:
                 if path=='/api/human/setup':token=self.server.human.setup(value)

@@ -1,5 +1,7 @@
 # 公告板接手与使用入口
 
+[项目SE节点自助接入](/help/orchestration)：SE可自行授权、接入、撤销本项目专用接入端，使用节点工具的 `--authorize-profile`；不再强制人类/实例管理员先开通。节点实际运行后才消费编排工作单。
+
 [Worker事后整理与归档](/help/retrospective)：按项目提交历史用量、有效工时和证据清单，由SE核定后纳入统计，保留版本、缺失与归档入口。[跨机器编排](/help/orchestration)已包含Antigravity CLI的SE/Worker双角色、原生会话ID与同会话接续；节点工具包需同步更新。
 
 仓库只读接入优先按[GitHub指南](/help/github)使用[SE本机工具包](/github-kit.zip)：复用已有gh/Git管理授权登记server公钥，server独立核验。无需每次创建token或请管理员代办；单仓库临时授权仅为可选兼容方式。

@@ -1,5 +1,6 @@
 {
   "id": "tailscale-pc-name",
+  "name": "实际机器或Tailscale名称",
   "url": "http://example-server.example-tailnet.ts.net:18785",
   "state": "G:/board-node/private-state",
   "max_parallel": 2,

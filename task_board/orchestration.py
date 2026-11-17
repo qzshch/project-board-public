@@ -1,5 +1,5 @@
 """Pull-only node control plane. No executable, shell, environment or raw RPC."""
-import json,re,secrets,time,uuid
+import hashlib,json,re,secrets,time,uuid
 from .store import BoardError,fields,text,canonical,digest
 from .projects import token_hash,project_id
 
@@ -23,6 +23,10 @@ def manager(hub,identity,pid):
     if actor['project_role'] not in ('owner','se','reviewer'):raise BoardError('需要本项目SE权限',403)
     return actor
 
+def project_node_id(pid,alias):
+    text(alias,'项目内节点名称',70);label(alias)
+    return 'pn-'+hashlib.sha256(pid.encode()).hexdigest()[:16]+'-'+alias
+
 class Orchestrator:
     def __init__(self,hub):self.hub=hub
     def live(self,db,node):
@@ -33,7 +37,7 @@ class Orchestrator:
         if not row:raise BoardError('节点未接入或已撤销',401)
         return dict(row)
     def pair(self,identity,p):
-        if not identity['global_admin']:raise BoardError('只有人类所有者或实例维护者可授权物理节点',403)
+        if not identity['global_admin']:raise BoardError('全局共享节点需要实例权限；项目SE请使用 /api/projects/<项目>/nodes/pair 或 nodes/connect',403)
         fields(p,{'id','name','projects'},{'id','name','projects'});label(p['id']);text(p['name'],'节点名',200)
         if type(p['projects']) is not list or not 1<=len(p['projects'])<=100:raise BoardError('需明确允许项目')
         for pid in p['projects']:self.hub.metadata(project_id(pid))
@@ -43,6 +47,47 @@ class Orchestrator:
             if db.execute('SELECT 1 FROM orch_nodes WHERE id=?',(p['id'],)).fetchone():raise BoardError('节点ID已登记，使用撤销/新ID而非覆盖密钥',409)
             db.execute('INSERT INTO orch_nodes(id,definition,pair,pair_expires) VALUES(?,?,?,?)',(p['id'],canonical(p),digest(secret),time.time()+1800));self.hub.audit(db,'node_pair',None,identity['actor']['id'],p);db.commit()
         return {'id':p['id'],'pair':secret,'expires_in':1800,'private':True}
+    def project_node(self,identity,pid,action,p):
+        """SE grants only a project-local agent endpoint, never a physical host login."""
+        actor=manager(self.hub,identity,pid)
+        if action=='revoke':
+            fields(p,{'id','reason'},{'id','reason'});label(p['id']);text(p['reason'],'撤销原因')
+            with self.hub.connection() as db:
+                db.execute('BEGIN IMMEDIATE');row=db.execute('SELECT * FROM orch_nodes WHERE id=?',(p['id'],)).fetchone()
+                if not row or json.loads(row['definition']).get('managed_project')!=pid:raise BoardError('本项目专用接入端不存在；不能撤销共享或其他项目节点',404)
+                db.execute('UPDATE orch_nodes SET enabled=0 WHERE id=?',(p['id'],));self.hub.audit(db,'project_node_revoked',pid,actor['id'],p);db.commit()
+            return {'revoked':p['id'],'running_work':'已撤销本项目接入端控制面权限；原运行和独立项目身份仍需按既有流程核对，不假称已停止'}
+        common={'request_id','alias','name','roles'};credential='pair' if action=='pair' else 'key_sha256'
+        if action not in ('pair','connect'):raise BoardError('节点动作无效',404)
+        fields(p,common|{credential},common|{credential});label(p['request_id']);nid=project_node_id(pid,p['alias']);text(p['name'],'节点名',200)
+        if type(p['roles']) is not list or not p['roles'] or any(type(r) is not str or r not in ('se','worker') for r in p['roles']) or len(p['roles'])!=len(set(p['roles'])):raise BoardError('接入角色需明确为SE、Worker或两者')
+        if action=='pair':
+            if type(p['pair']) is not str or not re.fullmatch('[0-9a-f]{64}',p['pair']):raise BoardError('接入秘密需本机生成的256位随机值')
+        elif type(p['key_sha256']) is not str or not re.fullmatch('[0-9a-f]{64}',p['key_sha256']) or p['key_sha256']=='0'*64:raise BoardError('需要本机节点凭据的SHA256，不接收凭据原值')
+        definition={'id':nid,'name':p['name'],'projects':[pid],'managed_project':pid,'alias':p['alias'],'roles':sorted(p['roles'])}
+        request={'action':action,'payload':p};request_actor='project-node:'+actor['id']+'@'+pid
+        with self.hub.connection() as db:
+            db.execute('BEGIN IMMEDIATE');old=db.execute('SELECT * FROM orch_requests WHERE actor=? AND id=?',(request_actor,p['request_id'])).fetchone()
+            if old:
+                if old['hash']!=digest(request):raise BoardError('请求ID已绑定其他节点配置',409)
+                row=db.execute('SELECT enabled FROM orch_nodes WHERE id=?',(nid,)).fetchone()
+                if not row or not row['enabled']:raise BoardError('该节点已撤销；使用新项目内名称重新接入',409)
+                result={**json.loads(old['result']),'replayed':True}
+                return {**result,**({'pair':p['pair']} if action=='pair' else {})}
+            row=db.execute('SELECT * FROM orch_nodes WHERE id=?',(nid,)).fetchone()
+            if row:
+                if not row['enabled'] or json.loads(row['definition'])!=definition or action!='connect' or row['secret']!=p['key_sha256']:raise BoardError('本项目节点ID已使用；不能覆盖身份或授权，变更使用新名称',409)
+                result={'id':nid,'projects':[pid],'roles':definition['roles'],'connected':True,'replayed':True}
+            elif action=='pair':
+                expires=time.time()+1800;db.execute('INSERT INTO orch_nodes(id,definition,pair,pair_expires) VALUES(?,?,?,?)',(nid,canonical(definition),digest(p['pair']),expires))
+                result={'id':nid,'projects':[pid],'roles':definition['roles'],'expires_at':expires,'expires_in':1800,'private':True}
+            else:
+                db.execute('INSERT INTO orch_nodes(id,secret,definition) VALUES(?,?,?)',(nid,p['key_sha256'],canonical(definition)))
+                result={'id':nid,'projects':[pid],'roles':definition['roles'],'connected':True,'capability_status':'等待本机实际探测与心跳'}
+            # Never persist a plaintext pair/credential in audit or response cache.
+            db.execute('INSERT INTO orch_requests VALUES(?,?,?,?)',(request_actor,p['request_id'],digest(request),canonical(result)))
+            self.hub.audit(db,'project_node_'+action,pid,actor['id'],{'id':nid,'roles':definition['roles'],'request_id':p['request_id']});db.commit()
+        return {**result,**({'pair':p['pair']} if action=='pair' else {})}
     def enroll(self,token,p):
         fields(p,{'id','pair'},{'id','pair'});label(p['id']);text(p['pair'],'接入凭据',200)
         if type(token) is not str or not token.startswith('node.') or len(token)<40:raise BoardError('需要本机生成的节点凭据',401)
@@ -63,7 +108,7 @@ class Orchestrator:
             caps=json.loads(r['capabilities'])
             if pid:
                 definition['projects']=[pid];caps={key:{**value,'roots':{pid:value.get('roots',{}).get(pid,[])}} for key,value in caps.items()}
-            result.append({'id':r['id'],**definition,'online':bool(r['enabled'] and time.time()-r['last_seen']<90),'enabled':bool(r['enabled']),'last_seen':r['last_seen'],'capabilities':caps})
+            result.append({'id':r['id'],**definition,'can_revoke':bool(pid and definition.get('managed_project')==pid),'online':bool(r['enabled'] and time.time()-r['last_seen']<90),'enabled':bool(r['enabled']),'last_seen':r['last_seen'],'capabilities':caps})
         return {'nodes':result}
     def revoke(self,identity,p):
         if not identity['global_admin']:raise BoardError('需要实例所有者',403)
@@ -117,6 +162,7 @@ class Orchestrator:
                     t=self.hub.store(pid).get(p['task'])
                     if t['scope_hash']!=p['scope']:raise BoardError('任务范围已变化',409)
                 n=db.execute('SELECT * FROM orch_nodes WHERE id=? AND enabled=1',(p['node'],)).fetchone();caps=json.loads(n['capabilities']).get(p['runtime'],{}) if n else {}
+                if n and p['role'] not in json.loads(n['definition']).get('roles',['se','worker']):raise BoardError('该接入端未授权此项目角色',403)
                 if not n or time.time()-n['last_seen']>=90 or pid not in json.loads(n['definition'])['projects'] or not caps.get('ready') or p['model'] not in caps.get('models',[]) or p['root'] not in caps.get('roots',{}).get(pid,[]):raise BoardError('节点、项目、工作根或真实模型能力未就绪',409)
                 if db.execute('SELECT 1 FROM orch_bindings WHERE id=?',(p['id'],)).fetchone():raise BoardError('绑定已存在，不可换项目/运行时',409)
                 if p['role']=='worker':
@@ -163,7 +209,7 @@ class Orchestrator:
         with self.hub.connection() as db:
             bindings=[{**json.loads(r['definition']),'session':r['session'],'status':r['status']} for r in db.execute('SELECT * FROM orch_bindings WHERE project=?',(pid,)) if man or r['actor']==actor['id']]
             ids={x['id'] for x in bindings};jobs=[{k:r[k] for k in ('id','binding','event','status','expires','result')} for r in db.execute('SELECT * FROM orch_jobs') if r['binding'] in ids]
-        return {'bindings':bindings,'jobs':jobs,'nodes':self.nodes(identity,pid)['nodes'] if man else [],'completion':'已接收仅代表运行时接收；交付验收仍以任务事件为准'}
+        return {'bindings':bindings,'jobs':jobs,'nodes':self.nodes(identity,pid)['nodes'] if man else [],'node_management':man,'completion':'已接收仅代表运行时接收；交付验收仍以任务事件为准'}
     def collect(self,node):
         """Derive durable notifications from original journals; UNIQUE deduplicates restarts."""
         with self.hub.connection() as db:bindings=[dict(r) for r in db.execute('SELECT * FROM orch_bindings')]

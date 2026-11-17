@@ -3,10 +3,32 @@
 The local configuration is the authority for executable argv, environment,
 projects, roots and SE profiles. The NAS can only choose within that set.
 """
-import argparse,json,os,re,secrets,signal,threading,time,uuid
+import argparse,hashlib,json,os,re,secrets,signal,socket,threading,time,uuid
 from pathlib import Path
 from tools.task_board_client import Client,ClientError,read,save
 from tools.agent_runtime import Runtime,ProtocolError,Busy,Uncertain
+
+def authorize_config(path,profile_path):
+    """A project SE declares only this machine's already-authorized local config."""
+    config=read(path);profile=read(profile_path);pid=profile.get('project_id')
+    if not pid or set(config['projects'])!={pid}:raise ValueError('SE自助接入配置只能包含身份所属的一个项目')
+    if config['url'].rstrip('/')!=profile['url'].rstrip('/'):raise ValueError('项目身份与本机配置的公告板实例不一致')
+    roles=config['projects'][pid]['roles']
+    if type(roles) is not list or not roles or any(r not in ('se','worker') for r in roles) or len(roles)!=len(set(roles)):raise ValueError('本机角色需SE、Worker或两者')
+    client=Client(config['url'],profile,config.get('connect_ip'),pid);me=client.call('/api/me')
+    if me.get('global_admin') or me.get('project_role') not in ('owner','se','reviewer'):raise ValueError('自助接入使用本项目SE身份，不能使用Worker或实例管理员身份')
+    prefix='pn-'+hashlib.sha256(pid.encode()).hexdigest()[:16]+'-';alias=config['id'][len(prefix):] if config['id'].startswith(prefix) else config['id']
+    if not re.fullmatch('[A-Za-z0-9][A-Za-z0-9_.-]{0,69}',alias):raise ValueError('本机项目内名称需1～70位安全标识')
+    config['id']=prefix+alias
+    if 'se' in roles:
+        current=config['projects'][pid].get('se_profile')
+        if current and Path(current).resolve()!=Path(profile_path).resolve():raise ValueError('本机SE会话需沿用授权接入的项目SE身份')
+        config['projects'][pid]['se_profile']=str(Path(profile_path).resolve())
+    target=Path(config['state']).resolve()/'se-node-config.json'
+    if os.name=='nt' and target.drive.upper()=='C:':raise ValueError('节点状态需放C盘外')
+    if target.exists() and read(target)!=config:raise ValueError('本机已冻结其他节点配置；核对原接入端或使用新的状态目录')
+    save(target,config)
+    return target,client,{'alias':alias,'name':config.get('name') or socket.gethostname(),'roles':roles}
 
 class Node:
     def __init__(self,path):
@@ -220,10 +242,26 @@ class Node:
         if errors:raise RuntimeError('部分本机运行时清理失败，核对私有cleanup.json中的具体归属')
 
 def main():
-    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--config',required=True);parser.add_argument('--enroll');parser.add_argument('--probe',action='store_true');parser.add_argument('--once',action='store_true');args=parser.parse_args();node=Node(args.config)
+    parser=argparse.ArgumentParser(description=__doc__);parser.add_argument('--config',required=True);parser.add_argument('--enroll');parser.add_argument('--authorize-profile',help='Project SE self-service with this machine config; no instance credential');parser.add_argument('--probe',action='store_true');parser.add_argument('--once',action='store_true');args=parser.parse_args()
+    if args.enroll and args.authorize_profile:parser.error('--enroll与--authorize-profile选择一种接入方式')
+    local=args.config;authorization=None
+    if args.authorize_profile:local,authority,authorization=authorize_config(local,args.authorize_profile)
+    node=Node(local)
     try:
+        if authorization:
+            pending=node.home/'project-connect.request.json'
+            payload={**authorization,'key_sha256':hashlib.sha256(node.seed['token'].encode()).hexdigest()}
+            if pending.exists():
+                request=read(pending)
+                if {k:v for k,v in request.items() if k!='request_id'}!=payload:raise ValueError('原节点接入请求已冻结，先核对原配置')
+            else:request={'request_id':uuid.uuid4().hex,**payload};save(pending,request)
+            receipt=authority.call('/api/nodes/connect',request);save(node.home/'project-connect.receipt.json',receipt)
+            if receipt['id']!=node.config['id']:raise ProtocolError('服务端节点ID与本机项目命名空间不匹配')
+            print(json.dumps({'id':receipt['id'],'config':str(Path(local).resolve()),'status':'项目SE授权完成；实际探测后保持本机接入端运行方可消费工作单'},ensure_ascii=False),flush=True)
         if args.enroll:node.enroll(args.enroll)
-        if args.probe:node.probe()
+        if args.probe:
+            node.probe()
+            if args.enroll or authorization:node.heartbeat()
         else:node.run(args.once)
     finally:node.close()
 if __name__=='__main__':main()

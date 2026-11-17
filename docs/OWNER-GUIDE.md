@@ -1,5 +1,7 @@
 # 负责人和继承 SE 操作指南
 
+项目SE现在可自行授权、接入和撤销本项目专用节点，不需要人类开通。运行新版节点工具 `--authorize-profile <本项目SE身份> --probe`，再用生成配置保持接入端运行，即可从面板派发SE/Worker会话。`nodes=[]` 时可自行建立本机接入端；详见[编排自助接入](/help/orchestration)。
+
 [事后整理与归档](/help/retrospective)可交给Worker整理历史用量、工时与原件清单，SE集中核定；不重复入账或替代旧验收。[跨机器编排](/help/orchestration)支持Antigravity CLI作为SE/Worker，绑定真实原生会话ID并接续原会话。
 
 GitHub接入优先复用本机管理授权：按[GitHub指南](/help/github)运行[SE本机工具包](/github-kit.zip)，或手动登记server公钥后由面板核验。无需新建token、server SSH或管理员代办；项目SE身份与GitHub管理权限分别核对。
@@ -121,7 +123,7 @@ Worker 接入采用[项目自助加入](/help/worker-start)：新SE自助项目�
 
 ## 跨机器编排与下放工作
 
-本轮新增 [接管诊断](/help/project-readiness) 和 [编排与有界委派](/help/orchestration)。SE读取本项目 `/readiness` 区分当前卡点；无需把全部历史任务补成当前验收。人类先开通节点，本机固定项目/根/角色后，SE选择实际探测通过的模型派发受管会话。评论与提交按原事件通知SE，回复回到原Worker；当前手动聊天不会自动被接管。研究、整理和草案直接用普通Worker；独立复核、验收或基线操作按任务/输入/动作明确委派，严格最终处置仍归SE/人类，原测试与Git门禁保留。
+本轮新增 [接管诊断](/help/project-readiness) 和 [编排与有界委派](/help/orchestration)。SE读取本项目 `/readiness` 区分当前卡点；无需把全部历史任务补成当前验收。项目SE可自行授权和接入本项目专用节点；本机固定项目/根/角色后，SE选择实际探测通过的模型派发受管会话。评论与提交按原事件通知SE，回复回到原Worker；当前手动聊天不会自动被接管。研究、整理和草案直接用普通Worker；独立复核、验收或基线操作按任务/输入/动作明确委派，严格最终处置仍归SE/人类，原测试与Git门禁保留。
 # 并行测试纪律
 
 项目SE负责维护测试实例清单，多SE遵守同一入口。把[测试实例纪律](/help/test-instances)
