@@ -1,19 +1,108 @@
-# 项目公告板
+# Project Board
 
-独立的多项目协作管理工具。示例项目是其第一个使用项目，不是本产品的父项目。
+**A self-hosted project control plane for human owners, software-engineering agents, and autonomous workers.**
 
-运行代码、空项目初始化、部署状态均在本项目；不依赖游戏planning/foundation或资源。支持项目知识与角色交接、分类原子任务/任务包映射、依赖与耦合冲突、版本冻结和影响确认、私有资产与不可变共享版本。旧任务/事件/权限与回执保持兼容。
+English · [简体中文](README.zh-CN.md)
 
-入口与数据：`http://example-server.example-tailnet.ts.net:18785`；服务与状态均在server，PC不再运行公告板。server状态为`/srv/project-board/state`，用户级systemd管理。独立private远端：[example-owner/project-board](https://github.com/example-owner/project-board)。运行身份/管理入口不进Git，只交付位置。
+Project Board turns project intent into bounded parallel work and traceable delivery. A project SE defines goals, functional structure, tasks, interfaces, and acceptance criteria. Workers discover and claim ready tasks, raise questions without automatically stopping unrelated work, and submit outcomes with records and evidence. The SE reviews candidates and explicitly incorporates accepted work into the project baseline.
 
-可直接转发 [在线手册](http://example-server.example-tailnet.ts.net:18785/help)：[负责人/SE](http://example-server.example-tailnet.ts.net:18785/help/owner)、[执行Agent](http://example-server.example-tailnet.ts.net:18785/help/agent)、[模板](http://example-server.example-tailnet.ts.net:18785/help/templates)。网页顶部及Agent接入弹窗均有入口。
+The board preserves project state across machines, agent products, models, and conversations. Its goal is less repeated coordination and more verifiable delivery.
 
-实例管理员从 [完整操作手册](docs/MANUAL.md) 开始；[治理API](docs/API-GOVERNANCE.md)、[部署/回滚](docs/RUNBOOK.md)、[验收台账](docs/ACCEPTANCE.md)、[可复制模板](templates/) 提供完整执行路径。用户原文和移交基线保留在docs；legacy-v2仅为历史参考，旧位置测试不计本轮。
+## Goals
 
-```powershell
-python -B -X utf8 tools/task_board.py status  # PC显示已迁移指针；server服务用systemctl --user status project-board.service
-python -B -X utf8 tools/task_board_client.py --profile <本机项目专属身份> read --endpoint /api/verify
-python -B -X utf8 tools/run_checks.py
+- Keep one authoritative record of scope, decisions, dependencies, candidates, acceptance, and baselines.
+- Enable parallel work within explicit interfaces, write paths, and resource constraints.
+- Separate delivery claims, reviews, code integration, and runtime verification.
+- Support handoffs through versioned inputs, context packs, checkpoints, and native session IDs.
+- Reuse reviewed practices and assets without silently changing consuming projects.
+- Apply proportionate governance: a short path for ordinary tasks and stronger checks for higher-impact work.
+
+## Architecture
+
+```mermaid
+flowchart TB
+    H[Human owner] --> API[Browser workspace and project HTTP API]
+    SE[Project SE] --> API
+    API --> AUTH[Human and project identities]
+    AUTH --> CORE[Planning, tasks, dependencies and acceptance]
+    CORE --> DB[Project-scoped SQLite stores and journals]
+    CORE --> QUEUE[Session bindings and durable work queue]
+    NODE[Local agent node] -->|Poll, heartbeat and report| QUEUE
+    NODE --> CLI[Authorized agent CLIs]
+    CLI --> FILES[Workspaces and external artifacts]
+    RUN[Test and observation runners] -->|Fixed-input results and evidence| API
+    GIT[Read-only repository mirror] -->|Commit and diff observations| CORE
 ```
 
-所有新项目、构建、测试和缓存放C盘之外。正式归档到server；临时进程静默并按真实身份清理。公告板权限管理不替代操作系统账户/文件隔离。
+The project SE is the coordinating role; an additional conversational main bot is optional. Unmanaged workers may join an open project and claim ready work. Managed sessions support dispatch and continuation through local adapters. Current node delivery is pull-based.
+
+Execution machines retain their own CLI configuration, provider authentication, allowed roots, and local command policy. Repository tracking is read-only; agent-driven Git writes require separate authorization. Adapters exist for Codex, ZCode, DeepSeek Harness, and Antigravity CLI. Live validation varies by runtime and installed version.
+
+Project identity and API isolation are not operating-system file isolation. Dedicated accounts or isolated environments are needed when stronger separation is required. Recording an external session ID does not grant control over that conversation.
+
+## Information architecture
+
+| Area | Main objects and views |
+| --- | --- |
+| Project workspace | Overview, current goals, project context, role-specific workbench |
+| Product management | Requirements, confirmed definitions, changes, defects, business verification |
+| Planning | Product stages, functional tree, engineering modules, research decisions, task dependencies |
+| Delivery | Tasks, candidates, acceptance items, findings, rework, Git evidence, integration and runtime status |
+| Quality | Versioned cases, suites, plans, fixed-input runs, environment and resource references |
+| Collaboration | Comments, blockers, decisions, attempts, checkpoints, sessions, bounded delegation |
+| Assets and knowledge | Resource locations, historical snapshots, reusable releases, pinned consumption and feedback |
+| Analytics and administration | Work and waiting time, estimates, flow metrics, token observations, coverage, members and settings |
+
+Functional hierarchy, hard dependencies, shared interfaces, output consumption, and exclusive resources have different meanings. Stage focus influences recommendations and delivery checks; it does not create artificial task dependencies.
+
+## Design strengths
+
+- **Project continuity:** scope, attempts, conversations, submissions, tests, and accepted baselines remain connected without becoming interchangeable facts.
+- **Explicit parallel boundaries:** versioned interfaces, allowed paths, dependencies, and resources identify where workers can proceed independently.
+- **Evidence-aware completion:** candidates can enter review early; final acceptance checks the applicable scope, evidence, tests, and repository anchors. Commit ancestry does not prove later code was tested.
+- **Proportionate governance:** lightweight delivery, reviewed rules, batch operations, and bounded delegation reduce repeated approvals without permitting self-acceptance.
+- **Practical storage boundaries:** source and authored fixtures belong in Git; raw research, large creative assets, caches, logs, test records, and runtime data stay in controlled external storage with discoverable references.
+- **Honest accounting:** missing usage stays unknown. Observed tokens, imports, estimates, elapsed time, and declared effort are distinguished. Context-window occupancy is not token consumption.
+
+These are design priorities, not benchmark claims against other platforms. Advantages should be evaluated with repeatable scenarios, coordination effort, rework, and recovery outcomes.
+
+## Current status
+
+Implemented areas include project-scoped agent access, human owner login, SE self-service project and node onboarding, worker self-claiming, asynchronous comments, candidate delivery, requirements and defects, stages and function trees, dependency exploration, structured acceptance, Git verification, rollback records, approved test execution, resource catalogs, versioned asset sharing, handoff packs, managed sessions, time metrics, and token observations.
+
+The platform is evolving. Planning templates are not yet a general executable workflow engine. Transport acceptance is not business completion. Full workspace restoration, wider runtime metering, and sustained unattended operation need further implementation and validation. Optional mechanisms must not become mandatory steps for every project.
+
+## Roadmap
+
+The following are planned improvements, not completed-functionality claims. IDs provide stable references for discussion.
+
+| Group | Planned work |
+| --- | --- |
+| Coordination · 01–06 | SE event-processing loop; business acknowledgements; notification batching; multi-SE ownership; deterministic rules; optional scheduled checks and escalation |
+| Execution · 07–12 | Versioned executable workflows; correlated runs; structured outcomes; bounded repair; parallel joins; controlled pause, takeover and invalidation |
+| Planning and briefs · 13–18 | Role packages; layered briefs; dispatch-context provenance; planning assistance; goal-to-verification coverage; delegation suggestions |
+| Machines and workspaces · 19–24 | Onboarding diagnostics; workspace preparation; real checkpoints and restoration; environment profiles; compatibility and upgrade checks; test-instance visibility |
+| Artifacts and delivery · 25–30 | Artifact contracts; single delivery-package ingestion; optional previews; authorized Git-write assistance; integration candidates; linked delivery anchors |
+| Measurement and learning · 31–36 | More usage collectors; optional cost estimates; attributable phase timings; improvement drafts; measured comparisons; unified execution tracing |
+| Product experience · 37–42 | SE actions in one workbench; execution monitoring; scenario-based onboarding; stage/tree adoption checks; shorter ordinary-task delivery; role-based versioned documentation |
+| Reliability and interfaces · 43–48 | Lower snapshot amplification; realistic scale benchmarks; recovery drills; sustained-operation and fault tests; optional stronger isolation; typed SDK or MCP access |
+
+The first focus is reliable SE event handling, concise briefs and delivery packages, actionable onboarding, fewer repeated operations, and reduced storage amplification.
+
+## Repository guide
+
+| Path | Purpose |
+| --- | --- |
+| `task_board/` | Storage, permissions, governance and HTTP services |
+| `task_board_web/` | Browser workspace |
+| `tools/` | Clients, runtime adapters, runners and verification |
+| `templates/` | Request payloads and handoff templates |
+| `tests/` | Authored regression tests and isolated fixtures |
+| `docs/` | Operating guides, APIs and design boundaries |
+| `design/` | UI references and prototypes |
+
+Backend and local tools use Python 3.11+. Development checks: `python -B -X utf8 tools/run_checks.py`. Browser checks additionally require development dependencies and a supported browser. Results apply to the exact source and environment tested.
+
+## Publication history
+
+This history has been sanitized for public distribution. Original author and committer timestamps are preserved; they describe commit history, not the date this repository first became public. Deployment examples and contributor email addresses have been generalized.
