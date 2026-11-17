@@ -50,8 +50,10 @@ def mutate(v,db,actor,r,action,p,now,g,tasks):
         v['estimates'].setdefault(p['task'],[]).append({**deepcopy(p),'scope_version':task['scope_version'],'actor':actor['id'],'at':now})
     elif action=='time_complete':
         fields(p,{'task','scope','summary'},{'task','scope','summary'});text(p['summary'],'记录完整性说明')
-        if any(s['task']==p['task'] and s['end'] is None for s in v['sessions'].values()):raise BoardError('仍有未关闭时段',409)
-        if not any(s['task']==p['task'] and s['scope']==p['scope'] and s['scope_version']==task['scope_version'] for s in v['sessions'].values()):raise BoardError('没有当前范围的时间记录',409)
+        from .retrospective import approved_times
+        recorded={**v['sessions'],**approved_times(db)}
+        if any(s['task']==p['task'] and s['end'] is None for s in recorded.values()):raise BoardError('仍有未关闭时段',409)
+        if not any(s['task']==p['task'] and s['scope']==p['scope'] and s['scope_version']==task['scope_version'] for s in recorded.values()):raise BoardError('没有当前范围的时间记录',409)
         v['time_complete'][p['task']]={**deepcopy(p),'scope_version':task['scope_version'],'actor':actor['id'],'at':now}
     else:
         fields(p,{'task','scope','mode','phase','reason','rework','attempt_id','attempt_lease'},{'task','scope','mode','phase','reason','rework'})
@@ -88,7 +90,8 @@ def report(v,tasks,now,db):
     samples=[];comparisons=[]
     for tid,task in tasks.items():
         t=by_task.get(tid);estimate=estimates.get(tid);complete=v['time_complete'].get(tid)
-        covered=bool(t and complete and complete['scope']==task['scope_hash'] and complete['scope_version']==task['scope_version'] and not t['open'])
+        revised=max((s['corrections'][-1]['at'] for s in v['sessions'].values() if s['task']==tid and s.get('retrospective') and s['scope']==task['scope_hash'] and s['scope_version']==task['scope_version']),default=0)
+        covered=bool(t and complete and complete['scope']==task['scope_hash'] and complete['scope_version']==task['scope_version'] and not t['open'] and complete.get('at',0)>=revised)
         row={'task':tid,'observed_first':observed.get(tid,{}).get('first'),'observed_last':observed.get(tid,{}).get('last'),
              'work_seconds':round(t['work_seconds'],2) if t else None,'wait_seconds':round(t['wait_seconds'],2) if t else None,
              'time_complete':covered,'estimate_current':bool(estimate and estimate['scope']==task['scope_hash'] and estimate['scope_version']==task['scope_version']),
@@ -142,7 +145,8 @@ def report(v,tasks,now,db):
     for run in v['runs'].values():
         if not run.get('suite'):continue
         item=runtimes.setdefault(run['suite'],{'runs':0,'seconds':0,'failures':0,'queue_seconds':0});item['runs']+=1;item['seconds']+=sum(r['seconds'] for r in run['results']);item['failures']+=run['status'] in ('failed','timeout','blocked');item['queue_seconds']+=max(0,run.get('started',run.get('finished',now))-run['created'])
-    return {'as_of':now,'calendar':'elapsed_utc','work_seconds':round(work,2),'wait_seconds':round(wait,2),'pause_seconds':round(pause,2),'rework_seconds':round(rework,2),
+    historical_work=sum(s['corrections'][-1]['seconds'] for s in v['sessions'].values() if s.get('retrospective') and s['mode']=='work')
+    return {'as_of':now,'calendar':'elapsed_utc','work_seconds':round(work,2),'historical_work_seconds':round(historical_work,2),'wait_seconds':round(wait,2),'pause_seconds':round(pause,2),'rework_seconds':round(rework,2),
             'phases_seconds':phases,'actor_kind_seconds':by_kind,'waiting_seconds':waiting,'tasks':comparisons,'forecasts':forecasts,
             'wait_ratio':wait/(work+wait) if work+wait else None,'rework_ratio':rework/work if work else None,
             'governance_ratio':phases.get('governance',0)/work if work else None,

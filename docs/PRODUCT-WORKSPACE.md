@@ -71,5 +71,7 @@ defect_retest/reopen、finding_promote、session_register。字段参考可下�
 导入工具：`python -m tools.usage_collector --profile <项目身份> --file <本项目规范JSONL>`。
 身份、队列、原始通知和运行日志放Git外私有目录；server归档入口登记到项目资产。
 
+由其他Worker整理历史时使用[事后整理与归档](/help/retrospective)，不要借用原执行者身份直接导入。Worker提交草案，SE核对后才进入原Token账本和历史工时统计，重复或无法证明不重叠的用量仅归档说明。修订保留原版本，批准补录不会自动验收任务或宣布时间完整。
+
 Git接入见[代码与GitHub](/help/github)。旧框架、规则、里程碑、接口、测试、运行、
 资产消费、回退和角色管理的完整字段与动作继续在原页面，不以本说明代替原手册。

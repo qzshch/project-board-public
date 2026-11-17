@@ -9,17 +9,17 @@ from task_board.store import BoardError
 class OrchestrationCase(unittest.TestCase):
     setUp=fixture.ProjectCase.setUp;tearDown=fixture.ProjectCase.tearDown;call=fixture.ProjectCase.call
     atomic=gov_fixture.GovernanceCase.atomic;gov=gov_fixture.GovernanceCase.gov;event=gov_fixture.GovernanceCase.event
-    def prepare_node(self):
+    def prepare_node(self,runtime='codex'):
         pair=self.call('/api/nodes/pair',{'id':'pc-one','name':'Tailscale arbitrary host','projects':['alpha']},self.admin);self.assertEqual(pair[0],201,pair)
         self.node={'token':'node.'+secrets.token_urlsafe(40)};self.pair=pair[1]
         value={'id':'pc-one','pair':self.pair['pair']};self.assertEqual(self.call('/api/node/enroll',value,self.node)[0],201);self.assertTrue(self.call('/api/node/enroll',value,self.node)[1]['replayed'])
-        caps={'codex':{'ready':True,'version':'fixture-control-protocol','models':['actual-route'],'roots':{'alpha':['src']},'reason':'isolated fixture, no model claim'}}
+        caps={runtime:{'ready':True,'version':'fixture-control-protocol','models':['actual-route'],'roots':{'alpha':['src']},'reason':'isolated fixture, no model claim'}}
         self.assertEqual(self.call('/api/node/heartbeat',{'capabilities':caps},self.node)[0],200)
     def action(self,action,p,profile=None,rid=None):return self.call('/api/projects/alpha/orchestration',{'request_id':rid or uuid.uuid4().hex,'action':action,'payload':p},profile or self.admin)
-    def bind(self,role='worker',bid='binding-one'):
+    def bind(self,role='worker',bid='binding-one',runtime='codex'):
         if role=='worker':self.atomic('work/one')
         task=self.hub.store('alpha').get('work/one') if role=='worker' else None
-        p={'id':bid,'node':'pc-one','runtime':'codex','model':'actual-route','root':'src','role':role,'task':'work/one' if task else '','scope':task['scope_hash'] if task else ''}
+        p={'id':bid,'node':'pc-one','runtime':runtime,'model':'actual-route','root':'src','role':role,'task':'work/one' if task else '','scope':task['scope_hash'] if task else ''}
         result=self.action('bind',p);self.assertEqual(result[0],201,result);return p
     def poll(self):
         result=self.call('/api/node/poll',{},self.node);self.assertEqual(result[0],200,result);return result[1]
@@ -76,3 +76,18 @@ class OrchestrationCase(unittest.TestCase):
         notice=self.poll();self.assertEqual(notice['binding']['id'],'se-one');self.assertEqual(notice['body']['thread'],'question-one');self.report(notice,session='se-session')
         self.assertEqual(op('thread_reply',{'thread':'question-one','body':'Continue inside original boundary'},self.admin)[0],201)
         reply=self.poll();self.assertEqual(reply['binding']['id'],'binding-one');self.report(reply,session='worker-session');self.assertIsNone(self.poll()['job'])
+
+    def test_antigravity_roles_and_failed_turn_require_original_job_recovery(self):
+        self.prepare_node('antigravity');self.bind(runtime='antigravity');self.bind('se','se-one','antigravity');worker_job=None
+        for _ in range(4):
+            job=self.poll();session='worker-native' if job['binding']['role']=='worker' else 'se-native';self.assertEqual(self.report(job,session=session)[0],200)
+            if job['binding']['role']=='worker' and job['body']['operation']!='create':worker_job=job
+        caps=self.call('/api/nodes',profile=self.admin)[1]['nodes'][0]['capabilities']
+        p={'capabilities':caps,'observations':[{'binding':'binding-one','session':'worker-native','status':'needs_recovery'}]}
+        self.assertEqual(self.call('/api/node/heartbeat',p,self.node)[0],200);self.assertEqual(self.call('/api/node/heartbeat',p,self.node)[0],200)
+        notice=self.poll();self.assertEqual(notice['binding']['role'],'se');self.assertEqual(notice['body']['kind'],'runtime_recovery');self.report(notice,session='se-native')
+        self.assertIsNone(self.poll()['job'])
+        recovery={'job':worker_job['job'],'session':'worker-native','status':'failed','summary':'Native terminal failure checked before explicit continuation','evidence':'G:/fixture/receipt.json'}
+        self.assertEqual(self.action('recover',recovery)[0],201)
+        self.assertEqual(self.action('resume',{'binding':'binding-one','summary':'Explicit continuation after local recovery'})[0],201)
+        resumed=self.poll();self.assertEqual(resumed['binding']['runtime'],'antigravity');self.assertEqual(resumed['binding']['session'],'worker-native');self.assertEqual(resumed['body']['operation'],'resume')

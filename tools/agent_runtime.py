@@ -1,4 +1,4 @@
-"""Owned stdio transports for three deliberately different protocols.
+"""Owned stdio transports for deliberately different native protocols.
 
 Commands and provider environment come only from the local node configuration.
 Remote jobs cannot supply arbitrary RPC or approval rules. Only exact commands
@@ -41,7 +41,13 @@ class Wire:
                     # Native application permission/user-input requests remain
                     # denied/blocked. Receiving a board job is not permission
                     # to approve a shell command or disclose provider headers.
-                    if self.runtime=='zcode' and frame['method']=='session/requestRuntimePreferences':
+                    if self.runtime=='antigravity' and frame['method']=='session/request_permission':
+                        approval=self.approval(frame)
+                        if approval is None:
+                            self.events.append({'method':'approval_required','request_method':frame['method'],'at':time.time()})
+                            approval={'outcome':{'outcome':'cancelled'}}
+                        self.frame({'jsonrpc':'2.0','id':frame['id'],'result':approval})
+                    elif self.runtime=='zcode' and frame['method']=='session/requestRuntimePreferences':
                         self.frame({'id':frame['id'],'result':{'additionalDirectories':[],'nativeSearchEnhancementsEnabled':False,'toolSearchMode':'off','subagentRuntimeConfigEnabled':False,'appControlEnabled':False,'memoryEnabled':False,'askUserQuestionAutoResolutionEnabled':False}})
                     else:
                         approval=self.approval(frame)
@@ -70,6 +76,14 @@ class Wire:
             session=p.get('sessionId')
         elif self.runtime=='codex' and method=='item/commandExecution/requestApproval' and not any(p.get(k) for k in ('additionalPermissions','networkApprovalContext','proposedNetworkPolicyAmendment')):
             command=p.get('command');session=p.get('threadId')
+        elif self.runtime=='antigravity' and method=='session/request_permission':
+            tool=p.get('toolCall',{});value=tool.get('rawInput',{})
+            if tool.get('name')!='run_command' or tool.get('kind')!='execute' or type(value) is not dict or set(value)-{'CommandLine','IsDaemon','WaitMsBeforeAsync','toolSummary'}:return None
+            if tool.get('args',value)!=value or value.get('IsDaemon',False) is not False:return None
+            if type(value.get('WaitMsBeforeAsync',0)) is not int or not 0<=value.get('WaitMsBeforeAsync',0)<=10000:return None
+            options=[o for o in p.get('options',[]) if o.get('kind')=='allow_once' and type(o.get('optionId')) is str]
+            if len(options)!=1:return None
+            command=value.get('CommandLine');session=p.get('sessionId')
         else:return None
         if type(command) is not str or type(session) is not str or session not in self.sessions:return None
         try:
@@ -83,23 +97,35 @@ class Wire:
                 if getattr(self,'approval_audit',None):
                     with self.approval_audit.open('a',encoding='utf8') as handle:handle.write(json.dumps(audit)+'\n')
                     self.approval_audit.chmod(0o600)
+                if self.runtime=='antigravity':return {'outcome':{'outcome':'selected','optionId':options[0]['optionId']}}
                 return {'decision':'allow','reason':'Local operator approved this exact command, cwd and script digest'} if self.runtime=='zcode' else {'decision':'accept'}
         except (OSError,KeyError,TypeError,ValueError):return None
         return None
     def call(self,method,params,timeout=45):
+        rid,q=self.submit(method,params)
+        try:
+            try:response=q.get(timeout=timeout)
+            except queue.Empty:raise Uncertain('运行时响应超时；不能盲重放 '+method) from None
+            return self.response(response)
+        finally:
+            with self.lock:self.waiters.pop(rid,None)
+    def submit(self,method,params):
+        """ACP prompt replies only when the turn ends; retain its waiter meanwhile."""
         with self.lock:
             self.sequence+=1;rid=self.sequence;q=queue.Queue();self.waiters[rid]=q
         value={'id':rid,'method':method,'params':params}
         if self.runtime!='zcode':value['jsonrpc']='2.0'
         try:
             self.frame(value)
-            try:response=q.get(timeout=timeout)
-            except queue.Empty:raise Uncertain('运行时响应超时；不能盲重放 '+method) from None
-            if response.get('_transport_closed'):raise Uncertain('运行时退出，结果未知')
-            if 'error' in response:raise ProtocolError(str(response['error'].get('message','协议拒绝'))[:1000])
-            return response.get('result',{})
-        finally:
+            return rid,q
+        except BaseException:
             with self.lock:self.waiters.pop(rid,None)
+            raise
+    @staticmethod
+    def response(response):
+        if response.get('_transport_closed'):raise Uncertain('运行时退出，结果未知')
+        if 'error' in response:raise ProtocolError(str(response['error'].get('message','协议拒绝'))[:1000])
+        return response.get('result',{})
     def notify(self,method,params):
         frame={'method':method,'params':params}
         if self.runtime!='zcode':frame['jsonrpc']='2.0'
@@ -120,9 +146,13 @@ class Wire:
 
 class Runtime:
     def __init__(self,kind,config,cwd,evidence,model=None):
-        self.kind=kind;self.config=config;self.cwd=str(Path(cwd).resolve());self.model=model;self.active=None;self.ready_session=None;self.fresh=False
+        self.kind=kind;self.config=config;self.cwd=str(Path(cwd).resolve());self.evidence=Path(evidence);self.model=model;self.active=None;self.ready_session=None;self.fresh=False
         self.workspace={'workspacePath':self.cwd,'workspaceKey':self.cwd}
-        self.wire=Wire(config['command'],self.cwd,{**os.environ,**config.get('environment',{})},evidence,kind,config.get('approved_commands'),config.get('_approval_context'))
+        command=list(config['command'])
+        if kind=='antigravity':
+            if 'acp' not in command or any(x.split('=')[0] in ('--login','--dangerously-skip-permissions') for x in command):raise ProtocolError('节点只使用非交互agy acp，不登录或跳过原生权限')
+            if not any(x.split('=')[0] in ('--log-file','--cli_log_file') for x in command):command+=['--log-file',str(self.evidence/'native.log')]
+        self.wire=Wire(command,self.cwd,{**os.environ,**config.get('environment',{})},evidence,kind,config.get('approved_commands'),config.get('_approval_context'))
         try:
             if kind=='codex':
                 self.wire.call('initialize',{'clientInfo':{'name':'project-board-node','version':'1.0'},'capabilities':{'experimentalApi':False}});self.wire.notify('initialized',{})
@@ -133,9 +163,17 @@ class Runtime:
                 if not model:raise ProtocolError('DeepSeek SDK连接需要本机固定provider/model')
                 provider,modelid=model.split('/',1)
                 self.wire.call('initialize',{'cwd':self.cwd,'provider':provider,'model':modelid,'approvalRequests':True,'capabilities':{'userQuestions':True},**({'reasoningEffort':config['reasoning_effort']} if config.get('reasoning_effort') else {})})
+            elif kind=='antigravity':
+                self.capabilities=self.wire.call('initialize',{'protocolVersion':1,'clientInfo':{'name':'project-board-node','version':'1.1'},'clientCapabilities':{}})
+                if self.capabilities.get('protocolVersion')!=1 or self.capabilities.get('agentInfo',{}).get('name')!='Antigravity ACP Server':raise ProtocolError('需要实际Antigravity ACP1服务，不能代用桌面启动器')
+                self.native_version=self.capabilities['agentInfo'].get('version','unknown');self.acp_pending=None;self.failure=None
             else:raise ProtocolError('未知适配器')
         except BaseException:self.close();raise
     def models(self):
+        if self.kind=='antigravity':
+            result=self.acp_new();actual=[m['modelId'] for m in result.get('models',{}).get('availableModels',[])]
+            self.acp_candidate=result
+            return [m for m in actual if not self.config.get('models') or m in self.config['models']]
         if self.kind=='codex':
             out=[];cursor=None
             for _ in range(10):
@@ -153,7 +191,9 @@ class Runtime:
         if options:value['options']=options
         return value
     def create(self,stable_id,model):
-        if self.kind=='codex':
+        if self.kind=='antigravity':
+            result=getattr(self,'acp_candidate',None) or self.acp_new();self.acp_candidate=None;session=result['sessionId'];self.acp_options(session,model,result)
+        elif self.kind=='codex':
             out=self.wire.call('thread/start',{'cwd':self.cwd,'model':model,'approvalPolicy':'on-request','sandbox':'workspace-write','ephemeral':False});session=out['thread']['id']
         elif self.kind=='zcode':
             out=self.wire.call('session/create',{'sessionId':stable_id,'workspace':self.workspace,'mode':'edit','model':self.selection(model),'titleGenerationEnabled':False});session=out['session']['sessionId']
@@ -162,12 +202,17 @@ class Runtime:
         self.wire.sessions.add(session);self.ready_session=session;self.fresh=True;return session
     def resume(self,session,model):
         if self.ready_session==session:return
-        if self.kind=='codex':self.wire.call('thread/resume',{'threadId':session,'cwd':self.cwd,'model':model,'approvalPolicy':'on-request','sandbox':'workspace-write'})
+        if self.kind=='antigravity':
+            if not self.capabilities.get('agentCapabilities',{}).get('loadSession'):raise ProtocolError('此CLI未声明原会话加载能力')
+            result=self.wire.call('session/load',{'sessionId':session,'cwd':self.cwd,'mcpServers':[]});self.acp_options(session,model,result)
+        elif self.kind=='codex':self.wire.call('thread/resume',{'threadId':session,'cwd':self.cwd,'model':model,'approvalPolicy':'on-request','sandbox':'workspace-write'})
         elif self.kind=='zcode':self.wire.call('session/resume',{'sessionId':session,'workspace':self.workspace})
         else:self.wire.call('session/resume',{'sessionId':session})
         self.wire.sessions.add(session);self.ready_session=session;self.fresh=False
     def busy(self,session):
         if self.wire.dead:raise Uncertain('原运行时已退出，需先核对原会话')
+        if self.kind=='antigravity':
+            with self.wire.lock:return self.acp_busy(session)
         if self.kind=='codex':
             if self.active:
                 terminal=next((e for e in reversed(self.wire.events) if e.get('method')=='turn/completed' and e.get('params',{}).get('turn',{}).get('id')==self.active),None)
@@ -194,7 +239,9 @@ class Runtime:
         self.resume(session,model)
         if self.busy(session):raise Busy('原会话仍忙碌，通知留队，不打断或重建')
         self.wire.events[:]=[e for e in self.wire.events if e.get('method')!='approval_required']
-        if self.kind=='codex':
+        if self.kind=='antigravity':
+            self.acp_pending=self.wire.submit('session/prompt',{'sessionId':session,'prompt':[{'type':'text','text':content}]});self.active=job;self.fresh=False
+        elif self.kind=='codex':
             out=self.wire.call('turn/start',{'threadId':session,'input':[{'type':'text','text':content}],'model':model,'clientUserMessageId':job});self.active=out['turn']['id'];self.fresh=False
         elif self.kind=='zcode':
             try:self.wire.call('session/send',{'sessionId':session,'content':content,'inputId':job,'modelSelection':self.selection(model)})
@@ -204,10 +251,39 @@ class Runtime:
             self.active=job
         else:self.wire.call('session/prompt',{'sessionId':session,'contentBlocks':[{'type':'text','text':content}]});self.active=job
     def stop(self,session):
-        if self.kind=='codex':
+        if self.kind=='antigravity':
+            if session not in self.wire.sessions:raise ProtocolError('只能取消本适配器持有的原会话')
+            self.wire.notify('session/cancel',{'sessionId':session})
+        elif self.kind=='codex':
             data=self.wire.call('thread/read',{'threadId':session,'includeTurns':True})['thread'];turn=next((x for x in reversed(data.get('turns',[])) if x.get('status')=='inProgress'),None)
             if turn:self.wire.call('turn/interrupt',{'threadId':session,'turnId':turn['id']})
         elif self.kind=='zcode':self.wire.call('session/stop',{'sessionId':session})
         else:raise ProtocolError('该DeepSeek SDK版本没有单会话停止方法；请在本机核对，不能假称已停止或关闭其他会话')
         return '已提交原会话停止请求，停止完成以运行时状态读回为准'
+    def acp_busy(self,session):
+        if self.failure:raise Uncertain('原ACP输入已结束但结果异常；先核对本机原会话收据')
+        if not self.acp_pending:return False
+        rid,q=self.acp_pending
+        try:response=q.get_nowait()
+        except queue.Empty:return True
+        with self.wire.lock:self.wire.waiters.pop(rid,None)
+        self.acp_pending=None
+        try:
+            result=self.wire.response(response)
+            if result.get('stopReason') not in ('end_turn','cancelled','max_tokens','max_turn_requests','refusal'):raise ProtocolError('未知ACP终止状态')
+            self.wire.events.append({'method':'board/acp_turn_completed','params':{'sessionId':session,'job':self.active,'stopReason':result['stopReason']}})
+            save(self.evidence/('turn-'+hashlib.sha256(self.active.encode()).hexdigest()+'.json'),{'session':session,'job':self.active,'stop_reason':result['stopReason'],'finished':time.time(),'task_acceptance':'not implied'})
+        except (ProtocolError,Uncertain) as exc:
+            self.failure=type(exc).__name__;save(self.evidence/'uncertain.json',{'session':session,'job':self.active,'error':self.failure,'at':time.time()});raise Uncertain('ACP输入结果异常，核对原会话，不自动重放') from None
+        self.active=None;return False
+    def acp_new(self):
+        result=self.wire.call('session/new',{'cwd':self.cwd,'mcpServers':[]})
+        if not isinstance(result.get('sessionId'),str) or not result['sessionId']:raise ProtocolError('CLI未返回原生Session ID')
+        return result
+    def acp_options(self,session,model,result):
+        actual=[x.get('modelId') for x in result.get('models',{}).get('availableModels',[])]
+        if model not in actual or self.config.get('models') and model not in self.config['models']:raise ProtocolError('模型不在原生会话及本机允许清单')
+        self.wire.call('session/set_model',{'sessionId':session,'modelId':model})
+        # Never inherit a user's last auto mode into a board binding.
+        self.wire.call('session/set_mode',{'sessionId':session,'modeId':'default'})
     def close(self):self.wire.close()

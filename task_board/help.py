@@ -44,6 +44,17 @@ def github_kit():
             item=zipfile.ZipInfo(name,(2026,1,1,0,0,0));item.compress_type=zipfile.ZIP_DEFLATED;item.create_system=3;item.external_attr=0o100644<<16;z.writestr(item,data)
     return output.getvalue()
 
+
+def retrospective_kit():
+    names=('tools/retrospective_client.py','tools/task_board_client.py','docs/RETROSPECTIVE-GUIDE.md','templates/retrospective-package.json','templates/retrospective-worker.md')
+    files={n:(ROOT/n).read_bytes() for n in names};files['tools/__init__.py']=b''
+    files['MANIFEST.json']=json.dumps({n:hashlib.sha256(v).hexdigest() for n,v in files.items()},sort_keys=True,indent=2).encode()
+    output=io.BytesIO()
+    with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as z:
+        for name,data in files.items():
+            entry=zipfile.ZipInfo(name,(2026,1,1,0,0,0));entry.compress_type=zipfile.ZIP_DEFLATED;entry.create_system=3;entry.external_attr=0o100644<<16;z.writestr(entry,data)
+    return output.getvalue()
+
 def runner_kit(rollback=False):
     """Only executable client sources, never state/config/identities."""
     files={name:(ROOT/name).read_bytes() for name in ('tools/quality_runner.py','tools/task_board_client.py','tools/owned_process.py','tools/runner_process.py')}
@@ -60,6 +71,7 @@ def runner_kit(rollback=False):
             bundle.writestr(entry,data)
     return output.getvalue()
 PUBLIC_TEMPLATES=frozenset({
+    'retrospective-package.json','retrospective-worker.md',
     'stage-plan.json','stage-focus.json','stage-review.json','function-tree.json',
     'project-test-discipline.md',
     'product-requirement.json','product-defect.json','token-usage.json','session-reference.json',
@@ -81,6 +93,7 @@ PUBLIC_TEMPLATES=frozenset({
     'module-plan.json','module-review.json','planning-decision.json','milestone-plan.json','milestone-review.json','planning-enable.json',
 })
 DOCS={
+    '/help/retrospective':('Worker事后整理、补录与归档','docs/RETROSPECTIVE-GUIDE.md',False),
     '/help/stages-tree':('阶段目标、优先级与产品功能树','docs/STAGES-AND-FUNCTION-TREE.md',False),
     '/help/focus':('当前权威状态、历史与最短交付','docs/FOCUS-CONVERGENCE.md',False),
     '/help/test-instances':('项目测试实例与并发纪律','docs/TEST-INSTANCE-DISCIPLINE.md',False),

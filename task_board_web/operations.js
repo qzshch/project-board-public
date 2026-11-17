@@ -3,7 +3,7 @@
 // actual records and next permitted action. Tertiary: history. One management
 // action per panel, using existing surface/ink/secondary/muted and spacing tokens.
 const tierNames={light:'轻量',standard:'标准',strict:'严格'};
-const phaseNames={research:'调研',design:'设计',implementation:'实现',testing:'测试',review:'审核',integration:'集成',release:'发布',asset:'资产提炼',governance:'治理协调'};
+const phaseNames={research:'调研',design:'设计',implementation:'实现',testing:'测试',review:'审核',integration:'集成',release:'发布',asset:'资产提炼',governance:'治理协调',unknown:'未分类'};
 const opLabels={policy:'设置项目治理档位',assess:'核定任务风险',assess_package:'批量核定任务包风险',estimate:'登记 / 调整估算',benchmark_import:'采用已固定共享工时基准',time_change:'记录作业 / 等待 / 暂停',time_complete:'确认时间记录完整',time_correct:'校正已结束时段',time_close:'关闭遗留时段',case:'登记测试用例版本',suite:'批准自动化套件版本',case_retire:'弃用 / 撤回用例版本',test_plan:'核定任务测试计划',runner:'授权项目执行器',run_request:'申请自动化测试',run_cancel:'取消测试运行',manual_run:'记录实际手工检验',candidate:'提议资产候选版本',candidate_refine:'提炼候选资产',candidate_validate:'核验提炼结果',candidate_promote:'登记已验证私有版本',candidate_retire:'弃用候选版本',asset_feedback:'记录消费反馈'};
 const opFields={
   policy:['项目默认档位|profile','采用 / 调整依据|reason'],
@@ -45,6 +45,7 @@ function renderOperations(box){
   }
   if(ws.panel==='time'){
     const t=o.time_report;cards(box,[['申报有效投入',hours(t.work_seconds)],['等待',hours(t.wait_seconds)],['返修（投入子集）',hours(t.rework_seconds)],['治理与协调',hours(t.phases_seconds.governance||0)]]);
+    if(t.historical_work_seconds)box.append(el('p','其中事后核定补录投入：'+hours(t.historical_work_seconds)+'；保留历史范围与来源，不等于当前任务时间完整。','secondary'));
     box.append(el('p',`统计截至 ${new Date(t.as_of*1000).toLocaleString()}。投入与自然历时分别记录；空白历史不是零工时。`,'muted'));
     const refresh=el('button','刷新统计');refresh.onclick=()=>renderWorkspace();box.append(refresh);
     if(app.role!=='viewer'&&!['runner','tracker','restorer'].includes(opRole()))operationButton(box,'时间记录与估算',null);
@@ -59,6 +60,7 @@ function renderOperations(box){
     relationDetails(box,'已采用的固定共享基准',Object.entries(o.benchmarks),([alias,r])=>`${alias} → ${r.release} · ${r.available?'可用于参考':'不可用/已撤回'}\nSHA256 ${r.sha256}\n采用依据：${r.reason}`);
     relationDetails(box,'时段与校正记录',Object.entries(o.sessions),([sid,r])=>`${sid} · ${r.actor} · ${r.task}\n${r.mode} / ${phaseNames[r.phase]} · ${r.reason} · ${r.end?'已结束':'进行中'} · 校正 ${r.corrections.length} 次`);
     relationDetails(box,'估算与调整记录',Object.entries(o.estimates).flatMap(([task,rows])=>rows.map(r=>({task,...r}))),r=>`${r.task} · ${r.low} / ${r.likely} / ${r.high} 分钟\n${r.context}\n依据：${r.reason} · ${new Date(r.at*1000).toLocaleString()}`);
+    renderRetrospective(box);
   }
   if(ws.panel==='quality'){
     const running=Object.values(o.runs).filter(r=>r.status==='running'||r.status==='cancel_requested');cards(box,[['用例版本',String(Object.keys(o.cases).length)],['待执行',String(Object.values(o.runs).filter(r=>r.status==='queued').length)],['执行中',String(running.length)],['实际通过',String(Object.values(o.runs).filter(r=>r.status==='passed').length)]]);

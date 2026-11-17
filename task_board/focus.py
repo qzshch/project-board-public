@@ -26,7 +26,7 @@ def groups(items):
             notifications.append(e);continue
         key=e.get('task') or e['kind']+':'+e['id']
         row=result.setdefault(key,{'id':key,'task':e.get('task',''),'items':[], 'roles':[]})
-        role='worker' if e['kind']=='thread' and e['status']=='awaiting_worker' else 'se' if e['kind'] in ('submission','criterion','finding','implementation','draft','rule','milestone','recovery','intake','condition','template','candidate') else 'collaborators'
+        role='worker' if e['kind']=='thread' and e['status']=='awaiting_worker' else 'se' if e['kind'] in ('submission','criterion','finding','implementation','draft','rule','milestone','recovery','intake','condition','template','candidate','retrospective') else 'collaborators'
         row['items'].append({**e,'next_role':role})
         if role not in row['roles']:row['roles'].append(role)
     return {'action_groups':list(result.values()),'notifications':notifications}

@@ -383,6 +383,9 @@ class Handler(BaseHTTPRequestHandler):
             if path=='/node-kit.zip':
                 from .help import node_kit
                 return self.send(200,node_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-node.zip"'})
+            if path=='/retrospective-kit.zip':
+                from .help import retrospective_kit
+                return self.send(200,retrospective_kit(),content_type='application/zip',headers={'Content-Disposition':'attachment; filename="project-board-retrospective.zip"'})
             if path in DOCS or path in RAW_DOCS:
                 title,relative,private=DOCS[path] if path in DOCS else ('操作文档',*RAW_DOCS[path])
                 if private and (not self.server.hub or not self.identity()['global_admin']):
@@ -438,6 +441,8 @@ class Handler(BaseHTTPRequestHandler):
                         "async_flow_schema": 1,
                         "human_auth_schema": 1,
                         "orchestration_schema": 1,
+                        "orchestration_runtimes": ["codex","zcode","deepseek","antigravity"],
+                        "retrospective_schema": 1,
                         "delegation_schema": 1,
                         "project_readiness_schema": 1,
                         "workflow_schema": 1,
@@ -515,6 +520,11 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .git_onboarding import Onboarding
                 return self.send(200,Onboarding(self.store).status(query.get('repo',[''])[0]))
+            if path in ('/api/retrospectives','/api/retrospectives/head'):
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .retrospective import Retrospective
+                review=Retrospective(self.store)
+                return self.send(200,review.head(self.actor()) if path.endswith('/head') else review.listing(self.actor()))
             if path in ('/api/product','/api/usage','/api/usage/head','/api/sessions'):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 if path in ('/api/usage','/api/usage/head'):
@@ -779,6 +789,10 @@ class Handler(BaseHTTPRequestHandler):
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .git_onboarding import Onboarding
                 return self.send(201,getattr(Onboarding(self.store),path.rsplit('/',1)[1])(actor,value))
+            if path=='/api/retrospectives':
+                if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
+                from .retrospective import Retrospective
+                return self.send(201,Retrospective(self.store).apply(actor,value))
             if path=='/api/usage':
                 if not self.server.hub or not self.project:raise BoardError('请使用项目路径',404)
                 from .usage import Usage

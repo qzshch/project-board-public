@@ -3,7 +3,7 @@ import json,re,secrets,time,uuid
 from .store import BoardError,fields,text,canonical,digest
 from .projects import token_hash,project_id
 
-RUNTIMES={'codex','zcode','deepseek'}
+RUNTIMES={'codex','zcode','deepseek','antigravity'}
 def prepare(db):
     db.executescript('''
     CREATE TABLE IF NOT EXISTS orch_nodes(id TEXT PRIMARY KEY,secret TEXT,definition TEXT NOT NULL,pair TEXT,pair_expires REAL,last_seen REAL NOT NULL DEFAULT 0,capabilities TEXT NOT NULL DEFAULT '{}',enabled INTEGER NOT NULL DEFAULT 1);
@@ -89,12 +89,13 @@ class Orchestrator:
                 fields(observation,{'binding','session','status'},{'binding','session','status'})
                 row=db.execute('SELECT * FROM orch_bindings WHERE id=?',(observation['binding'],)).fetchone()
                 if not row or json.loads(row['definition'])['node']!=node['id'] or row['session']!=observation['session']:raise BoardError('只能报告本机原绑定会话',403)
-                if observation['status']!='approval_required':raise BoardError('不支持此观察状态')
-                if row['status']!='approval_required':
-                    b=json.loads(row['definition']);db.execute("UPDATE orch_bindings SET status='approval_required' WHERE id=?",(row['id'],));self.hub.audit(db,'runtime_local_approval_required',row['project'],node['id'],observation)
+                if observation['status'] not in ('approval_required','needs_recovery'):raise BoardError('不支持此观察状态')
+                if row['status']!=observation['status']:
+                    b=json.loads(row['definition']);db.execute('UPDATE orch_bindings SET status=? WHERE id=?',(observation['status'],row['id']));self.hub.audit(db,'runtime_observation',row['project'],node['id'],observation)
                     latest=db.execute("SELECT id FROM orch_jobs WHERE binding=? AND status='accepted' AND json_extract(body,'$.operation') IN ('notify','resume') ORDER BY rowid DESC LIMIT 1",(row['id'],)).fetchone();incident=latest['id'] if latest else row['session']
+                    if observation['status']=='needs_recovery' and latest:db.execute("UPDATE orch_jobs SET status='needs_recovery' WHERE id=?",(latest['id'],))
                     for se in db.execute('SELECT id,definition FROM orch_bindings WHERE project=? AND id<>?',(row['project'],row['id'])).fetchall():
-                        if json.loads(se['definition'])['role']=='se':self.enqueue(db,se['id'],'local-approval:'+row['id']+':'+incident,{'operation':'notify','kind':'runtime_approval','task':b['task'],'binding':row['id'],'summary':'原生运行时要求本机授权；先核对本机策略，不自动批准或重建会话'})
+                        if json.loads(se['definition'])['role']=='se':self.enqueue(db,se['id'],observation['status']+':'+row['id']+':'+incident,{'operation':'notify','kind':'runtime_approval' if observation['status']=='approval_required' else 'runtime_recovery','task':b['task'],'binding':row['id'],'summary':'原生运行时要求本机授权或核对异常结果；先核对原会话，不自动批准、重放或重建会话'})
             db.execute('UPDATE orch_nodes SET capabilities=?,last_seen=? WHERE id=? AND enabled=1',(canonical(caps),time.time(),node['id']));db.commit()
         return {'heartbeat':True}
     def enqueue(self,db,binding,event,body):

@@ -1,5 +1,7 @@
 # 负责人和继承 SE 操作指南
 
+[事后整理与归档](/help/retrospective)可交给Worker整理历史用量、工时与原件清单，SE集中核定；不重复入账或替代旧验收。[跨机器编排](/help/orchestration)支持Antigravity CLI作为SE/Worker，绑定真实原生会话ID并接续原会话。
+
 GitHub接入优先复用本机管理授权：按[GitHub指南](/help/github)运行[SE本机工具包](/github-kit.zip)，或手动登记server公钥后由面板核验。无需新建token、server SSH或管理员代办；项目SE身份与GitHub管理权限分别核对。
 
 阶段目标与产品功能树见[操作指南](/help/stages-tree)。聚焦阶段仅影响推荐；无真实前置的其他任务仍可领取。整理分类不修改scope或历史验收。

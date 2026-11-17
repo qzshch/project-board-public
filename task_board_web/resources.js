@@ -31,7 +31,7 @@ function resourceCard(e){
     if(app.role==='reviewer'&&(e.visibility!=='operator'||app.admin)&&e.status!=='retired'){
       resourceAction(actions,'更新登记',()=>editResource(e.id));resourceAction(actions,'停止推荐此入口',()=>retireResource(e));
     }
-  }else if(e.origin==='run_artifact'){resourceAction(actions,'查看测试与自动化',()=>selectWorkspacePanel('quality'));}
+  }else if(e.origin==='run_artifact'){resourceAction(actions,'查看测试与自动化',()=>selectWorkspacePanel('quality'));}else if(e.origin==='retrospective'){resourceAction(actions,'查看事后整理版本',()=>selectWorkspacePanel('time'));}
   else{resourceAction(actions,'查看项目知识原登记',()=>selectWorkspacePanel('overview'));if(app.role==='reviewer')resourceAction(actions,'补全分类与访问说明',()=>editResource(undefined,{...e,id:''}));}
   return card;
 }
@@ -45,7 +45,7 @@ async function renderProjectResources(box){
   const filter=el('form',undefined,'graph-controls');sectionBox.append(filter);
   const view=selectInput(filter,'资料视图','resource-view',{current:'常用参考',history:'历史快照',all:'全部资料'},resourceView.view);
   const category=selectInput(filter,'分类','resource-category',{'':'全部分类',...resourceCategories},resourceView.category);
-  const origin=selectInput(filter,'来源','resource-origin',{'':'全部来源',registered:'人工登记入口',run_artifact:'自动运行记录',knowledge:'既有项目知识'},resourceView.origin);
+  const origin=selectInput(filter,'来源','resource-origin',{'':'全部来源',registered:'人工登记入口',run_artifact:'自动运行记录',knowledge:'既有项目知识',retrospective:'事后整理归档'},resourceView.origin);
   const task=selectInput(filter,'相关任务','resource-task',{'':'整个项目',...Object.fromEntries(app.tasks.map(t=>[t.spec.id,t.spec.id]))},resourceView.task);
   const status=selectInput(filter,'状态','resource-status',{active:'有效入口',all:'含已停用历史'},resourceView.retired?'all':'active');
   const search=el('input');search.name='resource-search';search.type='search';search.placeholder='搜索位置、用途或维护者';search.setAttribute('aria-label','搜索项目资源');search.value=resourceView.q;filter.append(search);const submit=el('button','筛选资源');submit.type='submit';filter.append(submit);

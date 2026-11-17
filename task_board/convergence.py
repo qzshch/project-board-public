@@ -565,6 +565,10 @@ def workbench(store,db,v,g,ts,actor,r,now):
     def add(kind,id,title,taskid='',status='待处理',reason='',action='',seed=None):items.append({'kind':kind,'id':id,'title':title,'task':taskid,'status':status,'reason':reason,'action':action,'seed':seed or {}})
     manager_role=r in MANAGERS
     if manager_role:
+        from .retrospective import state as retrospective_state
+        for bid,batch in retrospective_state(db)[0].items():
+            version=batch['versions'][str(batch['version'])]
+            if version['status']=='pending':add('retrospective',bid,version['draft']['title'],status='待整理核定',reason='核对来源、会话、重复区间和有效工时后纳入统计；原任务验收保持')
         for ref,d in v['cv_drafts'].items():
             if d['status']=='draft':add('draft',ref,d['title'],status='待规划预览 / 批准',reason='相关修改集中核对后一次原子发布')
         for ref,rule in v['cv_rules'].items():

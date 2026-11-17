@@ -1,0 +1,20 @@
+{
+  "project_id": "replace-with-current-project",
+  "draft": {
+    "id": "history-batch-one",
+    "version": 1,
+    "title": "本项目历史用量、工时与证据整理",
+    "summary": "填写实际整理范围、来源及核对方法；尚未证明的完整性保持未知",
+    "period": {"start": 1, "end": 2},
+    "archive": {
+      "path": "G:/your-project/local-archives/history/MANIFEST.json",
+      "sha256": "REPLACE_WITH_ACTUAL_SHA256",
+      "kind": "local",
+      "machine": "actual-tailscale-machine",
+      "access": "本项目本机文件权限；其他机器按SE授权的NAS副本入口访问",
+      "retention": "保留原件和历次整理清单，未经保留策略核定不删除"
+    },
+    "missing": ["填写真实缺失、未知归属和无法读取的材料；不要填零"],
+    "entries": []
+  }
+}

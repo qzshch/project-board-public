@@ -160,18 +160,21 @@ class Directory:
         from .operations import load as operations_load
         with self.store.connection() as db:
             db.execute('BEGIN');g=load(db);op=operations_load(db);ts=tasks(db)
+            from .retrospective import archive_entries
+            archives=archive_entries(db)
         role,operator=audience(actor,g,operator)
         registered=list(filtered(g,role,operator).values())
         known=knowledge_records(g)
         known=[e for e in known if not any(r['status']=='active' and r['integrity']['sha256']==e['integrity']['sha256'] and any(loc['location']==e['locations'][0]['location'] for loc in r['locations']) for r in registered)]
-        entries=registered+known+run_records(op,g)
+        archives=[e for e in archives if not any(r['status']=='active' and r['integrity']['sha256']==e['integrity']['sha256'] and any(loc['location']==e['locations'][0]['location'] for loc in r['locations']) for r in registered)]
+        entries=registered+known+run_records(op,g)+archives
         return g,entries,ts,role,operator
 
     def listing(self,actor=None,operator=False,query=None,brief_task=None):
         g,rows,tasks,_,_=self.context(actor,operator);query=query or {};get=lambda k,d='':query.get(k,[d])[0]
         task_id=brief_task or get('task');category=get('category');origin=get('origin');needle=get('q').casefold()
         if category and category not in CATEGORIES:raise BoardError('分类无效')
-        if origin and origin not in ('registered','run_artifact','knowledge'):raise BoardError('来源无效')
+        if origin and origin not in ('registered','run_artifact','knowledge','retrospective'):raise BoardError('来源无效')
         if task_id and task_id not in tasks:raise BoardError('本项目任务不存在',404)
         if len(needle)>300:raise BoardError('搜索过长')
         if task_id:

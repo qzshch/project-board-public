@@ -1,5 +1,7 @@
 # 公告板接手与使用入口
 
+[Worker事后整理与归档](/help/retrospective)：按项目提交历史用量、有效工时和证据清单，由SE核定后纳入统计，保留版本、缺失与归档入口。[跨机器编排](/help/orchestration)已包含Antigravity CLI的SE/Worker双角色、原生会话ID与同会话接续；节点工具包需同步更新。
+
 仓库只读接入优先按[GitHub指南](/help/github)使用[SE本机工具包](/github-kit.zip)：复用已有gh/Git管理授权登记server公钥，server独立核验。无需每次创建token或请管理员代办；单仓库临时授权仅为可选兼容方式。
 
 [阶段目标与功能树](/help/stages-tree)：产品目标、固定基线与逐项阶段检验；按产品功能展开现有任务。聚焦阶段只影响优先级推荐，不自动阻止其他无前置任务；分类调整不改任务scope或旧验收。

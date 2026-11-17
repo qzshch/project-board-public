@@ -19,7 +19,7 @@ function pFields(){
  product_change_decide:[...base,['change','变更ID'],['decision','决定','select',{approve:'批准',defer:'暂缓',reject:'不采纳'}],['impact_hash','已核定影响快照SHA256'],['migration','接口、测试、资产与里程碑影响核定及迁移办法','text'],reason],
  defect_retest:[...base,['input_anchor','精确修复输入 git:完整SHA'],['environment','实际复测环境'],['runs','真实运行ID，每行一项','lines'],['result','复测结论','select',{passed:'通过',failed:'失败'}],['evidence','复测证据：位置 | SHA256','evidence'],reason],defect_reopen:[...base,reason],
  finding_promote:[['finding','原finding ID'],['id','项目缺陷ID'],reason],
- session_register:[['id','不可覆盖的引用ID','id'],['session','原生Session ID，未知留空'],['runtime','运行系统：codex / zcode / deepseek等'],['model','实际模型路由，未知留空'],['machine','机器 / Tailscale名称'],['role','角色','select',{worker:'Worker',se:'SE',reviewer:'审核',researcher:'调研'}],['tasks','本项目任务ID，每行一项；SE协调可空','lines'],['previous','前一条会话引用ID；首次留空'],['status','状态','select',{unknown:'未知',active:'工作中',waiting:'等待',completed:'已结束',interrupted:'中断'}],['attempt','尝试ID；普通任务留空'],['locator','本机工作根 / 查找说明，不填凭据']]
+ session_register:[['id','不可覆盖的引用ID','id'],['session','原生Session ID，未知留空'],['runtime','运行系统：codex / zcode / deepseek / antigravity等'],['model','实际模型路由，未知留空'],['machine','机器 / Tailscale名称'],['role','角色','select',{worker:'Worker',se:'SE',reviewer:'审核',researcher:'调研'}],['tasks','本项目任务ID，每行一项；SE协调可空','lines'],['previous','前一条会话引用ID；首次留空'],['status','状态','select',{unknown:'未知',active:'工作中',waiting:'等待',completed:'已结束',interrupted:'中断'}],['attempt','尝试ID；普通任务留空'],['locator','本机工作根 / 查找说明，不填凭据']]
  });
 }
 function pButton(box,label,fn){const b=el('button',label);b.type='button';b.onclick=fn;box.append(b);return b;}
@@ -77,6 +77,40 @@ async function renderSessionRegistry(box,task=''){
  const project=app.project,generation=app.generation,sec=section('Agent 原生会话目录');box.append(sec);
  try{const data=await api('/api/sessions');if(project!==app.project||generation!==app.generation||!sec.isConnected)return;
  const rows=[...data.managed.map(b=>({...b,id:b.id,tasks:b.task?[b.task]:[],machine:b.node,kind:'托管',previous:'',actor:b.actor})),...Object.values(data.attempts).map(s=>({...s,tasks:[s.task],runtime:s.tool,kind:'尝试引用'})),...Object.values(data.references).map(s=>({...s,kind:'外部登记'}))].filter(s=>!task||s.tasks.includes(task));
- sec.append(el('p','原生 Session ID 用于回到 Codex / Zcode / Harness 查找。引用ID、绑定ID和传输ID分别保留；外部登记不授予控制权。','secondary'));const q=filterInput('搜索 Session ID、机器、运行系统、角色、任务…'),{wrap,body}=table(['原生 Session ID','系统 / 机器','角色 / 模型','项目任务','关联 / 接续','状态']);sec.append(q,wrap);const draw=()=>{body.replaceChildren();for(const s of rows.filter(s=>JSON.stringify(s).toLowerCase().includes(q.value.toLowerCase()))){const tr=el('tr'),id=el('td');id.append(el('code',s.session||'未知 / 尚未返回原生ID'));if(s.session)pButton(id,'复制ID',async()=>{try{await copyProjectText(s.session);notice('已复制原生 Session ID');}catch(e){notice('请选中完整ID复制：'+s.session);}});tr.append(id);for(const value of [(s.runtime||'未知')+' / '+(s.machine||'未知'),(s.role||'未登记')+' / '+(s.model||'未知'),s.tasks.join('、')||'SE项目协调',s.kind+' · '+s.id+(s.attempt?' · 尝试 '+s.attempt:'')+(s.previous?' ← '+s.previous:''),s.status||'未知'])tr.append(el('td',value));body.append(tr);}};q.oninput=draw;draw();if(!rows.length)sec.append(el('p','尚无关联会话。创建托管会话或登记已有会话；未知保持未知。','empty'));if(wfWriter()){pFields();wfButton(sec,'session_register',null,{tasks:task?[task]:[],runtime:'codex',machine:'',status:'unknown',session:'',previous:'',role:'worker'});}pButton(sec,'导出会话目录',()=>aDownload(project+'-sessions.json',rows));
+ sec.append(el('p','原生 Session ID 用于回到 Codex / Zcode / Harness / Antigravity 查找。引用ID、绑定ID和传输ID分别保留；外部登记不授予控制权。','secondary'));const q=filterInput('搜索 Session ID、机器、运行系统、角色、任务…'),{wrap,body}=table(['原生 Session ID','系统 / 机器','角色 / 模型','项目任务','关联 / 接续','状态']);sec.append(q,wrap);const draw=()=>{body.replaceChildren();for(const s of rows.filter(s=>JSON.stringify(s).toLowerCase().includes(q.value.toLowerCase()))){const tr=el('tr'),id=el('td');id.append(el('code',s.session||'未知 / 尚未返回原生ID'));if(s.session)pButton(id,'复制ID',async()=>{try{await copyProjectText(s.session);notice('已复制原生 Session ID');}catch(e){notice('请选中完整ID复制：'+s.session);}});tr.append(id);for(const value of [(s.runtime||'未知')+' / '+(s.machine||'未知'),(s.role||'未登记')+' / '+(s.model||'未知'),s.tasks.join('、')||'SE项目协调',s.kind+' · '+s.id+(s.attempt?' · 尝试 '+s.attempt:'')+(s.previous?' ← '+s.previous:''),s.status||'未知'])tr.append(el('td',value));body.append(tr);}};q.oninput=draw;draw();if(!rows.length)sec.append(el('p','尚无关联会话。创建托管会话或登记已有会话；未知保持未知。','empty'));if(wfWriter()){pFields();wfButton(sec,'session_register',null,{tasks:task?[task]:[],runtime:'codex',machine:'',status:'unknown',session:'',previous:'',role:'worker'});}pButton(sec,'导出会话目录',()=>aDownload(project+'-sessions.json',rows));
  }catch(e){sec.append(el('p',e.message,'notice'));}
+}
+
+async function renderRetrospective(box){
+ const project=app.project,generation=app.generation,sec=section('事后整理与归档');sec.classList.add('retrospective-section');box.append(sec);
+ sec.append(el('p','Worker按项目整理历史用量、明确申报的工时和证据，提交后由SE核定。待审核版本不计入统计；原件留本地/NAS，缺失保持未知。','secondary'));
+ const help=el('a','Worker整理说明');help.href='/help/retrospective';help.target='_blank';sec.append(help);
+ if(wfWriter())pButton(sec,'提交整理草案',()=>retrospectiveImport(project));
+ try{const data=await api('/api/retrospectives');if(project!==app.project||generation!==app.generation||!sec.isConnected)return;
+ for(const b of Object.values(data.batches).reverse()){
+  const v=b.versions[String(b.version)],d=v.draft,row=el('details');row.dataset.retrospective=b.id;
+  row.append(el('summary',`${d.title} · v${b.version} · ${{pending:'待SE核定',approved:'已核定归档',rejected:'退回整理'}[v.status]}${b.approved_version&&b.approved_version!==b.version?' · 统计仍使用v'+b.approved_version:''}`));
+  row.append(el('p',`${new Date(d.period.start*1000).toLocaleString()} — ${new Date(d.period.end*1000).toLocaleString()}\n整理者 ${v.author} · ${d.summary}`,'detail-text'),el('p',`归档入口：${d.archive.machine} · ${d.archive.path}\n访问：${d.archive.access}\n保留：${d.archive.retention}`,'detail-text'),el('p','缺失 / 待核对：'+(d.missing.join('；')||'整理者未声明缺失，不代表全量覆盖'),'secondary'));
+  const {wrap,body}=table(['类型 / ID','任务 / 范围','执行者 / 原生会话','区间 / 依据']);for(const e of d.entries){const tr=el('tr');for(const value of [e.kind+' · '+e.id,(e.task||'项目协调 / 未归因')+' · v'+e.scope_version,e.actor+' · '+(e.session||'未登记'),`${new Date(e.start*1000).toLocaleString()} — ${new Date(e.end*1000).toLocaleString()}\n${e.reason}`])tr.append(el('td',value));body.append(tr);}row.append(wrap);
+  if(v.reason)row.append(el('p',`SE核定：${v.reviewer} · ${v.reason}`,'detail-text'));
+  if(wfManager()&&v.status==='pending'){for(const [decision,label]of [['approved','核对并纳入统计'],['rejected','退回整理']])pButton(row,label,()=>retrospectiveDecision(project,b,v,decision));}
+  pButton(row,'下载版本与证据索引',()=>aDownload(project+'-'+b.id+'-versions.json',b));sec.append(row);
+ }if(!Object.keys(data.batches).length)sec.append(el('p','暂无整理批次。仅在需要补录或收尾时使用，不要求普通任务逐张填写。','empty'));
+ }catch(error){sec.append(el('p',error.message,'notice'));}
+}
+
+function retrospectiveImport(project){
+ const body=$('detail-body');body.replaceChildren();app.selected=null;$('detail-title').textContent='提交事后整理草案';$('detail-kind').textContent='ARCHIVE';$('stale').hidden=true;
+ const form=el('form',undefined,'review-form'),file=aInput(form,'archive','Worker生成的本项目整理包（JSON）','','file');file.accept='.json,application/json';
+ const preview=el('p','选择文件后核对项目、时间段和条目数；原件不会上传。','secondary');form.append(preview);let pack;
+ file.onchange=async()=>{pack=null;try{if(!file.files[0]||file.files[0].size>512*1024)throw new Error('请选择不超过512KiB的元数据整理包');const value=JSON.parse(await file.files[0].text());if(value.project_id!==project||!value.draft)throw new Error('整理包不属于当前项目');pack=value;preview.textContent=`项目 ${project} · ${pack.draft.title} · v${pack.draft.version}\n${pack.draft.entries.length} 条补录 · ${pack.draft.missing.length} 项缺失\n${pack.draft.archive.path}`;}catch(error){preview.textContent=error.message;}};
+ aSubmit(form,'提交待SE核定',async result=>{if(project!==app.project||!pack)throw new Error('请核对当前项目和整理包');await api('/api/retrospectives',{request_id:requestId(),project_id:project,action:'submit',payload:pack.draft});result.textContent='已提交，尚未改变统计。';$('detail').close();ws.signature=null;await refreshWorkspace(app.generation);});body.append(form);if(!$('detail').open)$('detail').showModal();
+}
+
+function retrospectiveDecision(project,b,v,decision){
+ const body=$('detail-body');body.replaceChildren();app.selected=null;$('detail-title').textContent=decision==='approved'?'核对整理并纳入统计':'退回事后整理';$('detail-kind').textContent='ARCHIVE REVIEW';$('stale').hidden=true;
+ body.append(el('p',`${v.draft.title} · ${b.id} · v${b.version}\n请核对原件、会话归属、累计基线、有效工时和重复记录。核定不代表任务验收或真实账单确认。`,'detail-text'));
+ const details=el('details');details.append(el('summary','查看补录计数、工时与原件摘要'),el('pre',JSON.stringify(v.draft,null,2)));body.append(details);
+ const form=el('form',undefined,'review-form'),reason=aInput(form,'reason','核对依据 / 退回原因');
+ aSubmit(form,decision==='approved'?'确认本版本补录':'退回本版本',async result=>{if(project!==app.project)throw new Error('项目已切换，请重新核对');await api('/api/retrospectives',{request_id:requestId(),project_id:project,action:'decide',payload:{id:b.id,version:b.version,draft_hash:v.hash,decision,reason:reason.value}});result.textContent='已保存核定。';$('detail').close();ws.signature=null;await refreshWorkspace(app.generation);});body.append(form);if(!$('detail').open)$('detail').showModal();
 }

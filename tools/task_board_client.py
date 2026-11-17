@@ -201,7 +201,7 @@ class Client:
         # Only these server journals bind request_id to the exact body. Account
         # setup, tickets and session creation are deliberately not replayed.
         endpoint=path.split('?',1)[0].rsplit('/',1)[-1]
-        replayable=payload is None or type(payload) is dict and bool(payload.get('request_id')) and endpoint in {'events','governance','operations','se-start','worker-join','bootstrap','orchestration'}
+        replayable=payload is None or type(payload) is dict and bool(payload.get('request_id')) and endpoint in {'events','governance','operations','se-start','worker-join','bootstrap','orchestration','retrospectives'}
         for attempt in range(3 if replayable else 1):
             try:
                 with self.opener.open(Request(target,data=body,headers=headers),timeout=timeout) as response:return json.load(response)

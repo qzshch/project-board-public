@@ -59,7 +59,7 @@ class Node:
             runtime=None;project=next(iter(self.config['projects'].values()));root=next(iter(project['roots'].values()))
             try:
                 runtime=Runtime(kind,config,root,self.home/'probe'/kind,next(iter(config.get('models',[])),None));models=runtime.models()
-                self.caps[kind]={'ready':bool(models),'version':config['version'],'models':models,'roots':{pid:list(p['roots']) for pid,p in self.config['projects'].items()},'reason':'真实协议握手与模型路由核对；Zcode所选模型含连通检查' if models else '未发现可派发模型'}
+                self.caps[kind]={'ready':bool(models),'version':getattr(runtime,'native_version',config['version']),'models':models,'roots':{pid:list(p['roots']) for pid,p in self.config['projects'].items()},'reason':'真实协议握手与模型路由核对；Zcode含连通检查；Antigravity模型发现不代表每个路由已实跑' if models else '未发现可派发模型'}
             except (OSError,ProtocolError,ValueError,KeyError) as exc:
                 save(self.home/'probe'/kind/'failure.json',{'type':type(exc).__name__,'detail':str(exc),'at':time.time()})
                 self.caps[kind]={'ready':False,'version':config.get('version','unknown'),'models':[],'roots':{},'reason':type(exc).__name__+'：探测未通过，详见本机私有probe报告'}
@@ -71,6 +71,10 @@ class Node:
         if not p or b['root'] not in p['roots'] or not runtime or b['model'] not in self.caps.get(b['runtime'],{}).get('models',[]):raise ProtocolError('远端选择超出本机项目、根或模型授权')
         if b['role'] not in p['roles']:raise ProtocolError('本机未允许该项目角色')
         return p,runtime,Path(p['roots'][b['root']]).resolve()
+    def occupied(self,driver):
+        if not driver.ready_session:return False
+        try:return driver.busy(driver.ready_session)
+        except (ProtocolError,Uncertain):return True
     def profile(self,b,p):
         if b['role']=='se':
             path=Path(p['se_profile']).resolve();profile=read(path)
@@ -123,6 +127,11 @@ class Node:
         with self.lock:current=self.current
         for key,driver in list(self.drivers.items()):
             if current and current['binding']['id']==key:continue
+            if driver.kind=='antigravity' and driver.ready_session:
+                try:driver.busy(driver.ready_session)
+                except (ProtocolError,Uncertain):
+                    if self.acknowledged_sessions.get(key)==driver.ready_session:observations.append({'binding':key,'session':driver.ready_session,'status':'needs_recovery'})
+                    continue
             if driver.ready_session and self.acknowledged_sessions.get(key)==driver.ready_session and any(e.get('method')=='approval_required' for e in driver.wire.events):observations.append({'binding':key,'session':driver.ready_session,'status':'approval_required'})
         return self.client.call('/api/node/heartbeat',{'capabilities':self.caps,'observations':observations})
     def execute(self,job):
@@ -148,11 +157,13 @@ class Node:
             if session:self.acknowledged_sessions[b['id']]=session
             if not bound:save(binding_path,{'identity':identity,'session':None,'created':time.time()})
             driver=self.drivers.get(b['id'])
+            if driver and b['runtime']=='antigravity' and operation=='resume' and getattr(driver,'failure',None):
+                driver.close();self.drivers.pop(b['id']);driver=None
             if not driver:
-                active=sum(1 for d in self.drivers.values() if d.ready_session and d.busy(d.ready_session))
+                active=sum(1 for d in self.drivers.values() if self.occupied(d))
                 if active>=self.config['max_parallel']:raise Busy('达到本机并行上限，动作仍在原队列')
                 if len(self.drivers)>=self.config['max_parallel']:
-                    victim=next((key for key,d in self.drivers.items() if not d.ready_session or not d.busy(d.ready_session)),None)
+                    victim=next((key for key,d in self.drivers.items() if not self.occupied(d)),None)
                     if victim:removed=self.drivers.pop(victim);removed.close()
                 local_config={**config,'_approval_context':{'project':b['project'],'role':b['role'],'binding':b['id']},'environment':{**config.get('environment',{}),'PROJECT_BOARD_PROFILE':str(profile),'PROJECT_BOARD_PROJECT':b['project']}}
                 driver=Runtime(b['runtime'],local_config,root,self.home/'processes'/b['id']/uuid.uuid4().hex,b['model']);self.drivers[b['id']]=driver
@@ -160,7 +171,7 @@ class Node:
             # and actor attribution. Existing sessions start with a baseline.
             driver.wire.usage_sink=lambda frame,b=dict(b),driver=driver:self.usage_spool.capture(frame,b,driver.ready_session or '',getattr(driver,'usage_created',False))
             if operation not in ('stop','create'):
-                active=sum(1 for key,d in self.drivers.items() if key!=b['id'] and d.ready_session and d.busy(d.ready_session))
+                active=sum(1 for key,d in self.drivers.items() if key!=b['id'] and self.occupied(d))
                 if active>=self.config['max_parallel']:raise Busy('达到本机模型并行上限，输入保留在原队列')
             content=self.prompt(job,profile,client) if operation!='stop' and operation!='create' else ''
             record.update(status='attempting');save(path,record)
@@ -168,7 +179,8 @@ class Node:
                 session=driver.create('board-'+uuid.uuid5(uuid.NAMESPACE_URL,self.client.url+'|'+self.config['id']+'|'+b['project']+'|'+b['id']).hex,b['model']);driver.usage_created=True;save(binding_path,{'identity':identity,'session':session,'created':time.time()});record.update(session=session);save(path,record);summary='真实会话已创建；首条任务输入另有持久工作单'
             elif not session:raise ProtocolError('没有原会话，不能替换创建')
             elif operation=='stop':summary=driver.stop(session)
-            else:driver.send(session,b['model'],content,job['job']);summary='原会话已接收输入；任务交付与验收尚待公告板真实记录'
+            else:
+                driver.send(session,b['model'],content,job['job']);summary='ACP输入已写入原进程；逐轮结果待本机收据，任务尚未验收' if b['runtime']=='antigravity' else '原会话已接收输入；任务交付与验收尚待公告板真实记录'
             record.update(status='accepted',summary=summary)
         except Busy as exc:record.update(status='busy',summary=str(exc))
         except (Uncertain,TimeoutError) as exc:record.update(status='needs_recovery',summary=str(exc))

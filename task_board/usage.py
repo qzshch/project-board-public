@@ -38,6 +38,13 @@ class Usage:
         return {'revision':row['seq'] if row else 0,'head':row['hash'] if row else '0'*64}
 
     def append(self,actor,p):
+        with self.store.connection() as db:
+            db.execute('BEGIN IMMEDIATE')
+            result=self.append_in(db,actor,p)
+            db.commit();return result
+
+    def append_in(self,db,actor,p,historical=None):
+        """One project transaction; historical subject is explicit and SE-audited."""
         from .governance import role, tasks
         from .operations import load
         fields(p,{'sample','revision','session','task','phase','model','source','mode','epoch','ordinal','from_start','occurred','counters','origin','attribution'}, {'sample','revision','session','task','phase','model','source','mode','epoch','ordinal','from_start','occurred','counters','origin'})
@@ -52,42 +59,50 @@ class Usage:
         fields(p['origin'],{'path','sha256'},{'path','sha256'});text(p['origin']['path'],'本地受控来源',1000)
         import re
         if not re.fullmatch('[0-9a-f]{64}',str(p['origin']['sha256'])):raise BoardError('来源摘要无效')
-        with self.store.connection() as db:
-            db.execute('BEGIN IMMEDIATE');r=role(db,actor)
-            if r in ('viewer','tracker','runner','restorer'):raise BoardError('此身份不能上报模型用量',403)
-            if p['task']:
-                t=tasks(db).get(p['task'])
-                if not t:raise BoardError('本项目任务不存在',404)
-            elif r not in ('owner','se','reviewer'):raise BoardError('项目协调用量需SE身份',403)
-            v=load(db);refs=[*v.get('session_registry',{}).values(),*v.get('cv_sessions',{}).values()]
-            session=next((x for x in refs if x.get('session')==p['session'] and x.get('actor')==actor['id']),None)
-            hub=self.store.registry.hub
-            with hub.connection() as catalog:
-                managed=catalog.execute('SELECT definition FROM orch_bindings WHERE project=? AND actor=? AND session=?',(self.store.registry.project,actor['id'],p['session'])).fetchone()
-            if managed:
-                bound=json.loads(managed['definition']);session={'session':p['session'],'actor':actor['id'],'tasks':[bound['task']] if bound.get('task') else []}
-            if not session:raise BoardError('先登记属于本项目和本身份的原生Session ID',409)
-            allowed=session.get('tasks',[session.get('task')])
-            if p['task'] and p['task'] not in allowed:raise BoardError('会话不属于上报任务',403)
-            # The immutable owned session records its original task authority.
-            # Late usage may arrive after assignment changes; it grants no
-            # execution, submission or review rights on that task.
-            old=db.execute('SELECT * FROM token_usage WHERE actor=? AND sample=? AND revision=?',(actor['id'],p['sample'],p['revision'])).fetchone()
-            if old:
-                if json.loads(old['payload'])['observation']!=p:raise BoardError('样本ID/版本绑定其他内容',409)
-                return {'seq':old['seq'],'hash':old['hash'],'replayed':True}
-            latest=db.execute('SELECT * FROM token_usage WHERE actor=? AND sample=? ORDER BY revision DESC LIMIT 1',(actor['id'],p['sample'])).fetchone()
-            if not latest:
-                prior=db.execute("SELECT payload FROM token_usage WHERE actor=? AND json_extract(payload,'$.observation.session')=? AND json_extract(payload,'$.observation.source')=? LIMIT 1",(actor['id'],p['session'],p['source'])).fetchone()
-                if prior and json.loads(prior['payload'])['observation']['mode']!=p['mode']:raise BoardError('同一会话来源不可同时累计与逐调用相加；选择一种口径',409)
-                if p['mode']=='cumulative' and db.execute("SELECT 1 FROM token_usage WHERE actor=? AND json_extract(payload,'$.observation.session')=? AND json_extract(payload,'$.observation.source')=? AND json_extract(payload,'$.observation.epoch')=? AND json_extract(payload,'$.observation.ordinal')=? LIMIT 1",(actor['id'],p['session'],p['source'],p['epoch'],p['ordinal'])).fetchone():raise BoardError('累计流次序已存在，使用原样本修订',409)
-            if latest:
-                before=json.loads(latest['payload'])['observation']
-                if p['revision']!=latest['revision']+1 or any(before[k]!=p[k] for k in ('session','task','mode','epoch','ordinal','source')):raise BoardError('样本修订需接续原归属和版本',409)
-            elif p['revision']!=1:raise BoardError('新样本从版本1开始',409)
-            last=db.execute('SELECT seq,hash FROM token_usage ORDER BY seq DESC LIMIT 1').fetchone();seq=last['seq']+1 if last else 1;prev=last['hash'] if last else '0'*64
-            event={'observation':p,'received':time.time()};h=digest({'seq':seq,'actor':actor['id'],'event':event,'previous':prev})
-            db.execute('INSERT INTO token_usage VALUES(?,?,?,?,?,?,?)',(seq,actor['id'],p['sample'],p['revision'],canonical(event),prev,h));db.commit();return {'seq':seq,'hash':h}
+        r=role(db,actor)
+        subject=actor['id']
+        if historical:
+            from .operations import manager
+            manager(r)
+            if p['source']!='imported' or p['mode']!='call':raise BoardError('历史补录仅接收已核对的导入增量')
+            subject=historical['subject_actor']
+        if r in ('viewer','tracker','runner','restorer'):raise BoardError('此身份不能上报模型用量',403)
+        if p['task']:
+            t=tasks(db).get(p['task'])
+            if not t:raise BoardError('本项目任务不存在',404)
+        elif r not in ('owner','se','reviewer'):raise BoardError('项目协调用量需SE身份',403)
+        v=load(db);refs=[*v.get('session_registry',{}).values(),*v.get('cv_sessions',{}).values()]
+        session=next((x for x in refs if x.get('session')==p['session'] and x.get('actor')==subject),None)
+        hub=self.store.registry.hub
+        with hub.connection() as catalog:
+            managed=catalog.execute('SELECT definition FROM orch_bindings WHERE project=? AND actor=? AND session=?',(self.store.registry.project,subject,p['session'])).fetchone()
+        if managed:
+            bound=json.loads(managed['definition']);session={'session':p['session'],'actor':subject,'tasks':[bound['task']] if bound.get('task') else []}
+        if not session:raise BoardError('先登记属于本项目和本身份的原生Session ID',409)
+        allowed=session.get('tasks',[session.get('task')])
+        if p['task'] and p['task'] not in allowed:raise BoardError('会话不属于上报任务',403)
+        # The immutable owned session records its original task authority.
+        # Late usage may arrive after assignment changes; it grants no
+        # execution, submission or review rights on that task.
+        old=db.execute('SELECT * FROM token_usage WHERE actor=? AND sample=? AND revision=?',(subject,p['sample'],p['revision'])).fetchone()
+        if old:
+            if json.loads(old['payload'])['observation']!=p:raise BoardError('样本ID/版本绑定其他内容',409)
+            return {'seq':old['seq'],'hash':old['hash'],'replayed':True}
+        latest=db.execute('SELECT * FROM token_usage WHERE actor=? AND sample=? ORDER BY revision DESC LIMIT 1',(subject,p['sample'])).fetchone()
+        if not latest:
+            prior=db.execute("SELECT payload FROM token_usage WHERE actor=? AND json_extract(payload,'$.observation.session')=? AND json_extract(payload,'$.observation.source')=? LIMIT 1",(subject,p['session'],p['source'])).fetchone()
+            if prior and json.loads(prior['payload'])['observation']['mode']!=p['mode']:raise BoardError('同一会话来源不可同时累计与逐调用相加；选择一种口径',409)
+            if p['mode']=='cumulative' and db.execute("SELECT 1 FROM token_usage WHERE actor=? AND json_extract(payload,'$.observation.session')=? AND json_extract(payload,'$.observation.source')=? AND json_extract(payload,'$.observation.epoch')=? AND json_extract(payload,'$.observation.ordinal')=? LIMIT 1",(subject,p['session'],p['source'],p['epoch'],p['ordinal'])).fetchone():raise BoardError('累计流次序已存在，使用原样本修订',409)
+        if latest:
+            before=json.loads(latest['payload'])['observation']
+            if p['revision']!=latest['revision']+1 or any(before[k]!=p[k] for k in ('session','task','mode','epoch','ordinal','source')):raise BoardError('样本修订需接续原归属和版本',409)
+        elif p['revision']!=1:raise BoardError('新样本从版本1开始',409)
+        last=db.execute('SELECT seq,hash FROM token_usage ORDER BY seq DESC LIMIT 1').fetchone();seq=last['seq']+1 if last else 1;prev=last['hash'] if last else '0'*64
+        event={'observation':p,'received':time.time()}
+        if historical:event['retrospective']={**historical,'reviewer':actor['id']}
+        h=digest({'seq':seq,'actor':subject,'event':event,'previous':prev})
+        db.execute('INSERT INTO token_usage VALUES(?,?,?,?,?,?,?)',(seq,subject,p['sample'],p['revision'],canonical(event),prev,h));return {'seq':seq,'hash':h}
+
 
     def report(self,actor):
         from .governance import role

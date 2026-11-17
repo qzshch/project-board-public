@@ -141,6 +141,8 @@ class Operations:
                 except BoardError:b['available']=False
             from .assurance import LEVELS
             v['package_assurance']={pid:{'level':max((v['effective'][t]['level'] for t in package['tasks']),key=LEVELS.get,default='light'),'tasks':package['tasks'],'all_assessed':all(v['effective'][t]['assessed'] for t in package['tasks'])} for pid,package in g['packages'].items()}
+            from .retrospective import approved_times
+            v['sessions']={**v['sessions'],**approved_times(db)}
             v['time_report']=report(v,ts,time.time(),db)
             v['suggested_cases']={k:suggestions(v,t) for k,t in ts.items()}
             for ref,suite in v['suites'].items():suite['manifest_hash']=digest(suite)

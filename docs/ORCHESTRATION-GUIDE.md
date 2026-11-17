@@ -21,13 +21,24 @@ Windows子会话能访问的工具链可能不同于当前终端。尤其Codex�
 
 项目根和节点状态放C盘外；应用既有配置与凭据不由公告板迁移。若运行时默认产生项目缓存，按该运行时的本机配置固定到项目/server目录。允许项目可登记多个根别名；SE只选择别名，不能在HTTP请求中注入磁盘路径。节点开通项目集合需要扩展时由实例维护者重新授权新节点ID，不能由项目Agent扩展。
 
-## 三种运行时分别适配
+## 四种运行时分别适配
 
 | 运行时 | 本机固定启动方式 | 模型与权限 |
 | --- | --- | --- |
 | Codex | `codex app-server` | 读取实际 `model/list`；创建及恢复固定cwd/model，使用workspace-write与原生on-request审批 |
 | Zcode | `node <已安装的zcode.cjs> app-server --surface terminal` | 其NDJSON没有jsonrpc字段；配置确切 `providerId/modelId`，通过原生连通检测才报告可用；明确使用edit模式，不采用CLI默认yolo |
 | DeepSeek Harness | `dsh --profile sdk`，或本机等效可执行argv | 官方SDK JSON-RPC协议；每个连接固定provider/model，握手必须验证路由；会话ID由接入端固定 |
+| Antigravity CLI | 已安装CLI的绝对路径加 `acp`，例如 `agy.exe acp --log-file G:/board-node/private-state/acp.log --disable-telemetry` | 官方ACP1握手，读取原生会话availableModels，与本机models允许清单取交集；使用原生sessionId，固定default模式和所选模型 |
+
+Antigravity在绑定表单中选择 `antigravity`，可作为SE或Worker。SE需在该节点的项目配置中允许se角色并提供本项目se_profile；Worker身份仍由原节点绑定流程签发。任何Tailscale电脑都可配置，不依赖当前PC路径。请先由本机维护者完成CLI登录；节点复用既有登录，不打开浏览器或替用户登录，也不把Google凭据送往server。
+
+Antigravity使用 `session/new`、`session/load`、`session/prompt` 和 `session/cancel`。记录CLI返回的原生ID，不能把公告板绑定ID当作会话ID，也不用“最近会话”接续。一个ACP prompt直到该轮结束才返回；节点保留异步请求，同会话忙碌时通知排队，避免把新通知变成对正在执行任务的steering。发送回执表示已发往原进程，不证明模型已完成或任务已验收；逐轮终止状态保留在节点私有processes目录。通信中断/未知终止状态进入待核对，不自动重放输入。
+
+Antigravity未核准的权限请求按ACP取消本次请求并通知SE。`approved_commands`只支持实际 `run_command` 的一次命令许可，必须匹配本机项目、角色、cwd、完整命令和脚本SHA；不批准Daemon、额外工作根、未知工具或always权限。原CLI中已允许的权限规则仍由本机维护者负责，default模式不构成OS文件隔离。节点不启用 `--dangerously-skip-permissions`。额外权限在原机器核对后，由SE通知原会话继续。
+
+异常先在面板和节点原始收据中核对；若输入结果为needs_recovery，SE通过原recover动作确认，再明确resume原绑定。不能换会话ID或重复派发来绕过不确定结果。取消只向本适配器持有的原会话发送，不关闭用户其他CLI或桌面会话。
+
+模型发现只证明CLI声明可用，不代表每个模型已通过实际推理。官方协议参考：[Antigravity ACP](https://antigravity.google/docs/ide/extensions/acp)。尚未识别的ACP Token字段保持缺采样；可以按[事后整理](/help/retrospective)核对显式原件，不将同一轮的逐步用量与最终累计值相加。
 
 Zcode安装版本若需要 provider 文件路径，可在本机config的 `environment` 指定 `ZCODE_BUILTIN_PROVIDER_CONFIG_FILE` 与 `ZCODE_PERSONAL_PROVIDER_CONFIG_FILE`，仅保存路径，勿复制密钥到公共模板。供应商路由名称可能留有旧配置，实际探测失败就不可派发。更换安装版本、路由或本机配置后重新探测并重启接入端。
 
@@ -96,3 +107,5 @@ SE读取 `GET /api/projects/{project}/orchestration` 查看工作单。先在原
 已有外部会话可用session_register登记并保留previous接续，未知保持未知，不能因此获得控制权。
 节点包现含usage_collector；已识别Codex累计通知写入本机持久队列，按项目绑定归因，
 断线重放同一样本。其他协议未识别字段保持缺采样，不猜测Token。详见[产品操作](/help/product)。
+
+实际ACP的usage_update.used/size表示当前上下文占用与容量，不能当累计Token消耗。节点不据此编造input/output。协议口径见[ACP v1 prompt turn](https://github.com/agentclientprotocol/agent-client-protocol/blob/main/docs/protocol/v1/prompt-turn.mdx)。未显式指定日志路径时，节点将原生日志写到本次受控进程的证据目录，避免多个会话争用同一日志。

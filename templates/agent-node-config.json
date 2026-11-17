@@ -12,6 +12,7 @@
   "runtimes": {
     "codex": {"command": ["G:/tools/codex/codex.exe", "app-server"], "version": "locally-installed-version", "environment": {}},
     "zcode": {"command": ["G:/tools/node/node.exe", "G:/tools/zcode/zcode.cjs", "app-server", "--surface", "terminal"], "version": "locally-installed-version", "models": ["actual-provider-id/actual-model-id"], "environment": {}},
-    "deepseek": {"command": ["G:/tools/dsh/dsh", "--profile", "sdk"], "version": "locally-installed-version", "models": ["actual-provider-id/actual-model-id"], "environment": {}}
+    "deepseek": {"command": ["G:/tools/dsh/dsh", "--profile", "sdk"], "version": "locally-installed-version", "models": ["actual-provider-id/actual-model-id"], "environment": {}},
+    "antigravity": {"command": ["G:/tools/agy/agy.exe", "acp", "--disable-telemetry"], "version": "discovered-by-ACP", "models": ["replace-with-native-modelId"], "environment": {}}
   }
 }
