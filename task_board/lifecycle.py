@@ -415,7 +415,7 @@ def operator_portal(state: Path, out: Path | None = None, project: str = "sample
     import html
 
     content = (
-        '<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>多项目公告板 · 管理入口</title><p><a href="'
+        '<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer"><title>WeftBoard · 管理入口</title><p><a href="'
         + html.escape(url, quote=True)
         + '">进入公告板并启用审核</a></p><p>此入口含一次性审核授权，仅供项目负责人使用，不提交Git或转发给开发Agent。</p>'
     )

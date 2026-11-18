@@ -1,5 +1,5 @@
 [Unit]
-Description=Independent Project Board on NAS
+Description=WeftBoard - Agentic Project Board
 After=network-online.target
 
 [Service]

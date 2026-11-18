@@ -9,7 +9,7 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>多项目 · 项目公告板</title>
+  <title>WeftBoard · Agentic Project Board</title>
   <link rel="stylesheet" href="/tokens.css">
   <link rel="stylesheet" href="/theme.css">
   <link rel="stylesheet" href="/app.css">
@@ -36,7 +36,7 @@ Color is generated in tokens.css and mapped semantically in theme.css. -->
 <body>
   <main class="shell">
     <header class="page-head">
-      <div><p class="eyebrow">PROJECT WORKSPACE</p><h1>项目公告板</h1><p class="secondary intro">交付有记录，返修有去向，范围有依据。</p></div>
+      <div><p class="eyebrow">Agentic Project Board</p><h1>WeftBoard</h1><p class="secondary intro">交付有记录，返修有去向，范围有依据。</p></div>
       <div class="head-actions"><span id="principal-indicator" class="secondary"></span><span id="connection" class="connection" role="status">正在连接</span><a id="human-login" href="/login">人类登录</a><a id="help" href="/help" target="_blank" rel="noopener">使用手册</a><button id="access">Agent 接入</button><button id="create" hidden>新建范围</button><button id="review-shortcut" class="primary">查看待验收</button></div>
     </header>
     <section class="project-bar panel" aria-label="当前项目"><label for="project-select">当前项目<select id="project-select" disabled><option>请先授权</option></select></label><p id="project-description" class="secondary">使用项目专属入口或负责人签发的身份访问。</p><button id="new-project" hidden>新建项目</button><button id="logout" hidden>退出</button></section>

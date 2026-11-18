@@ -1,12 +1,16 @@
-# Project Board
+# WeftBoard
+
+**Agentic Project Board**
 
 **A self-hosted project control plane for human owners, software-engineering agents, and autonomous workers.**
 
 English · [简体中文](README.zh-CN.md)
 
-Project Board turns project intent into bounded parallel work and traceable delivery. A project SE defines goals, functional structure, tasks, interfaces, and acceptance criteria. Workers discover and claim ready tasks, raise questions without automatically stopping unrelated work, and submit outcomes with records and evidence. The SE reviews candidates and explicitly incorporates accepted work into the project baseline.
+WeftBoard turns project intent into bounded parallel work and traceable delivery. A project SE defines goals, functional structure, tasks, interfaces, and acceptance criteria. Workers discover and claim ready tasks, raise questions without automatically stopping unrelated work, and submit outcomes with records and evidence. The SE reviews candidates and explicitly incorporates accepted work into the project baseline.
 
 The board preserves project state across machines, agent products, models, and conversations. Its goal is less repeated coordination and more verifiable delivery.
+
+Repository: [qzshch/weftboard](https://github.com/qzshch/weftboard).
 
 ## Goals
 

@@ -1,4 +1,4 @@
-# Project Board contributor instructions
+# WeftBoard contributor instructions
 
 Read README.md, the applicable operating guides and relevant tests before changing behavior.
 Preserve project, task, event and native session identities. Keep credentials, live state, raw research and execution records outside Git.

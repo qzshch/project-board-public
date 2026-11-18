@@ -57,7 +57,7 @@ root=Path({NAS!r});source=Path({SOURCE!r});state=root/'state'
 with socket.socket() as s:
  s.settimeout(.3);assert s.connect_ex(('127.0.0.1',24710))!=0,'NAS backend port already owned'
 unit=root/'deploy/project-board.service';unit.parent.mkdir(exist_ok=True);(root/'tmp').mkdir(exist_ok=True)
-unit.write_text('[Unit]\\nDescription=Independent Project Board on NAS\\nAfter=network-online.target\\n\\n[Service]\\nType=simple\\nWorkingDirectory='+str(source)+'\\nExecStart="'+str(root/'.venv/bin/python')+'" -B -X utf8 "'+str(source/'tools/task_board.py')+'" --state "'+str(state)+'" serve\\nRestart=on-failure\\nRestartSec=3\\nTimeoutStopSec=20\\nUMask=0077\\nEnvironment=PYTHONDONTWRITEBYTECODE=1\\nEnvironment="TMPDIR='+str(root/'tmp')+'"\\nNoNewPrivileges=yes\\n\\n[Install]\\nWantedBy=default.target\\n',encoding='utf8')
+unit.write_text('[Unit]\\nDescription=WeftBoard - Agentic Project Board\\nAfter=network-online.target\\n\\n[Service]\\nType=simple\\nWorkingDirectory='+str(source)+'\\nExecStart="'+str(root/'.venv/bin/python')+'" -B -X utf8 "'+str(source/'tools/task_board.py')+'" --state "'+str(state)+'" serve\\nRestart=on-failure\\nRestartSec=3\\nTimeoutStopSec=20\\nUMask=0077\\nEnvironment=PYTHONDONTWRITEBYTECODE=1\\nEnvironment="TMPDIR='+str(root/'tmp')+'"\\nNoNewPrivileges=yes\\n\\n[Install]\\nWantedBy=default.target\\n',encoding='utf8')
 link=Path.home()/'.config/systemd/user/project-board.service';link.parent.mkdir(parents=True,exist_ok=True)
 assert not link.exists() and not link.is_symlink(),'Unknown existing service unit'
 link.symlink_to(unit)
